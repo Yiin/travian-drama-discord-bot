@@ -10,6 +10,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.Message],
 });
@@ -29,19 +30,15 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-try {
-  client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-    try {
-      // Fetch full message if partial
-      const message = newMessage.partial ? await newMessage.fetch() : newMessage;
-      await handleTextCommand(client, message);
-    } catch (error) {
-      console.error("Error handling message edit:", error);
-    }
-  });
-} catch {
-  console.error('Missing permissions for MessageUpdate')
-}
+client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+  try {
+    // Fetch full message if partial
+    const message = newMessage.partial ? await newMessage.fetch() : newMessage;
+    await handleTextCommand(client, message);
+  } catch (error) {
+    console.error("Error handling message edit:", error);
+  }
+});
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
