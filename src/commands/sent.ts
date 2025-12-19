@@ -4,7 +4,8 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
-import { reportTroopsSent, getRequestById } from "../services/defense-requests";
+import { reportTroopsSent, getRequestById, getRequestByCoords } from "../services/defense-requests";
+import { parseCoords } from "../utils/parse-coords";
 import {
   updateGlobalMessage,
   sendTroopNotification,
@@ -12,16 +13,15 @@ import {
 import { getVillageAt } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 
-export const sentCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("sent")
+function buildSentCommand(name: string) {
+  return new SlashCommandBuilder()
+    .setName(name)
     .setDescription("Report troops sent to a defense request")
-    .addIntegerOption((option) =>
+    .addStringOption((option) =>
       option
-        .setName("id")
-        .setDescription("The defense request ID number")
+        .setName("target")
+        .setDescription("Request ID or coordinates (e.g., 1 or 123|456)")
         .setRequired(true)
-        .setMinValue(1)
     )
     .addIntegerOption((option) =>
       option
@@ -29,10 +29,11 @@ export const sentCommand: Command = {
         .setDescription("Number of troops sent")
         .setRequired(true)
         .setMinValue(1)
-    ),
+    );
+}
 
-  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const requestId = interaction.options.getInteger("id", true);
+async function executeSent(interaction: ChatInputCommandInteraction): Promise<void> {
+    const targetInput = interaction.options.getString("target", true);
     const troops = interaction.options.getInteger("troops", true);
     const guildId = interaction.guildId;
 
@@ -61,14 +62,37 @@ export const sentCommand: Command = {
       return;
     }
 
-    // Check if request exists before processing
-    const existingRequest = getRequestById(guildId, requestId);
-    if (!existingRequest) {
-      await interaction.reply({
-        content: `Request #${requestId} not found.`,
-        ephemeral: true,
-      });
-      return;
+    // Try to parse as coordinates first, then as ID
+    let requestId: number;
+    const coords = parseCoords(targetInput);
+    if (coords) {
+      const found = getRequestByCoords(guildId, coords.x, coords.y);
+      if (!found) {
+        await interaction.reply({
+          content: `No active request found at (${coords.x}|${coords.y}).`,
+          ephemeral: true,
+        });
+        return;
+      }
+      requestId = found.requestId;
+    } else {
+      const parsed = parseInt(targetInput, 10);
+      if (isNaN(parsed) || parsed < 1) {
+        await interaction.reply({
+          content: "Invalid input. Provide a request ID (e.g., 1) or coordinates (e.g., 123|456).",
+          ephemeral: true,
+        });
+        return;
+      }
+      requestId = parsed;
+      const existingRequest = getRequestById(guildId, requestId);
+      if (!existingRequest) {
+        await interaction.reply({
+          content: `Request #${requestId} not found.`,
+          ephemeral: true,
+        });
+        return;
+      }
     }
 
     // Defer reply as updating may take time (with retry for transient errors)
@@ -114,5 +138,14 @@ export const sentCommand: Command = {
     }
 
     await interaction.editReply({ content: replyMessage });
-  },
+}
+
+export const sentCommand: Command = {
+  data: buildSentCommand("sent"),
+  execute: executeSent,
+};
+
+export const stackCommand: Command = {
+  data: buildSentCommand("stack"),
+  execute: executeSent,
 };

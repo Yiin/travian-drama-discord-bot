@@ -1,8 +1,8 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  EmbedBuilder,
   TextChannel,
+  EmbedBuilder,
   Colors,
 } from "discord.js";
 import { Command } from "../types";
@@ -107,30 +107,13 @@ export const scoutCommand: Command = {
     }
 
     const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
-    const allianceDisplay = village.allianceName
-      ? ` [${village.allianceName}]`
-      : "";
 
     const embed = new EmbedBuilder()
-      .setTitle("Scout Request")
       .setColor(Colors.Blue)
-      .addFields(
-        { name: "Coordinates", value: `(${coords.x}|${coords.y})`, inline: true },
-        {
-          name: "Village",
-          value: `${village.villageName} (${village.population} pop)`,
-          inline: true,
-        },
-        {
-          name: "Player",
-          value: `${village.playerName}${allianceDisplay}`,
-          inline: true,
-        },
-        { name: "Send Scouts", value: `[Rally Point](${rallyLink})`, inline: false },
-        { name: "Message", value: message },
-        { name: "Requested by", value: `${interaction.user}`, inline: true }
+      .setDescription(
+        `(${coords.x}|${coords.y}) **${village.villageName}** (${village.playerName}) [[SEND]](${rallyLink}) - ${message}`
       )
-      .setTimestamp();
+      .setFooter({ text: `Requested by ${interaction.user.displayName}` });
 
     await channel.send({ embeds: [embed] });
 

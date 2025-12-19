@@ -5,7 +5,7 @@ import { scoutCommand } from "./scout";
 import { setchannelCommand } from "./setchannel";
 import { setserverCommand } from "./setserver";
 import { lookupCommand } from "./lookup";
-import { sentCommand } from "./sent";
+import { sentCommand, stackCommand } from "./sent";
 import { updatedefCommand } from "./updatedef";
 
 export const commands = new Collection<string, Command>();
@@ -20,4 +20,5 @@ registerCommand(setchannelCommand);
 registerCommand(setserverCommand);
 registerCommand(lookupCommand);
 registerCommand(sentCommand);
+registerCommand(stackCommand);
 registerCommand(updatedefCommand);

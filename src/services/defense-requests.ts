@@ -160,6 +160,17 @@ export function getRequestById(
   return data.requests[requestId - 1];
 }
 
+export function getRequestByCoords(
+  guildId: string,
+  x: number,
+  y: number
+): { request: DefenseRequest; requestId: number } | undefined {
+  const data = getGuildDefenseData(guildId);
+  const index = data.requests.findIndex((r) => r.x === x && r.y === y);
+  if (index === -1) return undefined;
+  return { request: data.requests[index], requestId: index + 1 };
+}
+
 export interface ReportTroopsResult {
   request: DefenseRequest;
   isComplete: boolean;
