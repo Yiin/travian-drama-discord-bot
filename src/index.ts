@@ -31,15 +31,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     console.error(`Error executing ${interaction.commandName}:`, error);
 
-    const reply = {
-      content: "There was an error while executing this command!",
-      ephemeral: true,
-    };
+    try {
+      const reply = {
+        content: "There was an error while executing this command!",
+        ephemeral: true,
+      };
 
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
-    } else {
-      await interaction.reply(reply);
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply);
+      } else {
+        await interaction.reply(reply);
+      }
+    } catch (replyError) {
+      // Interaction may have expired or already been handled
+      console.error("Failed to send error reply:", replyError);
     }
   }
 });
