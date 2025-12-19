@@ -7,6 +7,7 @@ import { parseCoords } from "../utils/parse-coords";
 import { getGuildConfig } from "../config/guild-config";
 import { addOrUpdateRequest } from "../services/defense-requests";
 import { updateGlobalMessage } from "../services/defense-message";
+import { getVillageAt, ensureMapData } from "../services/map-data";
 
 export const defCommand: Command = {
   data: new SlashCommandBuilder()
@@ -47,6 +48,15 @@ export const defCommand: Command = {
     }
 
     const config = getGuildConfig(guildId);
+    if (!config.serverKey) {
+      await interaction.reply({
+        content:
+          "Travian server not configured. An admin must run `/setserver` first.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (!config.defenseChannelId) {
       await interaction.reply({
         content:
@@ -66,8 +76,26 @@ export const defCommand: Command = {
       return;
     }
 
-    // Defer reply as updating global message may take time
+    // Defer reply as map data lookup may take time
     await interaction.deferReply({ ephemeral: true });
+
+    // Ensure map data is available
+    const dataReady = await ensureMapData(config.serverKey);
+    if (!dataReady) {
+      await interaction.editReply({
+        content: "Failed to load map data. Please try again later.",
+      });
+      return;
+    }
+
+    // Validate village exists at coordinates
+    const village = await getVillageAt(config.serverKey, coords.x, coords.y);
+    if (!village) {
+      await interaction.editReply({
+        content: `No village found at coordinates (${coords.x}|${coords.y}). Please check the coordinates and try again.`,
+      });
+      return;
+    }
 
     // Add or update the request
     const result = addOrUpdateRequest(
@@ -88,8 +116,11 @@ export const defCommand: Command = {
     await updateGlobalMessage(interaction.client, guildId);
 
     const actionText = result.isUpdate ? "updated" : "created";
+    const playerInfo = village.allianceName
+      ? `${village.playerName} [${village.allianceName}]`
+      : village.playerName;
     await interaction.editReply({
-      content: `Defense request #${result.request.id} ${actionText} for (${coords.x}|${coords.y}) - ${troopsNeeded} troops needed.`,
+      content: `Defense request #${result.request.id} ${actionText} for **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - ${troopsNeeded} troops needed.`,
     });
   },
 };

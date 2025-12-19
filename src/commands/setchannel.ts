@@ -44,6 +44,7 @@ export const setchannelCommand: Command = {
     }
 
     if (type === "defense") {
+      console.log(`[SetChannel] Setting defense channel for guild ${guildId} to ${channel.id}`);
       setDefenseChannel(guildId, channel.id);
       await interaction.reply({
         content: `Defense requests will now be sent to <#${channel.id}>`,

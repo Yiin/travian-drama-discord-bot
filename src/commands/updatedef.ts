@@ -57,9 +57,17 @@ export const updatedefCommand: Command = {
     }
 
     const config = getGuildConfig(guildId);
+    if (!config.serverKey) {
+      await interaction.reply({
+        content: "Travian server not configured. An admin must run `/setserver` first.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Defense channel not configured.",
+        content: "Defense channel not configured. An admin must run `/setchannel type:Defense` first.",
         ephemeral: true,
       });
       return;

@@ -9,6 +9,7 @@ import {
   updateGlobalMessage,
   sendTroopNotification,
 } from "../services/defense-message";
+import { getVillageAt } from "../services/map-data";
 
 export const sentCommand: Command = {
   data: new SlashCommandBuilder()
@@ -43,9 +44,17 @@ export const sentCommand: Command = {
     }
 
     const config = getGuildConfig(guildId);
+    if (!config.serverKey) {
+      await interaction.reply({
+        content: "Travian server not configured. An admin must run `/setserver` first.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Defense channel not configured.",
+        content: "Defense channel not configured. An admin must run `/setchannel type:Defense` first.",
         ephemeral: true,
       });
       return;
@@ -90,11 +99,16 @@ export const sentCommand: Command = {
     // Update the global message
     await updateGlobalMessage(interaction.client, guildId);
 
-    let replyMessage = `Recorded ${troops} troops sent to request #${requestId} (${result.request.x}|${result.request.y}).`;
+    // Get village info for detailed message
+    const village = await getVillageAt(config.serverKey, result.request.x, result.request.y);
+    const villageName = village?.villageName || "Unknown";
+    const playerName = village?.playerName || "Unknown";
+
+    let replyMessage: string;
     if (result.isComplete) {
-      replyMessage += " The request is now complete!";
+      replyMessage = `Request #${requestId} complete! **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** troops sent.`;
     } else {
-      replyMessage += ` Progress: ${result.request.troopsSent}/${result.request.troopsNeeded}`;
+      replyMessage = `Recorded ${troops} troops to **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progress: **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
     }
 
     await interaction.editReply({ content: replyMessage });

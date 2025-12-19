@@ -42,7 +42,7 @@ export async function buildGlobalEmbed(
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
       const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
-      line += ` [Send](${rallyLink})`;
+      line += ` **${village.villageName}** (${village.playerName}) [**[ SEND ]**](${rallyLink})`;
     }
 
     // Add troop counts
@@ -92,6 +92,8 @@ export async function updateGlobalMessage(
     return null;
   }
 
+  console.log(`[DefenseMessage] Guild ${guildId} using defense channel: ${config.defenseChannelId}`);
+
   try {
     const channel = (await client.channels.fetch(
       config.defenseChannelId
@@ -105,23 +107,17 @@ export async function updateGlobalMessage(
     const embed = await buildGlobalEmbed(guildId, client);
     const messageId = getGlobalMessageId(guildId);
 
+    // Delete existing message if it exists
     if (messageId) {
       try {
-        // Try to edit existing message
         const existingMessage = await channel.messages.fetch(messageId);
-        await existingMessage.edit({ embeds: [embed] });
-
-        // Clear recently completed after showing them
-        clearRecentlyCompleted(guildId);
-
-        return existingMessage;
+        await existingMessage.delete();
       } catch {
-        // Message might have been deleted, create a new one
-        console.log(`[DefenseMessage] Existing message not found, creating new one`);
+        // Message might have been deleted already, ignore
       }
     }
 
-    // Create new message
+    // Post new message
     const newMessage = await channel.send({ embeds: [embed] });
     setGlobalMessageId(guildId, newMessage.id);
 
@@ -158,10 +154,18 @@ export async function sendTroopNotification(
       return;
     }
 
-    let message = `<@${userId}> sent **${troops}** troops to (${request.x}|${request.y})`;
+    // Get village info for detailed message
+    const village = config.serverKey
+      ? await getVillageAt(config.serverKey, request.x, request.y)
+      : null;
+    const villageName = village?.villageName || "Unknown";
+    const playerName = village?.playerName || "Unknown";
 
+    let message: string;
     if (isComplete) {
-      message += ` - **Request #${request.id} is now complete!**`;
+      message = `**Request #${request.id} complete!** <@${userId}> sent the final **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Total: **${request.troopsSent}/${request.troopsNeeded}**`;
+    } else {
+      message = `<@${userId}> sent **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Progress: **${request.troopsSent}/${request.troopsNeeded}**`;
     }
 
     await channel.send(message);
