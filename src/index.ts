@@ -2,7 +2,7 @@ import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
-import { handleMessageEdit } from "./services/message-commands";
+import { handleTextCommand, handleMessageEdit } from "./services/message-commands";
 
 dotenv.config();
 
@@ -20,6 +20,14 @@ client.once(Events.ClientReady, (readyClient) => {
 
   // Start the map data scheduler
   startScheduler();
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    await handleTextCommand(client, message);
+  } catch (error) {
+    console.error("Error handling message:", error);
+  }
 });
 
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {

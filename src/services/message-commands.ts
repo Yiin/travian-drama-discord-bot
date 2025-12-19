@@ -10,24 +10,33 @@ import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink } from "./map-data";
 
 // Pattern: /sent or /stack followed by target and troops
+// Simple format: /sent 1 200 or /sent 123|456 200
 const SENT_PATTERN = /^\/(?:sent|stack)\s+(\S+)\s+(\d+)\s*$/i;
+// Verbose format: /sent id: 1 troops: 200 or /sent target: 123|456 troops: 200
+const SENT_VERBOSE_PATTERN = /^\/(?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)\s*$/i;
+
 // Pattern: /scout followed by coords and message
 const SCOUT_PATTERN = /^\/scout\s+(\S+)\s+(.+)$/i;
+// Verbose format: /scout coords: 123|456 message: some text
+const SCOUT_VERBOSE_PATTERN = /^\/scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/i;
 
-export async function handleMessageEdit(
+/**
+ * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
+ * Works for both new messages and edited messages
+ */
+export async function handleTextCommand(
   client: Client,
-  oldMessage: Message | null,
-  newMessage: Message
+  message: Message
 ): Promise<void> {
   // Ignore bot messages
-  if (newMessage.author.bot) return;
+  if (message.author.bot) return;
 
   // Must be in a guild
-  const guildId = newMessage.guildId;
+  const guildId = message.guildId;
   if (!guildId) return;
 
   const config = getGuildConfig(guildId);
-  const channelId = newMessage.channelId;
+  const channelId = message.channelId;
 
   // Check if in defense or scout channel
   const isDefenseChannel = channelId === config.defenseChannelId;
@@ -35,25 +44,38 @@ export async function handleMessageEdit(
 
   if (!isDefenseChannel && !isScoutChannel) return;
 
-  const content = newMessage.content.trim();
+  const content = message.content.trim();
 
   // Try sent/stack command in defense channel
   if (isDefenseChannel) {
-    const sentMatch = content.match(SENT_PATTERN);
+    // Try simple format first, then verbose format
+    const sentMatch = content.match(SENT_PATTERN) || content.match(SENT_VERBOSE_PATTERN);
     if (sentMatch) {
-      await handleSentCommand(client, newMessage, sentMatch[1], parseInt(sentMatch[2], 10));
+      await handleSentCommand(client, message, sentMatch[1], parseInt(sentMatch[2], 10));
       return;
     }
   }
 
   // Try scout command in scout channel
   if (isScoutChannel) {
-    const scoutMatch = content.match(SCOUT_PATTERN);
+    // Try simple format first, then verbose format
+    const scoutMatch = content.match(SCOUT_PATTERN) || content.match(SCOUT_VERBOSE_PATTERN);
     if (scoutMatch) {
-      await handleScoutCommand(client, newMessage, scoutMatch[1], scoutMatch[2]);
+      await handleScoutCommand(client, message, scoutMatch[1], scoutMatch[2]);
       return;
     }
   }
+}
+
+/**
+ * @deprecated Use handleTextCommand instead
+ */
+export async function handleMessageEdit(
+  client: Client,
+  oldMessage: Message | null,
+  newMessage: Message
+): Promise<void> {
+  await handleTextCommand(client, newMessage);
 }
 
 async function handleSentCommand(
