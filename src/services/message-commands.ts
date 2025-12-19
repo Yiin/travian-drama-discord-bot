@@ -9,16 +9,16 @@ import {
 import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink } from "./map-data";
 
-// Pattern: /sent or /stack followed by target and troops
-// Simple format: /sent 1 200 or /sent 123|456 200
-const SENT_PATTERN = /^\/(?:sent|stack)\s+(\S+)\s+(\d+)\s*$/i;
-// Verbose format: /sent id: 1 troops: 200 or /sent target: 123|456 troops: 200
-const SENT_VERBOSE_PATTERN = /^\/(?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)\s*$/i;
+// Pattern: /sent or /stack (or !sent, !stack) followed by target and troops
+// Simple format: /sent 1 200 or !sent 123|456 200
+const SENT_PATTERN = /^[\/!](?:sent|stack)\s+(\S+)\s+(\d+)\s*$/i;
+// Verbose format: /sent id: 1 troops: 200 or !sent target: 123|456 troops: 200
+const SENT_VERBOSE_PATTERN = /^[\/!](?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)\s*$/i;
 
-// Pattern: /scout followed by coords and message
-const SCOUT_PATTERN = /^\/scout\s+(\S+)\s+(.+)$/i;
+// Pattern: /scout or !scout followed by coords and message
+const SCOUT_PATTERN = /^[\/!]scout\s+(\S+)\s+(.+)$/i;
 // Verbose format: /scout coords: 123|456 message: some text
-const SCOUT_VERBOSE_PATTERN = /^\/scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/i;
+const SCOUT_VERBOSE_PATTERN = /^[\/!]scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/i;
 
 /**
  * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
