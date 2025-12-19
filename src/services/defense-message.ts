@@ -61,7 +61,7 @@ export async function buildGlobalEmbed(
     line += ` - "${truncatedMessage}"`;
 
     // Add requester
-    line += ` - <@${request.requesterId}>`;
+    // line += ` - <@${request.requesterId}>`;
 
     lines.push(line);
   }
