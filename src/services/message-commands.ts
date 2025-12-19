@@ -95,26 +95,26 @@ async function handleSentCommand(
   if (coords) {
     const found = getRequestByCoords(guildId, coords.x, coords.y);
     if (!found) {
-      await message.reply(`No active request found at (${coords.x}|${coords.y}).`);
+      await message.reply(`Nerasta aktyvi užklausa koordinatėse (${coords.x}|${coords.y}).`);
       return;
     }
     requestId = found.requestId;
   } else {
     const parsed = parseInt(targetInput, 10);
     if (isNaN(parsed) || parsed < 1) {
-      await message.reply("Invalid target. Use request ID (e.g., 1) or coordinates (e.g., 123|456).");
+      await message.reply("Neteisingas tikslas. Naudok užklausos ID (pvz., 1) arba koordinates (pvz., 123|456).");
       return;
     }
     requestId = parsed;
     const existingRequest = getRequestById(guildId, requestId);
     if (!existingRequest) {
-      await message.reply(`Request #${requestId} not found.`);
+      await message.reply(`Užklausa #${requestId} nerasta.`);
       return;
     }
   }
 
   if (troops < 1) {
-    await message.reply("Troops must be at least 1.");
+    await message.reply("Karių skaičius turi būti bent 1.");
     return;
   }
 
@@ -157,20 +157,20 @@ async function handleScoutCommand(
 
   const coords = parseCoords(coordsInput);
   if (!coords) {
-    await message.reply("Invalid coordinates. Use format like 123|456.");
+    await message.reply("Neteisingos koordinatės. Naudok formatą 123|456.");
     return;
   }
 
   // Ensure map data
   const dataReady = await ensureMapData(config.serverKey);
   if (!dataReady) {
-    await message.reply("Failed to load map data.");
+    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
     return;
   }
 
   const village = await getVillageAt(config.serverKey, coords.x, coords.y);
   if (!village) {
-    await message.reply(`No village found at (${coords.x}|${coords.y}).`);
+    await message.reply(`Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas.`);
     return;
   }
 
@@ -179,9 +179,9 @@ async function handleScoutCommand(
   const embed = new EmbedBuilder()
     .setColor(Colors.Blue)
     .setDescription(
-      `(${coords.x}|${coords.y}) **${village.villageName}** (${village.playerName}) [[SEND]](${rallyLink}) - ${scoutMessage}`
+      `(${coords.x}|${coords.y}) **${village.villageName}** (${village.playerName}) [**[ SIŲSTI ]**](${rallyLink}) - ${scoutMessage}`
     )
-    .setFooter({ text: `Requested by ${message.author.displayName}` });
+    .setFooter({ text: `Paprašė ${message.author.displayName}` });
 
   const channel = (await client.channels.fetch(config.scoutChannelId)) as TextChannel | null;
   if (channel) {

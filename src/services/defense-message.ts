@@ -18,7 +18,7 @@ export async function buildGlobalEmbed(
   const config = getGuildConfig(guildId);
 
   const embed = new EmbedBuilder()
-    .setTitle("Active Defense Requests")
+    .setTitle("Aktyvus stacko prašymai")
     .setColor(Colors.Red)
     .setTimestamp();
 
@@ -27,7 +27,7 @@ export async function buildGlobalEmbed(
   }
 
   if (data.requests.length === 0) {
-    embed.setDescription("No active defense requests.");
+    embed.setDescription("Visi saugūs.");
     return embed;
   }
 
@@ -43,7 +43,7 @@ export async function buildGlobalEmbed(
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
       const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 1);
-      line += ` **${village.villageName}** (${village.playerName}) [**[ SEND ]**](${rallyLink})`;
+      line += ` **${village.villageName}** (${village.playerName}) [**[ SIŲSTI ]**](${rallyLink})`;
     }
 
     // Add troop counts
@@ -68,6 +68,8 @@ export async function buildGlobalEmbed(
     lines.push(line);
   }
 
+  lines.push('\nIšsiuntus: `/stack eilesnr kariai` (`/stack 1 500`)\narba `!stack 1 500`')
+
   embed.setDescription(lines.join("\n"));
 
   // Add recently completed to footer
@@ -77,7 +79,7 @@ export async function buildGlobalEmbed(
       .map((c) => `(${c.x}|${c.y})`)
       .join(", ");
     embed.setFooter({
-      text: `Completed: ${completedText}`,
+      text: `Pabaigtas: ${completedText}`,
     });
   }
 
@@ -162,14 +164,14 @@ export async function sendTroopNotification(
     const village = config.serverKey
       ? await getVillageAt(config.serverKey, request.x, request.y)
       : null;
-    const villageName = village?.villageName || "Unknown";
-    const playerName = village?.playerName || "Unknown";
+    const villageName = village?.villageName || "Nežinomas";
+    const playerName = village?.playerName || "Nežinomas";
 
     let message: string;
     if (isComplete) {
-      message = `**Request #${requestId} complete!** <@${userId}> sent the final **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Total: **${request.troopsSent}/${request.troopsNeeded}**`;
+      message = `**Užklausa #${requestId} baigta!** <@${userId}> išsiuntė paskutinius **${troops}** karių į **${villageName}** (${request.x}|${request.y}) - ${playerName} - Viso: **${request.troopsSent}/${request.troopsNeeded}**`;
     } else {
-      message = `<@${userId}> sent **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Progress: **${request.troopsSent}/${request.troopsNeeded}**`;
+      message = `<@${userId}> išsiuntė **${troops}** karių į **${villageName}** (${request.x}|${request.y}) - ${playerName} - Progresas: **${request.troopsSent}/${request.troopsNeeded}**`;
     }
 
     await channel.send(message);

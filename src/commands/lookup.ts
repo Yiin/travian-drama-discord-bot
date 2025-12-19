@@ -32,7 +32,7 @@ export const lookupCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
+        content: "Ši komanda veikia tik serveryje.",
         ephemeral: true,
       });
       return;
@@ -41,7 +41,7 @@ export const lookupCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian server not configured. An admin must run `/setserver` first.",
+        content: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -50,7 +50,7 @@ export const lookupCommand: Command = {
     const coords = parseCoords(coordsInput);
     if (!coords) {
       await interaction.reply({
-        content: "Invalid coordinates. Please provide two numbers (e.g., 123|456, 123 456).",
+        content: "Neteisingos koordinatės. Įvesk du skaičius (pvz., 123|456, 123 456).",
         ephemeral: true,
       });
       return;
@@ -62,7 +62,7 @@ export const lookupCommand: Command = {
     const dataReady = await ensureMapData(config.serverKey);
     if (!dataReady) {
       await interaction.editReply({
-        content: "Failed to load map data. Please try again later.",
+        content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
       });
       return;
     }
@@ -71,7 +71,7 @@ export const lookupCommand: Command = {
 
     if (!village) {
       await interaction.editReply({
-        content: `No village found at coordinates (${coords.x}|${coords.y}).`,
+        content: `Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas.`,
       });
       return;
     }
@@ -80,21 +80,21 @@ export const lookupCommand: Command = {
     const tribeName = getTribeName(village.tribe);
 
     const embed = new EmbedBuilder()
-      .setTitle(`Village at (${coords.x}|${coords.y})`)
+      .setTitle(`Kaimas (${coords.x}|${coords.y})`)
       .setColor(Colors.Green)
       .addFields(
-        { name: "Village", value: village.villageName || "Unknown", inline: true },
-        { name: "Population", value: village.population.toString(), inline: true },
-        { name: "Tribe", value: tribeName, inline: true },
-        { name: "Player", value: village.playerName || "Unknown", inline: true },
+        { name: "Kaimas", value: village.villageName || "Nežinomas", inline: true },
+        { name: "Populiacija", value: village.population.toString(), inline: true },
+        { name: "Tauta", value: tribeName, inline: true },
+        { name: "Žaidėjas", value: village.playerName || "Nežinomas", inline: true },
         {
-          name: "Alliance",
-          value: village.allianceName || "None",
+          name: "Aljansas",
+          value: village.allianceName || "Nėra",
           inline: true,
         },
         {
-          name: "Send Troops",
-          value: `[Rally Point](${rallyLink})`,
+          name: "Siųsti karius",
+          value: `[Susirinkimo taškas](${rallyLink})`,
           inline: false,
         }
       )

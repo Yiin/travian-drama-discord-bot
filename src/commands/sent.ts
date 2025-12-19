@@ -29,17 +29,24 @@ function buildSentCommand(name: string) {
         .setDescription("Number of troops sent")
         .setRequired(true)
         .setMinValue(1)
+    )
+    .addUserOption((option) =>
+      option
+        .setName("user")
+        .setDescription("User to credit for sending troops (defaults to you)")
+        .setRequired(false)
     );
 }
 
 async function executeSent(interaction: ChatInputCommandInteraction): Promise<void> {
     const targetInput = interaction.options.getString("target", true);
     const troops = interaction.options.getInteger("troops", true);
+    const targetUser = interaction.options.getUser("user") || interaction.user;
     const guildId = interaction.guildId;
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
+        content: "Ši komanda veikia tik serveryje.",
         ephemeral: true,
       });
       return;
@@ -48,7 +55,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian server not configured. An admin must run `/setserver` first.",
+        content: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -56,7 +63,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
 
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Defense channel not configured. An admin must run `/setchannel type:Defense` first.",
+        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Defense`.",
         ephemeral: true,
       });
       return;
@@ -69,7 +76,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
       const found = getRequestByCoords(guildId, coords.x, coords.y);
       if (!found) {
         await interaction.reply({
-          content: `No active request found at (${coords.x}|${coords.y}).`,
+          content: `Nerasta aktyvi užklausa koordinatėse (${coords.x}|${coords.y}).`,
           ephemeral: true,
         });
         return;
@@ -79,7 +86,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
       const parsed = parseInt(targetInput, 10);
       if (isNaN(parsed) || parsed < 1) {
         await interaction.reply({
-          content: "Invalid input. Provide a request ID (e.g., 1) or coordinates (e.g., 123|456).",
+          content: "Neteisingas įvedimas. Nurodyk užklausos ID (pvz., 1) arba koordinates (pvz., 123|456).",
           ephemeral: true,
         });
         return;
@@ -88,7 +95,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
       const existingRequest = getRequestById(guildId, requestId);
       if (!existingRequest) {
         await interaction.reply({
-          content: `Request #${requestId} not found.`,
+          content: `Užklausa #${requestId} nerasta.`,
           ephemeral: true,
         });
         return;
@@ -102,7 +109,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
     const result = reportTroopsSent(
       guildId,
       requestId,
-      interaction.user.id,
+      targetUser.id,
       troops
     );
 
@@ -115,7 +122,7 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
     await sendTroopNotification(
       interaction.client,
       guildId,
-      interaction.user.id,
+      targetUser.id,
       troops,
       result.request,
       result.isComplete,
@@ -127,14 +134,15 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
 
     // Get village info for detailed message
     const village = await getVillageAt(config.serverKey, result.request.x, result.request.y);
-    const villageName = village?.villageName || "Unknown";
-    const playerName = village?.playerName || "Unknown";
+    const villageName = village?.villageName || "Nežinomas";
+    const playerName = village?.playerName || "Nežinomas";
 
+    const forUser = targetUser.id !== interaction.user.id ? ` už <@${targetUser.id}>` : "";
     let replyMessage: string;
     if (result.isComplete) {
-      replyMessage = `Request #${requestId} complete! **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** troops sent.`;
+      replyMessage = `Užklausa #${requestId} baigta! **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** karių išsiųsta${forUser}.`;
     } else {
-      replyMessage = `Recorded ${troops} troops to **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progress: **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+      replyMessage = `Užfiksuota ${troops} karių${forUser} į **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progresas: **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
     }
 
     await interaction.editReply({ content: replyMessage });

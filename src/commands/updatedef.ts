@@ -51,7 +51,7 @@ export const updatedefCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
+        content: "Ši komanda veikia tik serveryje.",
         ephemeral: true,
       });
       return;
@@ -60,7 +60,7 @@ export const updatedefCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian server not configured. An admin must run `/setserver` first.",
+        content: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -68,7 +68,7 @@ export const updatedefCommand: Command = {
 
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Defense channel not configured. An admin must run `/setchannel type:Defense` first.",
+        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Defense`.",
         ephemeral: true,
       });
       return;
@@ -77,7 +77,7 @@ export const updatedefCommand: Command = {
     // Check if at least one update parameter is provided
     if (troopsSent === null && troopsNeeded === null && message === null) {
       await interaction.reply({
-        content: "Please provide at least one field to update (troops_sent, troops_needed, or message).",
+        content: "Nurodyk bent vieną lauką atnaujinti (troops_sent, troops_needed arba message).",
         ephemeral: true,
       });
       return;
@@ -87,7 +87,7 @@ export const updatedefCommand: Command = {
     const existingRequest = getRequestById(guildId, requestId);
     if (!existingRequest) {
       await interaction.reply({
-        content: `Request #${requestId} not found.`,
+        content: `Užklausa #${requestId} nerasta.`,
         ephemeral: true,
       });
       return;
@@ -114,12 +114,12 @@ export const updatedefCommand: Command = {
     await updateGlobalMessage(interaction.client, guildId);
 
     const updatedFields: string[] = [];
-    if (troopsSent !== null) updatedFields.push(`troops sent: ${troopsSent}`);
-    if (troopsNeeded !== null) updatedFields.push(`troops needed: ${troopsNeeded}`);
-    if (message !== null) updatedFields.push(`message: "${message}"`);
+    if (troopsSent !== null) updatedFields.push(`išsiųsta karių: ${troopsSent}`);
+    if (troopsNeeded !== null) updatedFields.push(`reikia karių: ${troopsNeeded}`);
+    if (message !== null) updatedFields.push(`žinutė: "${message}"`);
 
     await interaction.editReply({
-      content: `Request #${requestId} updated: ${updatedFields.join(", ")}`,
+      content: `Užklausa #${requestId} atnaujinta: ${updatedFields.join(", ")}`,
     });
   },
 };

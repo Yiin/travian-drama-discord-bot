@@ -12,6 +12,7 @@ import {
   getVillageAt,
   getRallyPointLink,
   ensureMapData,
+  getMapLink,
 } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 
@@ -39,7 +40,7 @@ export const scoutCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
+        content: "Ši komanda veikia tik serveryje.",
         ephemeral: true,
       });
       return;
@@ -49,7 +50,7 @@ export const scoutCommand: Command = {
     if (!config.serverKey) {
       await interaction.reply({
         content:
-          "Travian server not configured. An admin must run `/setserver` first.",
+          "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -58,7 +59,7 @@ export const scoutCommand: Command = {
     if (!config.scoutChannelId) {
       await interaction.reply({
         content:
-          "Scout channel not configured. An admin must run `/setchannel type:Scout` first.",
+          "Žvalgybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Scout`.",
         ephemeral: true,
       });
       return;
@@ -68,7 +69,7 @@ export const scoutCommand: Command = {
     if (!coords) {
       await interaction.reply({
         content:
-          "Invalid coordinates. Please provide two numbers (e.g., 123|456, 123 456).",
+          "Neteisingos koordinatės. Įvesk du skaičius (pvz., 123|456, 123 456).",
         ephemeral: true,
       });
       return;
@@ -81,7 +82,7 @@ export const scoutCommand: Command = {
     const dataReady = await ensureMapData(config.serverKey);
     if (!dataReady) {
       await interaction.editReply({
-        content: "Failed to load map data. Please try again later.",
+        content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
       });
       return;
     }
@@ -90,7 +91,7 @@ export const scoutCommand: Command = {
     const village = await getVillageAt(config.serverKey, coords.x, coords.y);
     if (!village) {
       await interaction.editReply({
-        content: `No village found at coordinates (${coords.x}|${coords.y}). Please check the coordinates and try again.`,
+        content: `Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas. Patikrink koordinates ir bandyk dar kartą.`,
       });
       return;
     }
@@ -101,7 +102,7 @@ export const scoutCommand: Command = {
 
     if (!channel) {
       await interaction.editReply({
-        content: "Configured scout channel not found.",
+        content: "Sukonfigūruotas žvalgybos kanalas nerastas.",
       });
       return;
     }
@@ -111,9 +112,9 @@ export const scoutCommand: Command = {
     const embed = new EmbedBuilder()
       .setColor(Colors.Blue)
       .setDescription(
-        `(${coords.x}|${coords.y}) **${village.villageName}** (${village.playerName}) [[SEND]](${rallyLink}) - ${message}`
+        `[(${coords.x}|${coords.y})](${getMapLink(config.serverKey, village)}) **${village.villageName}** ${village.population} pop (${village.playerName}) [**[ SIŲSTI ]**](${rallyLink}) - ${message}`
       )
-      .setFooter({ text: `Requested by ${interaction.user.displayName}` });
+      .setFooter({ text: `Paprašė ${interaction.user.displayName}` });
 
     await channel.send({ embeds: [embed] });
 
@@ -121,7 +122,7 @@ export const scoutCommand: Command = {
       ? `${village.playerName} [${village.allianceName}]`
       : village.playerName;
     await interaction.editReply({
-      content: `Scout request for **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - sent to <#${config.scoutChannelId}>`,
+      content: `Žvalgybos prašymas užfiksuotas į **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - <#${config.scoutChannelId}>`,
     });
   },
 };
