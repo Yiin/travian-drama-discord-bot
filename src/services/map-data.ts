@@ -342,9 +342,9 @@ export function needsRefresh(serverUrl: string): boolean {
   return Date.now() - updated > 24 * 60 * 60 * 1000;
 }
 
-export function getRallyPointLink(serverKey: string, targetMapId: number): string {
+export function getRallyPointLink(serverKey: string, targetMapId: number, eventType = 1): string {
   const fullUrl = getFullServerUrl(serverKey);
-  return `${fullUrl}/build.php?id=39&eventType=3&tt=2&targetMapId=${targetMapId}&gid=16`;
+  return `${fullUrl}/build.php?id=39&eventType=${eventType}&tt=2&targetMapId=${targetMapId}&gid=16`;
 }
 
 export function getMapLink(serverKey: string, position: { x: number; y: number }) {

@@ -76,7 +76,7 @@ export const lookupCommand: Command = {
       return;
     }
 
-    const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
+    const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 1);
     const tribeName = getTribeName(village.tribe);
 
     const embed = new EmbedBuilder()

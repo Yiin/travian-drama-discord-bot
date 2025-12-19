@@ -106,7 +106,7 @@ export const scoutCommand: Command = {
       return;
     }
 
-    const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
+    const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 3);
 
     const embed = new EmbedBuilder()
       .setColor(Colors.Blue)

@@ -42,7 +42,7 @@ export async function buildGlobalEmbed(
 
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
-      const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
+      const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 1);
       line += ` **${village.villageName}** (${village.playerName}) [**[ SEND ]**](${rallyLink})`;
     }
 
@@ -58,7 +58,9 @@ export async function buildGlobalEmbed(
       request.message.length > 50
         ? request.message.substring(0, 47) + "..."
         : request.message;
-    line += ` - "${truncatedMessage}"`;
+    if (truncatedMessage.length > 0) {
+      line += ` - "${truncatedMessage}"`;
+    }
 
     // Add requester
     // line += ` - <@${request.requesterId}>`;
