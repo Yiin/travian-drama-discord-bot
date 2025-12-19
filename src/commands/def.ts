@@ -120,7 +120,7 @@ export const defCommand: Command = {
       ? `${village.playerName} [${village.allianceName}]`
       : village.playerName;
     await interaction.editReply({
-      content: `Defense request #${result.request.id} ${actionText} for **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - ${troopsNeeded} troops needed.`,
+      content: `Defense request #${result.requestId} ${actionText} for **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - ${troopsNeeded} troops needed.`,
     });
   },
 };

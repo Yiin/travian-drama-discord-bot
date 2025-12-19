@@ -23,7 +23,7 @@ function normalizeServerKey(input: string): string {
 }
 
 function isValidServerKey(key: string): boolean {
-  // Should be like: ts30.x3.europe or ts5.x1.international
+  // Should be like: ts31.x3.europe or ts5.x1.international
   // Basic validation: should have dots, no spaces, alphanumeric with dots
   return /^[a-z0-9]+(\.[a-z0-9]+)+$/.test(key);
 }
@@ -35,7 +35,7 @@ export const setserverCommand: Command = {
     .addStringOption((option) =>
       option
         .setName("server")
-        .setDescription("The Travian server (e.g., ts30.x3.europe)")
+        .setDescription("The Travian server (e.g., ts31.x3.europe)")
         .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -56,7 +56,7 @@ export const setserverCommand: Command = {
 
     if (!isValidServerKey(serverKey)) {
       await interaction.reply({
-        content: "Invalid server. Please provide a valid Travian server (e.g., ts30.x3.europe)",
+        content: "Invalid server. Please provide a valid Travian server (e.g., ts31.x3.europe)",
         ephemeral: true,
       });
       return;

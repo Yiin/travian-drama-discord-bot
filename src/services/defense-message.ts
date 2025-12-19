@@ -37,7 +37,8 @@ export async function buildGlobalEmbed(
     const request = data.requests[i];
     const isFirst = i === 0;
     const icon = isFirst ? "➡️ " : "";
-    let line = `**${request.id}.** ${icon} [(${request.x}|${request.y})](${getMapLink(config.serverKey, request)})`;
+    const displayId = i + 1; // IDs are 1-based position in array
+    let line = `**${displayId}.** ${icon} [(${request.x}|${request.y})](${getMapLink(config.serverKey, request)})`;
 
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
@@ -137,7 +138,8 @@ export async function sendTroopNotification(
   userId: string,
   troops: number,
   request: DefenseRequest,
-  isComplete: boolean
+  isComplete: boolean,
+  requestId: number
 ): Promise<void> {
   const config = getGuildConfig(guildId);
 
@@ -163,7 +165,7 @@ export async function sendTroopNotification(
 
     let message: string;
     if (isComplete) {
-      message = `**Request #${request.id} complete!** <@${userId}> sent the final **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Total: **${request.troopsSent}/${request.troopsNeeded}**`;
+      message = `**Request #${requestId} complete!** <@${userId}> sent the final **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Total: **${request.troopsSent}/${request.troopsNeeded}**`;
     } else {
       message = `<@${userId}> sent **${troops}** troops to **${villageName}** (${request.x}|${request.y}) - ${playerName} - Progress: **${request.troopsSent}/${request.troopsNeeded}**`;
     }

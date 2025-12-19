@@ -12,7 +12,6 @@ export interface Contributor {
 }
 
 export interface DefenseRequest {
-  id: number;
   x: number;
   y: number;
   troopsSent: number;
@@ -33,7 +32,6 @@ export interface CompletedRequest {
 export interface GuildDefenseData {
   globalMessageId?: string;
   requests: DefenseRequest[];
-  nextId: number;
   recentlyCompleted: CompletedRequest[];
 }
 
@@ -62,7 +60,6 @@ function saveAllData(data: AllGuildData): void {
 function getDefaultGuildData(): GuildDefenseData {
   return {
     requests: [],
-    nextId: 1,
     recentlyCompleted: [],
   };
 }
@@ -90,6 +87,7 @@ export function getGlobalMessageId(guildId: string): string | undefined {
 
 export interface AddRequestResult {
   request: DefenseRequest;
+  requestId: number; // 1-based position ID
   isUpdate: boolean;
   previousRequest?: DefenseRequest;
 }
@@ -124,6 +122,7 @@ export function addOrUpdateRequest(
     saveGuildData(guildId, data);
     return {
       request: data.requests[existingIndex],
+      requestId: existingIndex + 1, // 1-based position
       isUpdate: true,
       previousRequest,
     };
@@ -136,7 +135,6 @@ export function addOrUpdateRequest(
 
   // Create new request
   const newRequest: DefenseRequest = {
-    id: data.nextId,
     x,
     y,
     troopsSent: 0,
@@ -148,10 +146,9 @@ export function addOrUpdateRequest(
   };
 
   data.requests.push(newRequest);
-  data.nextId++;
   saveGuildData(guildId, data);
 
-  return { request: newRequest, isUpdate: false };
+  return { request: newRequest, requestId: data.requests.length, isUpdate: false };
 }
 
 export function getRequestById(
@@ -159,7 +156,8 @@ export function getRequestById(
   requestId: number
 ): DefenseRequest | undefined {
   const data = getGuildDefenseData(guildId);
-  return data.requests.find((r) => r.id === requestId);
+  // IDs are 1-based, so convert to 0-based index
+  return data.requests[requestId - 1];
 }
 
 export interface ReportTroopsResult {
@@ -174,7 +172,9 @@ export function reportTroopsSent(
   troops: number
 ): ReportTroopsResult | { error: string } {
   const data = getGuildDefenseData(guildId);
-  const request = data.requests.find((r) => r.id === requestId);
+  // IDs are 1-based, convert to 0-based index
+  const index = requestId - 1;
+  const request = data.requests[index];
 
   if (!request) {
     return { error: `Request #${requestId} not found.` };
@@ -197,10 +197,10 @@ export function reportTroopsSent(
 
   if (isComplete) {
     // Remove from active requests
-    data.requests = data.requests.filter((r) => r.id !== requestId);
+    data.requests.splice(index, 1);
     // Add to recently completed
     data.recentlyCompleted.push({
-      id: request.id,
+      id: requestId,
       x: request.x,
       y: request.y,
       completedBy: userId,
@@ -224,7 +224,9 @@ export function updateRequest(
   updates: UpdateRequestOptions
 ): DefenseRequest | { error: string } {
   const data = getGuildDefenseData(guildId);
-  const request = data.requests.find((r) => r.id === requestId);
+  // IDs are 1-based, convert to 0-based index
+  const index = requestId - 1;
+  const request = data.requests[index];
 
   if (!request) {
     return { error: `Request #${requestId} not found.` };
@@ -242,9 +244,9 @@ export function updateRequest(
 
   // Check if now complete
   if (request.troopsSent >= request.troopsNeeded) {
-    data.requests = data.requests.filter((r) => r.id !== requestId);
+    data.requests.splice(index, 1);
     data.recentlyCompleted.push({
-      id: request.id,
+      id: requestId,
       x: request.x,
       y: request.y,
       completedBy: "admin",
@@ -260,14 +262,16 @@ export function removeRequest(
   requestId: number
 ): boolean {
   const data = getGuildDefenseData(guildId);
-  const initialLength = data.requests.length;
-  data.requests = data.requests.filter((r) => r.id !== requestId);
+  // IDs are 1-based, convert to 0-based index
+  const index = requestId - 1;
 
-  if (data.requests.length < initialLength) {
-    saveGuildData(guildId, data);
-    return true;
+  if (index < 0 || index >= data.requests.length) {
+    return false;
   }
-  return false;
+
+  data.requests.splice(index, 1);
+  saveGuildData(guildId, data);
+  return true;
 }
 
 export function clearRecentlyCompleted(guildId: string): CompletedRequest[] {

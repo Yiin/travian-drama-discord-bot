@@ -6,7 +6,7 @@ import https from "https";
 const DATA_DIR = path.join(process.cwd(), "data");
 const MAPS_DIR = path.join(DATA_DIR, "maps");
 
-// Helper to construct full URL from server key (e.g., "ts30.x3.europe" -> "https://ts30.x3.europe.travian.com")
+// Helper to construct full URL from server key (e.g., "ts31.x3.europe" -> "https://ts31.x3.europe.travian.com")
 export function getFullServerUrl(serverKey: string): string {
   return `https://${serverKey}.travian.com`;
 }

@@ -35,7 +35,7 @@ Discord bot for Travian: Legends defense/scout coordination using discord.js v14
 - Data stored in `data/guilds.json` and `data/defense-requests.json`
 
 **Travian Server Key Format:**
-- Short form only: `ts30.x3.europe` (not full URL)
+- Short form only: `ts31.x3.europe` (not full URL)
 - Full URL constructed via `getFullServerUrl()`: `https://{key}.travian.com`
 
 ## Adding New Commands

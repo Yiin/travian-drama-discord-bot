@@ -93,7 +93,8 @@ export const sentCommand: Command = {
       interaction.user.id,
       troops,
       result.request,
-      result.isComplete
+      result.isComplete,
+      requestId
     );
 
     // Update the global message
