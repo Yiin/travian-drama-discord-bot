@@ -30,15 +30,15 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-  try {
-    // Fetch full message if partial
-    const message = newMessage.partial ? await newMessage.fetch() : newMessage;
-    await handleMessageEdit(client, oldMessage.partial ? null : oldMessage, message);
-  } catch (error) {
-    console.error("Error handling message edit:", error);
-  }
-});
+// client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+//   try {
+//     // Fetch full message if partial
+//     const message = newMessage.partial ? await newMessage.fetch() : newMessage;
+//     await handleMessageEdit(client, oldMessage.partial ? null : oldMessage, message);
+//   } catch (error) {
+//     console.error("Error handling message edit:", error);
+//   }
+// });
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
