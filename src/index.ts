@@ -2,7 +2,7 @@ import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
-import { handleTextCommand, handleMessageEdit } from "./services/message-commands";
+import { handleTextCommand } from "./services/message-commands";
 
 dotenv.config();
 
@@ -30,15 +30,15 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-// client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-//   try {
-//     // Fetch full message if partial
-//     const message = newMessage.partial ? await newMessage.fetch() : newMessage;
-//     await handleMessageEdit(client, oldMessage.partial ? null : oldMessage, message);
-//   } catch (error) {
-//     console.error("Error handling message edit:", error);
-//   }
-// });
+client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+  try {
+    // Fetch full message if partial
+    const message = newMessage.partial ? await newMessage.fetch() : newMessage;
+    await handleTextCommand(client, message);
+  } catch (error) {
+    console.error("Error handling message edit:", error);
+  }
+});
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
