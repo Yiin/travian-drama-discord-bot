@@ -13,6 +13,7 @@ import {
   getTribeName,
   ensureMapData,
 } from "../services/map-data";
+import { withRetry } from "../utils/retry";
 
 export const lookupCommand: Command = {
   data: new SlashCommandBuilder()
@@ -55,7 +56,7 @@ export const lookupCommand: Command = {
       return;
     }
 
-    await interaction.deferReply();
+    await withRetry(() => interaction.deferReply());
 
     // Ensure map data is available
     const dataReady = await ensureMapData(config.serverKey);

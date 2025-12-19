@@ -7,6 +7,7 @@ import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { updateRequest, getRequestById } from "../services/defense-requests";
 import { updateGlobalMessage } from "../services/defense-message";
+import { withRetry } from "../utils/retry";
 
 export const updatedefCommand: Command = {
   data: new SlashCommandBuilder()
@@ -93,7 +94,7 @@ export const updatedefCommand: Command = {
     }
 
     // Defer reply as updating may take time
-    await interaction.deferReply({ ephemeral: true });
+    await withRetry(() => interaction.deferReply({ ephemeral: true }));
 
     // Build update object
     const updates: { troopsSent?: number; troopsNeeded?: number; message?: string } = {};

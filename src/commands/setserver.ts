@@ -6,6 +6,7 @@ import {
 import { Command } from "../types";
 import { setServerKey } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
+import { withRetry } from "../utils/retry";
 
 function normalizeServerKey(input: string): string {
   let key = input.trim().toLowerCase();
@@ -63,7 +64,7 @@ export const setserverCommand: Command = {
     }
 
     // Defer reply as download may take time
-    await interaction.deferReply({ ephemeral: true });
+    await withRetry(() => interaction.deferReply({ ephemeral: true }));
 
     try {
       // Save the server key (short form)

@@ -13,6 +13,7 @@ import {
   getRallyPointLink,
   ensureMapData,
 } from "../services/map-data";
+import { withRetry } from "../utils/retry";
 
 export const scoutCommand: Command = {
   data: new SlashCommandBuilder()
@@ -74,7 +75,7 @@ export const scoutCommand: Command = {
     }
 
     // Defer reply as map data lookup may take time
-    await interaction.deferReply({ ephemeral: true });
+    await withRetry(() => interaction.deferReply({ ephemeral: true }));
 
     // Ensure map data is available
     const dataReady = await ensureMapData(config.serverKey);

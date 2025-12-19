@@ -10,6 +10,7 @@ import {
   sendTroopNotification,
 } from "../services/defense-message";
 import { getVillageAt } from "../services/map-data";
+import { withRetry } from "../utils/retry";
 
 export const sentCommand: Command = {
   data: new SlashCommandBuilder()
@@ -70,8 +71,8 @@ export const sentCommand: Command = {
       return;
     }
 
-    // Defer reply as updating may take time
-    await interaction.deferReply({ ephemeral: true });
+    // Defer reply as updating may take time (with retry for transient errors)
+    await withRetry(() => interaction.deferReply({ ephemeral: true }));
 
     // Report the troops sent
     const result = reportTroopsSent(

@@ -8,6 +8,7 @@ import { getGuildConfig } from "../config/guild-config";
 import { addOrUpdateRequest } from "../services/defense-requests";
 import { updateGlobalMessage } from "../services/defense-message";
 import { getVillageAt, ensureMapData } from "../services/map-data";
+import { withRetry } from "../utils/retry";
 
 export const defCommand: Command = {
   data: new SlashCommandBuilder()
@@ -76,8 +77,8 @@ export const defCommand: Command = {
       return;
     }
 
-    // Defer reply as map data lookup may take time
-    await interaction.deferReply({ ephemeral: true });
+    // Defer reply as map data lookup may take time (with retry for transient errors)
+    await withRetry(() => interaction.deferReply({ ephemeral: true }));
 
     // Ensure map data is available
     const dataReady = await ensureMapData(config.serverKey);
