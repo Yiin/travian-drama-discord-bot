@@ -4,10 +4,16 @@ export interface Coordinates {
 }
 
 export function parseCoords(input: string): Coordinates | null {
+  // Strip Unicode directional formatting characters (LTR/RTL overrides, etc.)
+  // and normalize Unicode minus signs to ASCII hyphen-minus
+  const normalized = input
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+    .replace(/[−–—‒]/g, '-');
+
   // Check if input is a URL with x and y parameters
-  if (input.includes('?') && input.includes('x=') && input.includes('y=')) {
+  if (normalized.includes('?') && normalized.includes('x=') && normalized.includes('y=')) {
     try {
-      const url = new URL(input);
+      const url = new URL(normalized);
       const xParam = url.searchParams.get('x');
       const yParam = url.searchParams.get('y');
 
@@ -25,7 +31,7 @@ export function parseCoords(input: string): Coordinates | null {
   }
 
   // Match all integers (including negative numbers)
-  const matches = input.match(/-?\d+/g);
+  const matches = normalized.match(/-?\d+/g);
 
   if (!matches || matches.length < 2) {
     return null;

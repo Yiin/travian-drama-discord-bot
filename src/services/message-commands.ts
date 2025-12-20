@@ -5,6 +5,7 @@ import {
   reportTroopsSent,
   getRequestById,
   getRequestByCoords,
+  addOrUpdateRequest,
 } from "./defense-requests";
 import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink } from "./map-data";
@@ -19,6 +20,10 @@ const SENT_VERBOSE_PATTERN = /^[\/!](?:sent|stack)\s+(?:id|target):\s*(\S+)\s+tr
 const SCOUT_PATTERN = /^[\/!]scout\s+(\S+)\s+(.+)$/i;
 // Verbose format: /scout coords: 123|456 message: some text
 const SCOUT_VERBOSE_PATTERN = /^[\/!]scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/i;
+
+// Pattern: /def or !def followed by coords, troops, and optional message
+// Simple format: !def 123|456 2000 or !def (61|-145) 2000 optional message here
+const DEF_PATTERN = /^[\/!]def\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i;
 
 /**
  * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
@@ -46,13 +51,20 @@ export async function handleTextCommand(
 
   const content = message.content.trim();
 
-  // Try sent/stack command in defense channel
+  // Try sent/stack or def command in defense channel
   if (isDefenseChannel) {
     // Try simple format first, then verbose format
     const sentMatch = content.match(SENT_PATTERN) || content.match(SENT_VERBOSE_PATTERN);
     if (sentMatch) {
       const forUserId = sentMatch[3]; // Optional user mention
       await handleSentCommand(client, message, sentMatch[1], parseInt(sentMatch[2], 10), forUserId);
+      return;
+    }
+
+    // Try def command
+    const defMatch = content.match(DEF_PATTERN);
+    if (defMatch) {
+      await handleDefCommand(client, message, defMatch[1], parseInt(defMatch[2], 10), defMatch[3] || "");
       return;
     }
   }
@@ -145,6 +157,72 @@ async function handleSentCommand(
 
   // React to confirm
   await message.react("✅");
+}
+
+async function handleDefCommand(
+  client: Client,
+  message: Message,
+  coordsInput: string,
+  troops: number,
+  defMessage: string
+): Promise<void> {
+  const guildId = message.guildId!;
+  const config = getGuildConfig(guildId);
+
+  if (!config.serverKey || !config.defenseChannelId) return;
+
+  const coords = parseCoords(coordsInput);
+  if (!coords) {
+    await message.reply("Neteisingos koordinatės. Naudok formatą 123|456.");
+    return;
+  }
+
+  if (troops < 1) {
+    await message.reply("Karių skaičius turi būti bent 1.");
+    return;
+  }
+
+  // Ensure map data
+  const dataReady = await ensureMapData(config.serverKey);
+  if (!dataReady) {
+    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
+    return;
+  }
+
+  const village = await getVillageAt(config.serverKey, coords.x, coords.y);
+  if (!village) {
+    await message.reply(`Arba to kaimo nėra arba jis ką tik įkurtas (${coords.x}|${coords.y}).`);
+    return;
+  }
+
+  // Add or update the request
+  const result = addOrUpdateRequest(
+    guildId,
+    coords.x,
+    coords.y,
+    troops,
+    defMessage,
+    message.author.id
+  );
+
+  if ("error" in result) {
+    await message.reply(result.error);
+    return;
+  }
+
+  // Update global message
+  await updateGlobalMessage(client, guildId);
+
+  // React to confirm
+  await message.react("✅");
+
+  const actionText = result.isUpdate ? "atnaujinta" : "sukurta";
+  const playerInfo = village.allianceName
+    ? `${village.playerName} [${village.allianceName}]`
+    : village.playerName;
+  await message.reply(
+    `Gynybos užklausa #${result.requestId} ${actionText}: **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - reikia ${troops} karių.`
+  );
 }
 
 async function handleScoutCommand(
