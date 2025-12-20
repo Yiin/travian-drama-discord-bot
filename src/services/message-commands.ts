@@ -6,9 +6,11 @@ import {
   getRequestById,
   getRequestByCoords,
   addOrUpdateRequest,
+  removeRequest,
+  updateRequest,
 } from "./defense-requests";
 import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
-import { getVillageAt, ensureMapData, getRallyPointLink } from "./map-data";
+import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName } from "./map-data";
 
 // Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
 // Simple format: /sent 1 200 or !sent 123|456 200 or !stack 1 200 @user
@@ -24,6 +26,19 @@ const SCOUT_VERBOSE_PATTERN = /^[\/!]scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/
 // Pattern: /def or !def followed by coords, troops, and optional message
 // Simple format: !def 123|456 2000 or !def (61|-145) 2000 optional message here
 const DEF_PATTERN = /^[\/!]def\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i;
+
+// Pattern: /deletedef or !deletedef followed by ID
+const DELETEDEF_PATTERN = /^[\/!]deletedef\s+(\d+)\s*$/i;
+
+// Pattern: /lookup or !lookup followed by coords
+const LOOKUP_PATTERN = /^[\/!]lookup\s+(\S+)\s*$/i;
+
+// Pattern: /stackinfo or !stackinfo (no parameters)
+const STACKINFO_PATTERN = /^[\/!]stackinfo\s*$/i;
+
+// Pattern: /updatedef or !updatedef followed by ID and optional params
+// Format: !updatedef 1 troops_sent: 500 troops_needed: 2000 message: some text
+const UPDATEDEF_PATTERN = /^[\/!]updatedef\s+(\d+)(?:\s+(.+))?$/i;
 
 /**
  * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
@@ -43,13 +58,20 @@ export async function handleTextCommand(
   const config = getGuildConfig(guildId);
   const channelId = message.channelId;
 
+  const content = message.content.trim();
+
+  // Lookup command works in any channel
+  const lookupMatch = content.match(LOOKUP_PATTERN);
+  if (lookupMatch) {
+    await handleLookupCommand(client, message, lookupMatch[1]);
+    return;
+  }
+
   // Check if in defense or scout channel
   const isDefenseChannel = channelId === config.defenseChannelId;
   const isScoutChannel = channelId === config.scoutChannelId;
 
   if (!isDefenseChannel && !isScoutChannel) return;
-
-  const content = message.content.trim();
 
   // Try sent/stack or def command in defense channel
   if (isDefenseChannel) {
@@ -65,6 +87,27 @@ export async function handleTextCommand(
     const defMatch = content.match(DEF_PATTERN);
     if (defMatch) {
       await handleDefCommand(client, message, defMatch[1], parseInt(defMatch[2], 10), defMatch[3] || "");
+      return;
+    }
+
+    // Try deletedef command
+    const deletedefMatch = content.match(DELETEDEF_PATTERN);
+    if (deletedefMatch) {
+      await handleDeleteDefCommand(client, message, parseInt(deletedefMatch[1], 10));
+      return;
+    }
+
+    // Try stackinfo command
+    const stackinfoMatch = content.match(STACKINFO_PATTERN);
+    if (stackinfoMatch) {
+      await handleStackinfoCommand(client, message);
+      return;
+    }
+
+    // Try updatedef command (admin only)
+    const updatedefMatch = content.match(UPDATEDEF_PATTERN);
+    if (updatedefMatch) {
+      await handleUpdateDefCommand(client, message, parseInt(updatedefMatch[1], 10), updatedefMatch[2] || "");
       return;
     }
   }
@@ -271,4 +314,180 @@ async function handleScoutCommand(
 
   // React to confirm
   await message.react("✅");
+}
+
+async function handleDeleteDefCommand(
+  client: Client,
+  message: Message,
+  requestId: number
+): Promise<void> {
+  const guildId = message.guildId!;
+  const config = getGuildConfig(guildId);
+
+  if (!config.serverKey || !config.defenseChannelId) return;
+
+  // Check if request exists
+  const existingRequest = getRequestById(guildId, requestId);
+  if (!existingRequest) {
+    await message.reply(`Užklausa #${requestId} nerasta.`);
+    return;
+  }
+
+  // Get village info for confirmation message
+  const village = await getVillageAt(config.serverKey, existingRequest.x, existingRequest.y);
+  const villageName = village?.villageName || "Nežinomas";
+  const playerName = village?.playerName || "Nežinomas";
+
+  // Delete the request
+  const success = removeRequest(guildId, requestId);
+  if (!success) {
+    await message.reply(`Nepavyko ištrinti užklausos #${requestId}.`);
+    return;
+  }
+
+  // Update global message
+  await updateGlobalMessage(client, guildId);
+
+  // React to confirm
+  await message.react("✅");
+
+  await message.reply(
+    `Ištrinta užklausa #${requestId}: **${villageName}** (${existingRequest.x}|${existingRequest.y}) - ${playerName}`
+  );
+}
+
+async function handleLookupCommand(
+  client: Client,
+  message: Message,
+  coordsInput: string
+): Promise<void> {
+  const guildId = message.guildId!;
+  const config = getGuildConfig(guildId);
+
+  if (!config.serverKey) {
+    await message.reply("Travian serveris nesukonfigūruotas.");
+    return;
+  }
+
+  const coords = parseCoords(coordsInput);
+  if (!coords) {
+    await message.reply("Neteisingos koordinatės. Naudok formatą 123|456.");
+    return;
+  }
+
+  // Ensure map data
+  const dataReady = await ensureMapData(config.serverKey);
+  if (!dataReady) {
+    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
+    return;
+  }
+
+  const village = await getVillageAt(config.serverKey, coords.x, coords.y);
+  if (!village) {
+    await message.reply(`Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas.`);
+    return;
+  }
+
+  const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 1);
+  const tribeName = getTribeName(village.tribe);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Kaimas (${coords.x}|${coords.y})`)
+    .setColor(Colors.Green)
+    .addFields(
+      { name: "Kaimas", value: village.villageName || "Nežinomas", inline: true },
+      { name: "Populiacija", value: village.population.toString(), inline: true },
+      { name: "Tauta", value: tribeName, inline: true },
+      { name: "Žaidėjas", value: village.playerName || "Nežinomas", inline: true },
+      { name: "Aljansas", value: village.allianceName || "Nėra", inline: true },
+      { name: "Siųsti karius", value: `[Susirinkimo taškas](${rallyLink})`, inline: false }
+    )
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+async function handleStackinfoCommand(
+  client: Client,
+  message: Message
+): Promise<void> {
+  const guildId = message.guildId!;
+  const config = getGuildConfig(guildId);
+
+  if (!config.serverKey || !config.defenseChannelId) return;
+
+  await updateGlobalMessage(client, guildId);
+
+  // React to confirm
+  await message.react("✅");
+}
+
+async function handleUpdateDefCommand(
+  client: Client,
+  message: Message,
+  requestId: number,
+  paramsStr: string
+): Promise<void> {
+  const guildId = message.guildId!;
+  const config = getGuildConfig(guildId);
+
+  if (!config.serverKey || !config.defenseChannelId) return;
+
+  // Check admin permission
+  const member = message.member;
+  if (!member?.permissions.has("Administrator")) {
+    await message.reply("Tik administratoriai gali naudoti šią komandą.");
+    return;
+  }
+
+  // Check if request exists
+  const existingRequest = getRequestById(guildId, requestId);
+  if (!existingRequest) {
+    await message.reply(`Užklausa #${requestId} nerasta.`);
+    return;
+  }
+
+  // Parse parameters: troops_sent: 500 troops_needed: 2000 message: some text
+  const updates: { troopsSent?: number; troopsNeeded?: number; message?: string } = {};
+
+  const troopsSentMatch = paramsStr.match(/troops_sent:\s*(\d+)/i);
+  if (troopsSentMatch) {
+    updates.troopsSent = parseInt(troopsSentMatch[1], 10);
+  }
+
+  const troopsNeededMatch = paramsStr.match(/troops_needed:\s*(\d+)/i);
+  if (troopsNeededMatch) {
+    updates.troopsNeeded = parseInt(troopsNeededMatch[1], 10);
+  }
+
+  const messageMatch = paramsStr.match(/message:\s*(.+?)(?:\s+(?:troops_sent|troops_needed):|$)/i);
+  if (messageMatch) {
+    updates.message = messageMatch[1].trim();
+  }
+
+  if (Object.keys(updates).length === 0) {
+    await message.reply("Nurodyk bent vieną lauką atnaujinti (troops_sent: X, troops_needed: X arba message: tekstas).");
+    return;
+  }
+
+  // Update the request
+  const result = updateRequest(guildId, requestId, updates);
+
+  if ("error" in result) {
+    await message.reply(result.error);
+    return;
+  }
+
+  // Update global message
+  await updateGlobalMessage(client, guildId);
+
+  // React to confirm
+  await message.react("✅");
+
+  const updatedFields: string[] = [];
+  if (updates.troopsSent !== undefined) updatedFields.push(`išsiųsta karių: ${updates.troopsSent}`);
+  if (updates.troopsNeeded !== undefined) updatedFields.push(`reikia karių: ${updates.troopsNeeded}`);
+  if (updates.message !== undefined) updatedFields.push(`žinutė: "${updates.message}"`);
+
+  await message.reply(`Užklausa #${requestId} atnaujinta: ${updatedFields.join(", ")}`);
 }
