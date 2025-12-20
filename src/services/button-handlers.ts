@@ -467,27 +467,9 @@ export async function handleScoutGoingButton(
     return;
   }
 
-  // Check if this user already clicked
-  // Look for their mention in the existing container content
   const containerComponents = containerData.components;
-  let existingContent = "";
-  for (const comp of containerComponents) {
-    if ("content" in comp && typeof comp.content === "string") {
-      existingContent += comp.content + "\n";
-    }
-  }
-
   const userMention = `<@${interaction.user.id}>`;
-  if (existingContent.includes(userMention)) {
-    await interaction.reply({
-      content: "Tu jau pažymėjai, kad eini!",
-      ephemeral: true,
-    });
-    return;
-  }
 
-  // Find where "Eina:" section starts or create it
-  // We need to rebuild the container with the new user added
   // Parse the existing content to find the structure
   let mainText = "";
   let messageText = "";
@@ -516,8 +498,13 @@ export async function handleScoutGoingButton(
     }
   }
 
-  // Add current user
-  goingUsers.push(userMention);
+  // Toggle: if user is already in list, remove them; otherwise add them
+  const userIndex = goingUsers.indexOf(userMention);
+  if (userIndex !== -1) {
+    goingUsers.splice(userIndex, 1);
+  } else {
+    goingUsers.push(userMention);
+  }
 
   // Rebuild the container
   const container = new ContainerBuilder().setAccentColor(0x3498db);
@@ -533,10 +520,12 @@ export async function handleScoutGoingButton(
     );
   }
 
-  // Add "Eina:" section
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(`**Eina:** ${goingUsers.join(", ")}`)
-  );
+  // Add "Eina:" section only if there are users
+  if (goingUsers.length > 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`**Eina:** ${goingUsers.join(", ")}`)
+    );
+  }
 
   container.addSeparatorComponents(
     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
