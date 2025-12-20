@@ -13,15 +13,19 @@ import {
   setGlobalMessageId,
   getGlobalMessageId,
   clearRecentlyCompleted,
-  DefenseRequest,
-  CompletedRequest,
 } from "./defense-requests";
 import { getGuildConfig } from "../config/guild-config";
 import { getVillageAt, getRallyPointLink, getMapLink } from "./map-data";
 
+export interface LastActionInfo {
+  text: string;
+  undoId: number;
+}
+
 export async function buildGlobalEmbed(
   guildId: string,
-  client: Client
+  client: Client,
+  lastAction?: LastActionInfo
 ): Promise<EmbedBuilder> {
   const data = getGuildDefenseData(guildId);
   const config = getGuildConfig(guildId);
@@ -81,6 +85,12 @@ export async function buildGlobalEmbed(
     lines.push('\n*Išsiuntus spausk žemiau esantį mygtuką arba `/stack eilesnr kariai`*')
   }
 
+  // Add last action info if provided
+  if (lastAction) {
+    const undoPart = lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
+    lines.push(`\n${lastAction.text}${undoPart}`)
+  }
+
   embed.setDescription(lines.join("\n"));
 
   // Add recently completed to footer
@@ -116,7 +126,8 @@ export function buildActionButtons(
 
 export async function updateGlobalMessage(
   client: Client,
-  guildId: string
+  guildId: string,
+  lastAction?: LastActionInfo
 ): Promise<Message | null> {
   const config = getGuildConfig(guildId);
 
@@ -138,7 +149,7 @@ export async function updateGlobalMessage(
     }
 
     const data = getGuildDefenseData(guildId);
-    const embed = await buildGlobalEmbed(guildId, client);
+    const embed = await buildGlobalEmbed(guildId, client, lastAction);
     const buttonRow = buildActionButtons(data.requests.length > 0);
     const messageId = getGlobalMessageId(guildId);
 
@@ -169,46 +180,3 @@ export async function updateGlobalMessage(
   }
 }
 
-export async function sendTroopNotification(
-  client: Client,
-  guildId: string,
-  userId: string,
-  troops: number,
-  request: DefenseRequest,
-  isComplete: boolean,
-  requestId: number
-): Promise<void> {
-  const config = getGuildConfig(guildId);
-
-  if (!config.defenseChannelId) {
-    return;
-  }
-
-  try {
-    const channel = (await client.channels.fetch(
-      config.defenseChannelId
-    )) as TextChannel | null;
-
-    if (!channel) {
-      return;
-    }
-
-    // Get village info for detailed message
-    const village = config.serverKey
-      ? await getVillageAt(config.serverKey, request.x, request.y)
-      : null;
-    const villageName = village?.villageName || "Nežinomas";
-    const playerName = village?.playerName || "Nežinomas";
-
-    let message: string;
-    if (isComplete) {
-      message = `**Užklausa #${requestId} baigta!** <@${userId}> išsiuntė paskutinius **${troops}** karių į **${villageName}** (${request.x}|${request.y}) - ${playerName} - Viso: **${request.troopsSent}/${request.troopsNeeded}**`;
-    } else {
-      message = `<@${userId}> išsiuntė **${troops}** karių į **${villageName}** (${request.x}|${request.y}) - ${playerName} - Progresas: **${request.troopsSent}/${request.troopsNeeded}**`;
-    }
-
-    await channel.send(message);
-  } catch (error) {
-    console.error(`[DefenseMessage] Error sending notification:`, error);
-  }
-}

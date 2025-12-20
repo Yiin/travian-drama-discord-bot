@@ -23,7 +23,7 @@ import {
   DefenseRequest,
 } from "./defense-requests";
 import { parseCoords } from "../utils/parse-coords";
-import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
+import { updateGlobalMessage, LastActionInfo } from "./defense-message";
 import { getVillageAt, ensureMapData } from "./map-data";
 import { recordAction } from "./action-history";
 
@@ -214,37 +214,32 @@ export async function handleSentModal(
     },
   });
 
-  // Send notification to the defense channel
-  await sendTroopNotification(
-    interaction.client,
-    guildId,
-    interaction.user.id,
-    troops,
-    result.request,
-    result.isComplete,
-    requestId
-  );
-
-  // Update the global message
-  await updateGlobalMessage(interaction.client, guildId);
-
-  // Get village info for detailed message
+  // Get village info for the action message
   const village = await getVillageAt(
     config.serverKey,
     result.request.x,
     result.request.y
   );
   const villageName = village?.villageName || "Nežinomas";
-  const playerName = village?.playerName || "Nežinomas";
 
-  let replyMessage: string;
+  // Build last action info for global message
+  let actionText: string;
   if (result.isComplete) {
-    replyMessage = `<@${interaction.user.id}> užbaigė užklausą #${requestId}: **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** karių. (\`/undo ${actionId}\`)`;
+    actionText = `<@${interaction.user.id}> užbaigė **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   } else {
-    replyMessage = `<@${interaction.user.id}> išsiuntė ${troops} karių į **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progresas: **${result.request.troopsSent}/${result.request.troopsNeeded}** (\`/undo ${actionId}\`)`;
+    actionText = `<@${interaction.user.id}> išsiuntė **${troops}** į **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   }
 
-  await interaction.editReply({ content: replyMessage });
+  const lastAction: LastActionInfo = {
+    text: actionText,
+    undoId: actionId,
+  };
+
+  // Update the global message with last action info
+  await updateGlobalMessage(interaction.client, guildId, lastAction);
+
+  // Delete the deferred reply since info is in global message
+  await interaction.deleteReply();
 }
 
 export async function handleRequestDefButton(

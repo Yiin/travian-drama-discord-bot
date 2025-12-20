@@ -8,7 +8,7 @@ import { reportTroopsSent, getRequestById, getRequestByCoords, DefenseRequest } 
 import { parseCoords } from "../utils/parse-coords";
 import {
   updateGlobalMessage,
-  sendTroopNotification,
+  LastActionInfo,
 } from "../services/defense-message";
 import { getVillageAt } from "../services/map-data";
 import { withRetry } from "../utils/retry";
@@ -143,34 +143,29 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
       },
     });
 
-    // Send notification to the defense channel
-    await sendTroopNotification(
-      interaction.client,
-      guildId,
-      targetUser.id,
-      troops,
-      result.request,
-      result.isComplete,
-      requestId
-    );
-
-    // Update the global message
-    await updateGlobalMessage(interaction.client, guildId);
-
-    // Get village info for detailed message
+    // Get village info for the action message
     const village = await getVillageAt(config.serverKey, result.request.x, result.request.y);
     const villageName = village?.villageName || "Nežinomas";
-    const playerName = village?.playerName || "Nežinomas";
 
-    const creditUser = targetUser.id !== interaction.user.id ? `<@${targetUser.id}>` : `<@${interaction.user.id}>`;
-    let replyMessage: string;
+    // Build last action info for global message
+    const creditUser = `<@${targetUser.id}>`;
+    let actionText: string;
     if (result.isComplete) {
-      replyMessage = `${creditUser} užbaigė užklausą #${requestId}: **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** karių. (\`/undo ${actionId}\`)`;
+      actionText = `${creditUser} užbaigė **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
     } else {
-      replyMessage = `${creditUser} išsiuntė ${troops} karių į **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progresas: **${result.request.troopsSent}/${result.request.troopsNeeded}** (\`/undo ${actionId}\`)`;
+      actionText = `${creditUser} išsiuntė **${troops}** į **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
     }
 
-    await interaction.editReply({ content: replyMessage });
+    const lastAction: LastActionInfo = {
+      text: actionText,
+      undoId: actionId,
+    };
+
+    // Update the global message with last action info
+    await updateGlobalMessage(interaction.client, guildId, lastAction);
+
+    // Delete the deferred reply since info is in global message
+    await interaction.deleteReply();
 }
 
 export const sentCommand: Command = {

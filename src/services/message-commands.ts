@@ -9,7 +9,7 @@ import {
   removeRequest,
   updateRequest,
 } from "./defense-requests";
-import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
+import { updateGlobalMessage, LastActionInfo } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName } from "./map-data";
 
 // Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
@@ -185,19 +185,26 @@ async function handleSentCommand(
     return;
   }
 
-  // Send notification
-  await sendTroopNotification(
-    client,
-    guildId,
-    userId,
-    troops,
-    result.request,
-    result.isComplete,
-    requestId
-  );
+  // Get village info for the action message
+  const village = await getVillageAt(config.serverKey, result.request.x, result.request.y);
+  const villageName = village?.villageName || "Nežinomas";
 
-  // Update global message
-  await updateGlobalMessage(client, guildId);
+  // Build last action info for global message
+  let actionText: string;
+  if (result.isComplete) {
+    actionText = `<@${userId}> užbaigė **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+  } else {
+    actionText = `<@${userId}> išsiuntė **${troops}** į **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+  }
+
+  // Note: text commands don't have undo support yet, so we use 0 as placeholder
+  const lastAction: LastActionInfo = {
+    text: actionText,
+    undoId: 0,
+  };
+
+  // Update global message with last action info
+  await updateGlobalMessage(client, guildId, lastAction);
 
   // React to confirm
   await message.react("✅");
