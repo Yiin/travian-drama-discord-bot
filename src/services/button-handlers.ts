@@ -12,25 +12,27 @@ import {
   SeparatorBuilder,
   SeparatorSpacingSize,
   MessageFlags,
+  StringSelectMenuBuilder,
+  StringSelectMenuInteraction,
+  StringSelectMenuOptionBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../config/guild-config";
 import {
   getGuildDefenseData,
   reportTroopsSent,
   getRequestById,
-  getRequestByCoords,
   addOrUpdateRequest,
   DefenseRequest,
 } from "./defense-requests";
-import { parseCoords } from "../utils/parse-coords";
+import { parseCoords } from "../utils/parse-coords"; // Still used in handleRequestDefModal
 import { updateGlobalMessage, LastActionInfo } from "./defense-message";
 import { getVillageAt, ensureMapData } from "./map-data";
 import { recordAction } from "./action-history";
 
-// Sent troops button/modal IDs
+// Sent troops button/select/modal IDs
 export const SENT_BUTTON_ID = "sent_troops_button";
+export const SENT_SELECT_ID = "sent_troops_select";
 export const SENT_MODAL_ID = "sent_troops_modal";
-export const TARGET_INPUT_ID = "target_input";
 export const TROOPS_INPUT_ID = "troops_input";
 
 // Request def button/modal IDs
@@ -73,35 +75,68 @@ export async function handleSentButton(
     return;
   }
 
-  // Build modal with text inputs
-  const modal = new ModalBuilder()
-    .setCustomId(SENT_MODAL_ID)
-    .setTitle("Išsiųsti karius");
+  // Build options from active requests
+  const options: StringSelectMenuOptionBuilder[] = [];
+  for (let i = 0; i < data.requests.length; i++) {
+    const request = data.requests[i];
+    const village = await getVillageAt(config.serverKey, request.x, request.y);
+    const villageName = village?.villageName || "Nežinomas";
+    const playerName = village?.playerName || "Nežinomas";
 
-  const targetInput = new TextInputBuilder()
-    .setCustomId(TARGET_INPUT_ID)
-    .setLabel("Tikslas (eilės nr. arba koordinatės)")
-    .setPlaceholder("1 arba 123|456")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(20);
+    options.push(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`(${request.x}|${request.y}) ${villageName}`)
+        .setDescription(`${playerName} - ${request.troopsSent}/${request.troopsNeeded}`)
+        .setValue(`${i + 1}`) // 1-based request ID
+    );
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(SENT_SELECT_ID)
+    .setPlaceholder("Pasirink tikslą...")
+    .addOptions(options);
+
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+
+  await interaction.reply({
+    content: "**Pasirink tikslą:**",
+    components: [row],
+    ephemeral: true,
+  });
+}
+
+export async function handleSentSelect(
+  interaction: StringSelectMenuInteraction
+): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik serveryje.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const requestId = interaction.values[0]; // The selected request ID
+
+  // Build modal for troop count - include request ID in custom ID
+  const modal = new ModalBuilder()
+    .setCustomId(`${SENT_MODAL_ID}:${requestId}`)
+    .setTitle("Kiek karių išsiunčiau?");
 
   const troopsInput = new TextInputBuilder()
     .setCustomId(TROOPS_INPUT_ID)
-    .setLabel("Kiek karių išsiunčiau?")
+    .setLabel("Karių skaičius")
     .setPlaceholder("500")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(10);
 
-  const targetRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-    targetInput
-  );
   const troopsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
     troopsInput
   );
 
-  modal.addComponents(targetRow, troopsRow);
+  modal.addComponents(troopsRow);
 
   await interaction.showModal(modal);
 }
@@ -127,7 +162,25 @@ export async function handleSentModal(
     return;
   }
 
-  const targetInput = interaction.fields.getTextInputValue(TARGET_INPUT_ID);
+  // Extract request ID from modal custom ID (format: sent_troops_modal:requestId)
+  const customIdParts = interaction.customId.split(":");
+  if (customIdParts.length !== 2) {
+    await interaction.reply({
+      content: "Klaida: nepavyko nustatyti tikslo.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const requestId = parseInt(customIdParts[1], 10);
+  if (isNaN(requestId) || requestId < 1) {
+    await interaction.reply({
+      content: "Klaida: neteisingas tikslo ID.",
+      ephemeral: true,
+    });
+    return;
+  }
+
   const troopsInput = interaction.fields.getTextInputValue(TROOPS_INPUT_ID);
 
   // Parse troops
@@ -138,40 +191,6 @@ export async function handleSentModal(
       ephemeral: true,
     });
     return;
-  }
-
-  // Try to parse as coordinates first, then as ID
-  let requestId: number;
-  const coords = parseCoords(targetInput);
-  if (coords) {
-    const found = getRequestByCoords(guildId, coords.x, coords.y);
-    if (!found) {
-      await interaction.reply({
-        content: `Nerasta aktyvi užklausa koordinatėse (${coords.x}|${coords.y}).`,
-        ephemeral: true,
-      });
-      return;
-    }
-    requestId = found.requestId;
-  } else {
-    const parsed = parseInt(targetInput, 10);
-    if (isNaN(parsed) || parsed < 1) {
-      await interaction.reply({
-        content:
-          "Neteisingas įvedimas. Nurodyk užklausos nr. (pvz., 1) arba koordinates (pvz., 123|456).",
-        ephemeral: true,
-      });
-      return;
-    }
-    requestId = parsed;
-    const existingRequest = getRequestById(guildId, requestId);
-    if (!existingRequest) {
-      await interaction.reply({
-        content: `Užklausa #${requestId} nerasta.`,
-        ephemeral: true,
-      });
-      return;
-    }
   }
 
   // Defer reply
