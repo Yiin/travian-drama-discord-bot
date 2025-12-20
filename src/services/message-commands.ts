@@ -13,25 +13,26 @@ import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName } from "./map-data";
 
 // Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
-// Simple format: /sent 1 200 or !sent 123|456 200 or !stack 1 200 @user
-const SENT_PATTERN = /^[\/!](?:sent|stack)\s+(\S+)\s+(\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
+// Simple format: /sent 1 200 or !sent 123|456 200 or !sent 123 -456 200 or !stack 1 200 @user
+const SENT_PATTERN = /^[\/!](?:sent|stack)\s+(.+?)\s+(\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
 // Verbose format: /sent id: 1 troops: 200 or !sent target: 123|456 troops: 200 user: @user
 const SENT_VERBOSE_PATTERN = /^[\/!](?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)(?:\s+user:\s*<@!?(\d+)>)?\s*$/i;
 
 // Pattern: /scout or !scout followed by coords and message
-const SCOUT_PATTERN = /^[\/!]scout\s+(\S+)\s+(.+)$/i;
+// Coords can be space-separated: !scout 51 -32 message here
+const SCOUT_PATTERN = /^[\/!]scout\s+(\S+(?:\s+-?\d+)?)\s+(.+)$/i;
 // Verbose format: /scout coords: 123|456 message: some text
 const SCOUT_VERBOSE_PATTERN = /^[\/!]scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/i;
 
 // Pattern: /def or !def followed by coords, troops, and optional message
-// Simple format: !def 123|456 2000 or !def (61|-145) 2000 optional message here
-const DEF_PATTERN = /^[\/!]def\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i;
+// Coords can be space-separated: !def 51 -32 5000 or !def 51|-32 5000 message
+const DEF_PATTERN = /^[\/!]def\s+(.+?)\s+(\d+)(?:\s+(.+))?\s*$/i;
 
 // Pattern: /deletedef or !deletedef followed by ID
 const DELETEDEF_PATTERN = /^[\/!]deletedef\s+(\d+)\s*$/i;
 
-// Pattern: /lookup or !lookup followed by coords
-const LOOKUP_PATTERN = /^[\/!]lookup\s+(\S+)\s*$/i;
+// Pattern: /lookup or !lookup followed by coords (can be space-separated)
+const LOOKUP_PATTERN = /^[\/!]lookup\s+(.+?)\s*$/i;
 
 // Pattern: /stackinfo or !stackinfo (no parameters)
 const STACKINFO_PATTERN = /^[\/!]stackinfo\s*$/i;
