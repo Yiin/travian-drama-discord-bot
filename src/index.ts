@@ -3,6 +3,18 @@ import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
 import { handleTextCommand } from "./services/message-commands";
+import {
+  handleSentButton,
+  handleSentModal,
+  handleRequestDefButton,
+  handleRequestDefModal,
+  handleScoutGoingButton,
+  SENT_BUTTON_ID,
+  SENT_MODAL_ID,
+  REQUEST_DEF_BUTTON_ID,
+  REQUEST_DEF_MODAL_ID,
+  SCOUT_GOING_BUTTON_ID,
+} from "./services/button-handlers";
 
 dotenv.config();
 
@@ -41,6 +53,57 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  // Handle button interactions
+  if (interaction.isButton()) {
+    try {
+      if (interaction.customId === SENT_BUTTON_ID) {
+        await handleSentButton(interaction);
+      } else if (interaction.customId === REQUEST_DEF_BUTTON_ID) {
+        await handleRequestDefButton(interaction);
+      } else if (interaction.customId === SCOUT_GOING_BUTTON_ID) {
+        await handleScoutGoingButton(interaction);
+      }
+    } catch (error) {
+      console.error("Error handling button interaction:", error);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "Įvyko klaida!",
+            ephemeral: true,
+          });
+        }
+      } catch {
+        // Ignore reply errors
+      }
+    }
+    return;
+  }
+
+  // Handle modal submissions
+  if (interaction.isModalSubmit()) {
+    try {
+      if (interaction.customId === SENT_MODAL_ID) {
+        await handleSentModal(interaction);
+      } else if (interaction.customId === REQUEST_DEF_MODAL_ID) {
+        await handleRequestDefModal(interaction);
+      }
+    } catch (error) {
+      console.error("Error handling modal submission:", error);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "Įvyko klaida!",
+            ephemeral: true,
+          });
+        }
+      } catch {
+        // Ignore reply errors
+      }
+    }
+    return;
+  }
+
+  // Handle slash commands
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);

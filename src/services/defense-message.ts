@@ -1,4 +1,13 @@
-import { Client, EmbedBuilder, TextChannel, Colors, Message } from "discord.js";
+import {
+  Client,
+  EmbedBuilder,
+  TextChannel,
+  Colors,
+  Message,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from "discord.js";
 import {
   getGuildDefenseData,
   setGlobalMessageId,
@@ -68,7 +77,9 @@ export async function buildGlobalEmbed(
     lines.push(line);
   }
 
-  lines.push('\nIšsiuntus: `/stack eilesnr kariai` (`/stack 1 500`)\narba `!stack 1 500`')
+  if (data.requests.length > 0) {
+    lines.push('\n*Išsiuntus spausk žemiau esantį mygtuką arba `/stack eilesnr kariai`*')
+  }
 
   embed.setDescription(lines.join("\n"));
 
@@ -84,6 +95,23 @@ export async function buildGlobalEmbed(
   }
 
   return embed;
+}
+
+export function buildActionButtons(
+  hasRequests: boolean
+): ActionRowBuilder<ButtonBuilder> {
+  const defButton = new ButtonBuilder()
+    .setCustomId("request_def_button")
+    .setLabel("Reikia def")
+    .setStyle(ButtonStyle.Danger);
+
+  const sentButton = new ButtonBuilder()
+    .setCustomId("sent_troops_button")
+    .setLabel("Išsiunčiau")
+    .setStyle(ButtonStyle.Success)
+    .setDisabled(!hasRequests);
+
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(defButton, sentButton);
 }
 
 export async function updateGlobalMessage(
@@ -109,7 +137,9 @@ export async function updateGlobalMessage(
       return null;
     }
 
+    const data = getGuildDefenseData(guildId);
     const embed = await buildGlobalEmbed(guildId, client);
+    const buttonRow = buildActionButtons(data.requests.length > 0);
     const messageId = getGlobalMessageId(guildId);
 
     // Delete existing message if it exists
@@ -123,7 +153,10 @@ export async function updateGlobalMessage(
     }
 
     // Post new message
-    const newMessage = await channel.send({ embeds: [embed] });
+    const newMessage = await channel.send({
+      embeds: [embed],
+      components: [buttonRow],
+    });
     setGlobalMessageId(guildId, newMessage.id);
 
     // Clear recently completed after showing them

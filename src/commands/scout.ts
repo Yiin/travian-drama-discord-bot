@@ -2,8 +2,14 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   TextChannel,
-  EmbedBuilder,
-  Colors,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
 } from "discord.js";
 import { Command } from "../types";
 import { parseCoords } from "../utils/parse-coords";
@@ -15,6 +21,7 @@ import {
   getMapLink,
 } from "../services/map-data";
 import { withRetry } from "../utils/retry";
+import { SCOUT_GOING_BUTTON_ID } from "../services/button-handlers";
 
 export const scoutCommand: Command = {
   data: new SlashCommandBuilder()
@@ -108,15 +115,41 @@ export const scoutCommand: Command = {
     }
 
     const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 3);
+    const mapLink = getMapLink(config.serverKey, village);
 
-    const embed = new EmbedBuilder()
-      .setColor(Colors.Blue)
-      .setDescription(
-        `[(${coords.x}|${coords.y})](${getMapLink(config.serverKey, village)}) **${village.villageName}** ${village.population} pop (${village.playerName}) [**[ SIŲSTI ]**](${rallyLink}) - ${message}`
-      )
-      .setFooter({ text: `Paprašė ${interaction.user.displayName}` });
+    // Build Components v2 message with larger text
+    const container = new ContainerBuilder().setAccentColor(0x3498db); // Blue accent
 
-    await channel.send({ embeds: [embed] });
+    // Main info with heading for larger text
+    const mainText = new TextDisplayBuilder().setContent(
+      `## [(${coords.x}|${coords.y})](${mapLink}) ${village.villageName}\n` +
+      `**${village.playerName}** · ${village.population} pop · [**SIŲSTI**](${rallyLink})`
+    );
+
+    const messageText = new TextDisplayBuilder().setContent(`>>> ${message}`);
+
+    const separator = new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small);
+
+    const footerText = new TextDisplayBuilder().setContent(
+      `-# Paprašė ${interaction.user.displayName}`
+    );
+
+    container.addTextDisplayComponents(mainText, messageText);
+    container.addSeparatorComponents(separator);
+    container.addTextDisplayComponents(footerText);
+
+    // Add "eina" button
+    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(SCOUT_GOING_BUTTON_ID)
+        .setLabel("Eina")
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await channel.send({
+      components: [container, buttonRow],
+      flags: MessageFlags.IsComponentsV2,
+    });
 
     const playerInfo = village.allianceName
       ? `${village.playerName} [${village.allianceName}]`
