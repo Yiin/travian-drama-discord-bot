@@ -24,8 +24,7 @@ export interface LastActionInfo {
 
 export async function buildGlobalEmbed(
   guildId: string,
-  client: Client,
-  lastAction?: LastActionInfo
+  client: Client
 ): Promise<EmbedBuilder> {
   const data = getGuildDefenseData(guildId);
   const config = getGuildConfig(guildId);
@@ -85,12 +84,6 @@ export async function buildGlobalEmbed(
     lines.push('\n*Išsiuntus spausk žemiau esantį mygtuką arba `/stack eilesnr kariai`*')
   }
 
-  // Add last action info if provided
-  if (lastAction) {
-    const undoPart = lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
-    lines.push(`\n${lastAction.text}${undoPart}`)
-  }
-
   embed.setDescription(lines.join("\n"));
 
   // Add recently completed to footer
@@ -148,8 +141,14 @@ export async function updateGlobalMessage(
       return null;
     }
 
+    // Send separate confirmation message first (stays in chat history)
+    if (lastAction) {
+      const undoPart = lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
+      await channel.send(`${lastAction.text}${undoPart}`);
+    }
+
     const data = getGuildDefenseData(guildId);
-    const embed = await buildGlobalEmbed(guildId, client, lastAction);
+    const embed = await buildGlobalEmbed(guildId, client);
     const buttonRow = buildActionButtons(data.requests.length > 0);
     const messageId = getGlobalMessageId(guildId);
 
