@@ -9,11 +9,11 @@ import {
 import { updateGlobalMessage, sendTroopNotification } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink } from "./map-data";
 
-// Pattern: /sent or /stack (or !sent, !stack) followed by target and troops
-// Simple format: /sent 1 200 or !sent 123|456 200
-const SENT_PATTERN = /^[\/!](?:sent|stack)\s+(\S+)\s+(\d+)\s*$/i;
-// Verbose format: /sent id: 1 troops: 200 or !sent target: 123|456 troops: 200
-const SENT_VERBOSE_PATTERN = /^[\/!](?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)\s*$/i;
+// Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
+// Simple format: /sent 1 200 or !sent 123|456 200 or !stack 1 200 @user
+const SENT_PATTERN = /^[\/!](?:sent|stack)\s+(\S+)\s+(\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
+// Verbose format: /sent id: 1 troops: 200 or !sent target: 123|456 troops: 200 user: @user
+const SENT_VERBOSE_PATTERN = /^[\/!](?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)(?:\s+user:\s*<@!?(\d+)>)?\s*$/i;
 
 // Pattern: /scout or !scout followed by coords and message
 const SCOUT_PATTERN = /^[\/!]scout\s+(\S+)\s+(.+)$/i;
@@ -51,7 +51,8 @@ export async function handleTextCommand(
     // Try simple format first, then verbose format
     const sentMatch = content.match(SENT_PATTERN) || content.match(SENT_VERBOSE_PATTERN);
     if (sentMatch) {
-      await handleSentCommand(client, message, sentMatch[1], parseInt(sentMatch[2], 10));
+      const forUserId = sentMatch[3]; // Optional user mention
+      await handleSentCommand(client, message, sentMatch[1], parseInt(sentMatch[2], 10), forUserId);
       return;
     }
   }
@@ -82,10 +83,12 @@ async function handleSentCommand(
   client: Client,
   message: Message,
   targetInput: string,
-  troops: number
+  troops: number,
+  forUserId?: string
 ): Promise<void> {
   const guildId = message.guildId!;
   const config = getGuildConfig(guildId);
+  const userId = forUserId || message.author.id;
 
   if (!config.serverKey) return;
 
@@ -119,7 +122,7 @@ async function handleSentCommand(
   }
 
   // Report troops
-  const result = reportTroopsSent(guildId, requestId, message.author.id, troops);
+  const result = reportTroopsSent(guildId, requestId, userId, troops);
 
   if ("error" in result) {
     await message.reply(result.error);
@@ -130,7 +133,7 @@ async function handleSentCommand(
   await sendTroopNotification(
     client,
     guildId,
-    message.author.id,
+    userId,
     troops,
     result.request,
     result.isComplete,
