@@ -31,7 +31,7 @@ export async function buildGlobalEmbed(
   const config = getGuildConfig(guildId);
 
   const embed = new EmbedBuilder()
-    .setTitle("Aktyvus stacko prašymai")
+    .setTitle("Aktyvūs stacko prašymai")
     .setColor(Colors.Red)
     .setTimestamp();
 
