@@ -4,10 +4,11 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
-import { removeRequest, getRequestById } from "../services/defense-requests";
+import { removeRequest, getRequestById, DefenseRequest } from "../services/defense-requests";
 import { updateGlobalMessage } from "../services/defense-message";
 import { getVillageAt } from "../services/map-data";
 import { withRetry } from "../utils/retry";
+import { recordAction } from "../services/action-history";
 
 export const deletedefCommand: Command = {
   data: new SlashCommandBuilder()
@@ -61,7 +62,13 @@ export const deletedefCommand: Command = {
     }
 
     // Defer reply as updating may take time
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply());
+
+    // Snapshot the request before deletion for undo support
+    const snapshot: DefenseRequest = {
+      ...existingRequest,
+      contributors: existingRequest.contributors.map(c => ({ ...c })),
+    };
 
     // Get village info for confirmation message
     const village = await getVillageAt(config.serverKey, existingRequest.x, existingRequest.y);
@@ -76,11 +83,20 @@ export const deletedefCommand: Command = {
       return;
     }
 
+    // Record the action for undo support
+    const actionId = recordAction(guildId, {
+      type: "REQUEST_DELETED",
+      userId: interaction.user.id,
+      coords: { x: snapshot.x, y: snapshot.y },
+      previousState: snapshot,
+      data: {},
+    });
+
     // Update the global message
     await updateGlobalMessage(interaction.client, guildId);
 
     await interaction.editReply({
-      content: `Ištrinta užklausa #${requestId}: **${villageName}** (${existingRequest.x}|${existingRequest.y}) - ${playerName}`,
+      content: `<@${interaction.user.id}> ištrynė užklausą #${requestId}: **${villageName}** (${existingRequest.x}|${existingRequest.y}) - ${playerName}. (\`/undo ${actionId}\`)`,
     });
   },
 };

@@ -4,7 +4,7 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
-import { reportTroopsSent, getRequestById, getRequestByCoords } from "../services/defense-requests";
+import { reportTroopsSent, getRequestById, getRequestByCoords, DefenseRequest } from "../services/defense-requests";
 import { parseCoords } from "../utils/parse-coords";
 import {
   updateGlobalMessage,
@@ -12,6 +12,7 @@ import {
 } from "../services/defense-message";
 import { getVillageAt } from "../services/map-data";
 import { withRetry } from "../utils/retry";
+import { recordAction } from "../services/action-history";
 
 function buildSentCommand(name: string) {
   return new SlashCommandBuilder()
@@ -103,7 +104,18 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
     }
 
     // Defer reply as updating may take time (with retry for transient errors)
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply());
+
+    // Snapshot the request before modification for undo support
+    const requestBefore = getRequestById(guildId, requestId);
+    if (!requestBefore) {
+      await interaction.editReply({ content: `Užklausa #${requestId} nerasta.` });
+      return;
+    }
+    const snapshot: DefenseRequest = {
+      ...requestBefore,
+      contributors: requestBefore.contributors.map(c => ({ ...c })),
+    };
 
     // Report the troops sent
     const result = reportTroopsSent(
@@ -117,6 +129,19 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
       await interaction.editReply({ content: result.error });
       return;
     }
+
+    // Record the action for undo support
+    const actionId = recordAction(guildId, {
+      type: "TROOPS_SENT",
+      userId: interaction.user.id,
+      coords: { x: snapshot.x, y: snapshot.y },
+      previousState: snapshot,
+      data: {
+        troops,
+        contributorId: targetUser.id,
+        didComplete: result.isComplete,
+      },
+    });
 
     // Send notification to the defense channel
     await sendTroopNotification(
@@ -137,12 +162,12 @@ async function executeSent(interaction: ChatInputCommandInteraction): Promise<vo
     const villageName = village?.villageName || "Nežinomas";
     const playerName = village?.playerName || "Nežinomas";
 
-    const forUser = targetUser.id !== interaction.user.id ? ` už <@${targetUser.id}>` : "";
+    const creditUser = targetUser.id !== interaction.user.id ? `<@${targetUser.id}>` : `<@${interaction.user.id}>`;
     let replyMessage: string;
     if (result.isComplete) {
-      replyMessage = `Užklausa #${requestId} baigta! **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** karių išsiųsta${forUser}.`;
+      replyMessage = `${creditUser} užbaigė užklausą #${requestId}: **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - **${result.request.troopsSent}/${result.request.troopsNeeded}** karių. (\`/undo ${actionId}\`)`;
     } else {
-      replyMessage = `Užfiksuota ${troops} karių${forUser} į **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progresas: **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+      replyMessage = `${creditUser} išsiuntė ${troops} karių į **${villageName}** (${result.request.x}|${result.request.y}) - ${playerName} - Progresas: **${result.request.troopsSent}/${result.request.troopsNeeded}** (\`/undo ${actionId}\`)`;
     }
 
     await interaction.editReply({ content: replyMessage });

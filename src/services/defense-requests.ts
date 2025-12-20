@@ -4,7 +4,7 @@ import path from "path";
 const DATA_DIR = path.join(process.cwd(), "data");
 const REQUESTS_FILE = path.join(DATA_DIR, "defense-requests.json");
 
-const MAX_REQUESTS = 20;
+export const MAX_REQUESTS = 20;
 
 export interface Contributor {
   userId: string;
@@ -295,4 +295,120 @@ export function clearRecentlyCompleted(guildId: string): CompletedRequest[] {
 
 export function getAllRequests(guildId: string): DefenseRequest[] {
   return getGuildDefenseData(guildId).requests;
+}
+
+// --- Undo support functions ---
+
+export interface RestoreResult {
+  success: boolean;
+  requestId?: number;
+  error?: string;
+}
+
+/**
+ * Restores a request back to the active list.
+ * If atEnd is true, adds at end regardless of existing request at coords.
+ * Returns the new 1-based request ID.
+ */
+export function restoreRequest(
+  guildId: string,
+  request: DefenseRequest,
+  atEnd: boolean = false
+): RestoreResult {
+  const data = getGuildDefenseData(guildId);
+
+  // Check max requests limit
+  if (data.requests.length >= MAX_REQUESTS) {
+    return { success: false, error: "Pasiektas maksimalus užklausų limitas (20)." };
+  }
+
+  // Check if coords already occupied
+  const existingIndex = data.requests.findIndex(
+    (r) => r.x === request.x && r.y === request.y
+  );
+
+  if (existingIndex !== -1 && !atEnd) {
+    // Replace existing request at same coords
+    data.requests[existingIndex] = {
+      ...request,
+      contributors: [...request.contributors],
+    };
+    saveGuildData(guildId, data);
+    return { success: true, requestId: existingIndex + 1 };
+  }
+
+  // Add at end
+  const restoredRequest: DefenseRequest = {
+    ...request,
+    contributors: [...request.contributors],
+  };
+  data.requests.push(restoredRequest);
+  saveGuildData(guildId, data);
+  return { success: true, requestId: data.requests.length };
+}
+
+/**
+ * Removes a request by coordinates.
+ * Returns the removed request if found.
+ */
+export function removeRequestByCoords(
+  guildId: string,
+  x: number,
+  y: number
+): DefenseRequest | undefined {
+  const data = getGuildDefenseData(guildId);
+  const index = data.requests.findIndex((r) => r.x === x && r.y === y);
+
+  if (index === -1) {
+    return undefined;
+  }
+
+  const [removed] = data.requests.splice(index, 1);
+  saveGuildData(guildId, data);
+  return removed;
+}
+
+export interface SubtractTroopsResult {
+  success: boolean;
+  request?: DefenseRequest;
+  error?: string;
+}
+
+/**
+ * Subtracts troops from a request (reverse of reportTroopsSent).
+ * Also updates the contributor's total.
+ */
+export function subtractTroops(
+  guildId: string,
+  x: number,
+  y: number,
+  contributorId: string,
+  troops: number
+): SubtractTroopsResult {
+  const data = getGuildDefenseData(guildId);
+  const index = data.requests.findIndex((r) => r.x === x && r.y === y);
+
+  if (index === -1) {
+    return { success: false, error: "Užklausa nerasta." };
+  }
+
+  const request = data.requests[index];
+
+  // Subtract from total
+  request.troopsSent = Math.max(0, request.troopsSent - troops);
+
+  // Update contributor
+  const contributor = request.contributors.find((c) => c.userId === contributorId);
+  if (contributor) {
+    contributor.troops -= troops;
+    if (contributor.troops <= 0) {
+      // Remove contributor if no troops left
+      request.contributors = request.contributors.filter(
+        (c) => c.userId !== contributorId
+      );
+    }
+  }
+
+  saveGuildData(guildId, data);
+  return { success: true, request };
 }

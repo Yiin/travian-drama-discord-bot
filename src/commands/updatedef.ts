@@ -5,9 +5,10 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
-import { updateRequest, getRequestById } from "../services/defense-requests";
+import { updateRequest, getRequestById, DefenseRequest } from "../services/defense-requests";
 import { updateGlobalMessage } from "../services/defense-message";
 import { withRetry } from "../utils/retry";
+import { recordAction } from "../services/action-history";
 
 export const updatedefCommand: Command = {
   data: new SlashCommandBuilder()
@@ -94,13 +95,24 @@ export const updatedefCommand: Command = {
     }
 
     // Defer reply as updating may take time
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply());
+
+    // Snapshot the request before update for undo support
+    const snapshot: DefenseRequest = {
+      ...existingRequest,
+      contributors: existingRequest.contributors.map(c => ({ ...c })),
+    };
 
     // Build update object
     const updates: { troopsSent?: number; troopsNeeded?: number; message?: string } = {};
     if (troopsSent !== null) updates.troopsSent = troopsSent;
     if (troopsNeeded !== null) updates.troopsNeeded = troopsNeeded;
     if (message !== null) updates.message = message;
+
+    // Calculate if this update will complete the request
+    const newTroopsSent = troopsSent !== null ? troopsSent : existingRequest.troopsSent;
+    const newTroopsNeeded = troopsNeeded !== null ? troopsNeeded : existingRequest.troopsNeeded;
+    const willComplete = newTroopsSent >= newTroopsNeeded;
 
     // Update the request
     const result = updateRequest(guildId, requestId, updates);
@@ -109,6 +121,20 @@ export const updatedefCommand: Command = {
       await interaction.editReply({ content: result.error });
       return;
     }
+
+    // Record the action for undo support
+    const actionId = recordAction(guildId, {
+      type: "ADMIN_UPDATE",
+      userId: interaction.user.id,
+      coords: { x: snapshot.x, y: snapshot.y },
+      previousState: snapshot,
+      data: {
+        previousTroopsSent: snapshot.troopsSent,
+        previousTroopsNeeded: snapshot.troopsNeeded,
+        previousMessage: snapshot.message,
+        adminDidComplete: willComplete,
+      },
+    });
 
     // Update the global message
     await updateGlobalMessage(interaction.client, guildId);
@@ -119,7 +145,7 @@ export const updatedefCommand: Command = {
     if (message !== null) updatedFields.push(`žinutė: "${message}"`);
 
     await interaction.editReply({
-      content: `Užklausa #${requestId} atnaujinta: ${updatedFields.join(", ")}`,
+      content: `<@${interaction.user.id}> atnaujino užklausą #${requestId}: ${updatedFields.join(", ")}. (\`/undo ${actionId}\`)`,
     });
   },
 };

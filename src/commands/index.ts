@@ -9,6 +9,7 @@ import { lookupCommand } from "./lookup";
 import { sentCommand, stackCommand } from "./sent";
 import { stackinfoCommand } from "./stackinfo";
 import { updatedefCommand } from "./updatedef";
+import { undoCommand } from "./undo";
 
 export const commands = new Collection<string, Command>();
 
@@ -26,3 +27,4 @@ registerCommand(sentCommand);
 registerCommand(stackCommand);
 registerCommand(stackinfoCommand);
 registerCommand(updatedefCommand);
+registerCommand(undoCommand);

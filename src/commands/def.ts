@@ -9,6 +9,7 @@ import { addOrUpdateRequest } from "../services/defense-requests";
 import { updateGlobalMessage } from "../services/defense-message";
 import { getVillageAt, ensureMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
+import { recordAction } from "../services/action-history";
 
 export const defCommand: Command = {
   data: new SlashCommandBuilder()
@@ -78,7 +79,7 @@ export const defCommand: Command = {
     }
 
     // Defer reply as map data lookup may take time (with retry for transient errors)
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply());
 
     // Ensure map data is available
     const dataReady = await ensureMapData(config.serverKey);
@@ -113,15 +114,27 @@ export const defCommand: Command = {
       return;
     }
 
+    // Record the action for undo support
+    const actionId = recordAction(guildId, {
+      type: result.isUpdate ? "DEF_UPDATE" : "DEF_ADD",
+      userId: interaction.user.id,
+      coords: { x: coords.x, y: coords.y },
+      previousState: result.previousRequest,
+      data: {
+        troopsNeeded,
+        message,
+      },
+    });
+
     // Update the global message
     await updateGlobalMessage(interaction.client, guildId);
 
-    const actionText = result.isUpdate ? "atnaujinta" : "sukurta";
+    const actionText = result.isUpdate ? "atnaujino" : "sukūrė";
     const playerInfo = village.allianceName
       ? `${village.playerName} [${village.allianceName}]`
       : village.playerName;
     await interaction.editReply({
-      content: `Gynybos užklausa #${result.requestId} ${actionText}: **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - reikia ${troopsNeeded} karių.`,
+      content: `<@${interaction.user.id}> ${actionText} užklausą #${result.requestId}: **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`,
     });
   },
 };
