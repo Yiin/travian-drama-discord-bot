@@ -13,8 +13,8 @@ import {
   SeparatorSpacingSize,
   MessageFlags,
   StringSelectMenuBuilder,
-  StringSelectMenuInteraction,
   StringSelectMenuOptionBuilder,
+  LabelBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../config/guild-config";
 import {
@@ -29,10 +29,10 @@ import { updateGlobalMessage, LastActionInfo } from "./defense-message";
 import { getVillageAt, ensureMapData } from "./map-data";
 import { recordAction } from "./action-history";
 
-// Sent troops button/select/modal IDs
+// Sent troops button/modal IDs
 export const SENT_BUTTON_ID = "sent_troops_button";
-export const SENT_SELECT_ID = "sent_troops_select";
 export const SENT_MODAL_ID = "sent_troops_modal";
+export const TARGET_SELECT_ID = "target_select";
 export const TROOPS_INPUT_ID = "troops_input";
 
 // Request def button/modal IDs
@@ -91,52 +91,34 @@ export async function handleSentButton(
     );
   }
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(SENT_SELECT_ID)
+  // Build modal with target dropdown and troop input
+  const modal = new ModalBuilder()
+    .setCustomId(SENT_MODAL_ID)
+    .setTitle("Išsiunčiau karius");
+
+  const targetSelect = new StringSelectMenuBuilder()
+    .setCustomId(TARGET_SELECT_ID)
     .setPlaceholder("Pasirink tikslą...")
+    .setRequired(true)
     .addOptions(options);
 
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-
-  await interaction.reply({
-    content: "**Pasirink tikslą:**",
-    components: [row],
-    ephemeral: true,
-  });
-}
-
-export async function handleSentSelect(
-  interaction: StringSelectMenuInteraction
-): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const requestId = interaction.values[0]; // The selected request ID
-
-  // Build modal for troop count - include request ID in custom ID
-  const modal = new ModalBuilder()
-    .setCustomId(`${SENT_MODAL_ID}:${requestId}`)
-    .setTitle("Kiek karių išsiunčiau?");
+  const targetLabel = new LabelBuilder()
+    .setLabel("Tikslas")
+    .setStringSelectMenuComponent(targetSelect);
 
   const troopsInput = new TextInputBuilder()
     .setCustomId(TROOPS_INPUT_ID)
-    .setLabel("Karių skaičius")
-    .setPlaceholder("500")
     .setStyle(TextInputStyle.Short)
+    .setPlaceholder("500")
     .setRequired(true)
     .setMaxLength(10);
 
-  const troopsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-    troopsInput
-  );
+  const troopsLabel = new LabelBuilder()
+    .setLabel("Kiek karių išsiunčiau?")
+    .setDescription("Karių skaičius")
+    .setTextInputComponent(troopsInput);
 
-  modal.addComponents(troopsRow);
+  modal.addLabelComponents(targetLabel, troopsLabel);
 
   await interaction.showModal(modal);
 }
@@ -162,9 +144,9 @@ export async function handleSentModal(
     return;
   }
 
-  // Extract request ID from modal custom ID (format: sent_troops_modal:requestId)
-  const customIdParts = interaction.customId.split(":");
-  if (customIdParts.length !== 2) {
+  // Extract target from select menu and troops from text input
+  const selectedValues = interaction.fields.getStringSelectValues(TARGET_SELECT_ID);
+  if (!selectedValues || selectedValues.length === 0) {
     await interaction.reply({
       content: "Klaida: nepavyko nustatyti tikslo.",
       ephemeral: true,
@@ -172,7 +154,7 @@ export async function handleSentModal(
     return;
   }
 
-  const requestId = parseInt(customIdParts[1], 10);
+  const requestId = parseInt(selectedValues[0], 10);
   if (isNaN(requestId) || requestId < 1) {
     await interaction.reply({
       content: "Klaida: neteisingas tikslo ID.",

@@ -5,13 +5,11 @@ import { startScheduler } from "./services/map-scheduler";
 import { handleTextCommand } from "./services/message-commands";
 import {
   handleSentButton,
-  handleSentSelect,
   handleSentModal,
   handleRequestDefButton,
   handleRequestDefModal,
   handleScoutGoingButton,
   SENT_BUTTON_ID,
-  SENT_SELECT_ID,
   SENT_MODAL_ID,
   REQUEST_DEF_BUTTON_ID,
   REQUEST_DEF_MODAL_ID,
@@ -81,33 +79,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
-  // Handle select menu interactions
-  if (interaction.isStringSelectMenu()) {
-    try {
-      if (interaction.customId === SENT_SELECT_ID) {
-        await handleSentSelect(interaction);
-      }
-    } catch (error) {
-      console.error("Error handling select menu interaction:", error);
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: "Įvyko klaida!",
-            ephemeral: true,
-          });
-        }
-      } catch {
-        // Ignore reply errors
-      }
-    }
-    return;
-  }
-
   // Handle modal submissions
   if (interaction.isModalSubmit()) {
     try {
-      // Check with startsWith since SENT_MODAL_ID now has :requestId suffix
-      if (interaction.customId.startsWith(SENT_MODAL_ID)) {
+      if (interaction.customId === SENT_MODAL_ID) {
         await handleSentModal(interaction);
       } else if (interaction.customId === REQUEST_DEF_MODAL_ID) {
         await handleRequestDefModal(interaction);
