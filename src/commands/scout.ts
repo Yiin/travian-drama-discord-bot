@@ -151,11 +151,7 @@ export const scoutCommand: Command = {
       flags: MessageFlags.IsComponentsV2,
     });
 
-    const playerInfo = village.allianceName
-      ? `${village.playerName} [${village.allianceName}]`
-      : village.playerName;
-    await interaction.editReply({
-      content: `Žvalgybos prašymas užfiksuotas į **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - <#${config.scoutChannelId}>`,
-    });
+    // Delete the deferred reply since the scout request is posted to the channel
+    await interaction.deleteReply();
   },
 };
