@@ -105,7 +105,7 @@ export function buildActionButtons(
 ): ActionRowBuilder<ButtonBuilder> {
   const defButton = new ButtonBuilder()
     .setCustomId("request_def_button")
-    .setLabel("Reikia def")
+    .setLabel("Reikia stack")
     .setStyle(ButtonStyle.Danger);
 
   const sentButton = new ButtonBuilder()
