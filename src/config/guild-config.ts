@@ -7,6 +7,7 @@ const CONFIG_FILE = path.join(DATA_DIR, "guilds.json");
 export interface GuildConfig {
   defenseChannelId?: string;
   scoutChannelId?: string;
+  scoutRoleId?: string;
   serverKey?: string;
 }
 
@@ -52,6 +53,17 @@ export function setScoutChannel(
 ): void {
   const configs = loadConfigs();
   configs[guildId] = { ...configs[guildId], scoutChannelId: channelId };
+  saveConfigs(configs);
+}
+
+export function setScoutRole(guildId: string, roleId: string | null): void {
+  const configs = loadConfigs();
+  if (roleId === null) {
+    const { scoutRoleId, ...rest } = configs[guildId] || {};
+    configs[guildId] = rest;
+  } else {
+    configs[guildId] = { ...configs[guildId], scoutRoleId: roleId };
+  }
   saveConfigs(configs);
 }
 

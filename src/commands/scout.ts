@@ -8,8 +8,6 @@ import {
   MessageFlags,
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
 } from "discord.js";
 import { Command } from "../types";
 import { parseCoords } from "../utils/parse-coords";
@@ -120,23 +118,16 @@ export const scoutCommand: Command = {
     // Build Components v2 message with larger text
     const container = new ContainerBuilder().setAccentColor(0x3498db); // Blue accent
 
-    // Main info with heading for larger text
-    const mainText = new TextDisplayBuilder().setContent(
-      `## [(${coords.x}|${coords.y})](${mapLink}) ${village.villageName}\n` +
-      `**${village.playerName}** · ${village.population} pop · [**SIŲSTI**](${rallyLink})`
+    const roleMention = config.scoutRoleId ? `<@&${config.scoutRoleId}>` : "";
+    const content = new TextDisplayBuilder().setContent(
+      `## [(${coords.x}|${coords.y})](${mapLink}) ${village.villageName} · ${village.population} pop · ${village.playerName}\n` +
+      `# ${message}\n` +
+      `## [**SIŲSTI**](${rallyLink})\n` +
+      (roleMention ? `${roleMention}\n` : "") +
+      `> -# Paprašė ${interaction.user.displayName}`
     );
 
-    const messageText = new TextDisplayBuilder().setContent(`>>> ${message}`);
-
-    const separator = new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small);
-
-    const footerText = new TextDisplayBuilder().setContent(
-      `-# Paprašė ${interaction.user.displayName}`
-    );
-
-    container.addTextDisplayComponents(mainText, messageText);
-    container.addSeparatorComponents(separator);
-    container.addTextDisplayComponents(footerText);
+    container.addTextDisplayComponents(content);
 
     // Add "eina" button
     const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(

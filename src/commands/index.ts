@@ -10,6 +10,7 @@ import { sentCommand, stackCommand } from "./sent";
 import { stackinfoCommand } from "./stackinfo";
 import { updatedefCommand } from "./updatedef";
 import { undoCommand } from "./undo";
+import { setscoutroleCommand } from "./setscoutrole";
 
 export const commands = new Collection<string, Command>();
 
@@ -28,3 +29,4 @@ registerCommand(stackCommand);
 registerCommand(stackinfoCommand);
 registerCommand(updatedefCommand);
 registerCommand(undoCommand);
+registerCommand(setscoutroleCommand);
