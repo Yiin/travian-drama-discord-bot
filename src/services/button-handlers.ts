@@ -266,46 +266,45 @@ export async function handleRequestDefButton(
     return;
   }
 
-  // Build modal with text inputs
+  // Build modal with text inputs using LabelBuilder
   const modal = new ModalBuilder()
     .setCustomId(REQUEST_DEF_MODAL_ID)
     .setTitle("Naujas gynybos prašymas");
 
   const coordsInput = new TextInputBuilder()
     .setCustomId(COORDS_INPUT_ID)
-    .setLabel("Koordinatės")
     .setPlaceholder("123|456")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(20);
 
+  const coordsLabel = new LabelBuilder()
+    .setLabel("Koordinatės")
+    .setTextInputComponent(coordsInput);
+
   const troopsInput = new TextInputBuilder()
     .setCustomId(TROOPS_NEEDED_INPUT_ID)
-    .setLabel("Kiek karių reikia?")
     .setPlaceholder("1000")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(10);
 
+  const troopsLabel = new LabelBuilder()
+    .setLabel("Kiek karių reikia?")
+    .setTextInputComponent(troopsInput);
+
   const messageInput = new TextInputBuilder()
     .setCustomId(MESSAGE_INPUT_ID)
-    .setLabel("Papildoma informacija (nebūtina)")
-    .setPlaceholder("Pvz.: Smūgis 12:34")
+    .setPlaceholder("Pvz.: anti cav")
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
     .setMaxLength(100);
 
-  const coordsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-    coordsInput
-  );
-  const troopsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-    troopsInput
-  );
-  const messageRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-    messageInput
-  );
+  const messageLabel = new LabelBuilder()
+    .setLabel("Papildoma informacija (nebūtina)")
+    .setTextInputComponent(messageInput);
 
-  modal.addComponents(coordsRow, troopsRow, messageRow);
+  modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel);
 
   await interaction.showModal(modal);
 }
