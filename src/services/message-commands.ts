@@ -1,17 +1,17 @@
 import { Client, Message, TextChannel, Colors, EmbedBuilder } from "discord.js";
 import { getGuildConfig } from "../config/guild-config";
 import { parseCoords } from "../utils/parse-coords";
-import {
-  reportTroopsSent,
-  getRequestById,
-  getRequestByCoords,
-  addOrUpdateRequest,
-  removeRequest,
-  updateRequest,
-} from "./defense-requests";
-import { updateGlobalMessage, LastActionInfo } from "./defense-message";
+import { getRequestById } from "./defense-requests";
 import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName } from "./map-data";
-import { undoAction, getActionDescription, getAction } from "./action-history";
+import { updateGlobalMessage } from "./defense-message";
+import {
+  validateDefenseConfig,
+  executeSentAction,
+  executeDefAction,
+  executeDeleteDefAction,
+  executeUpdateDefAction,
+  executeUndoAction,
+} from "../actions";
 
 // Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
 // Simple format: /sent 1 200 or !sent 123|456 200 or !sent 123 -456 200 or !stack 1 200 @user
@@ -154,70 +154,43 @@ async function handleSentCommand(
   forUserId?: string
 ): Promise<void> {
   const guildId = message.guildId!;
-  const config = getGuildConfig(guildId);
-  const userId = forUserId || message.author.id;
 
-  if (!config.serverKey) return;
-
-  // Parse target as coords or ID
-  let requestId: number;
-  const coords = parseCoords(targetInput);
-  if (coords) {
-    const found = getRequestByCoords(guildId, coords.x, coords.y);
-    if (!found) {
-      await message.reply(`Nerasta aktyvi užklausa koordinatėse (${coords.x}|${coords.y}).`);
-      return;
-    }
-    requestId = found.requestId;
-  } else {
-    const parsed = parseInt(targetInput, 10);
-    if (isNaN(parsed) || parsed < 1) {
-      await message.reply("Neteisingas tikslas. Naudok užklausos ID (pvz., 1) arba koordinates (pvz., 123|456).");
-      return;
-    }
-    requestId = parsed;
-    const existingRequest = getRequestById(guildId, requestId);
-    if (!existingRequest) {
-      await message.reply(`Užklausa #${requestId} nerasta.`);
-      return;
-    }
+  // 1. Validate configuration
+  const validation = validateDefenseConfig(guildId);
+  if (!validation.valid) {
+    // For text commands, silently ignore if config is missing
+    return;
   }
 
+  // 2. Validate troops
   if (troops < 1) {
     await message.reply("Karių skaičius turi būti bent 1.");
     return;
   }
 
-  // Report troops
-  const result = reportTroopsSent(guildId, requestId, userId, troops);
+  // 3. Execute action (text commands now get undo support!)
+  const creditUserId = forUserId || message.author.id;
+  const result = await executeSentAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client,
+      userId: message.author.id,
+    },
+    {
+      target: targetInput,
+      troops,
+      creditUserId,
+    }
+  );
 
-  if ("error" in result) {
+  // 4. Handle response
+  if (!result.success) {
     await message.reply(result.error);
     return;
   }
 
-  // Get village info for the action message
-  const village = await getVillageAt(config.serverKey, result.request.x, result.request.y);
-  const villageName = village?.villageName || "Nežinomas";
-
-  // Build last action info for global message
-  let actionText: string;
-  if (result.isComplete) {
-    actionText = `<@${userId}> užbaigė **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
-  } else {
-    actionText = `<@${userId}> išsiuntė **${troops}** į **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
-  }
-
-  // Note: text commands don't have undo support yet, so we use 0 as placeholder
-  const lastAction: LastActionInfo = {
-    text: actionText,
-    undoId: 0,
-  };
-
-  // Update global message with last action info
-  await updateGlobalMessage(client, guildId, lastAction);
-
-  // React to confirm
+  // Success: react with checkmark
   await message.react("✅");
 }
 
@@ -229,62 +202,44 @@ async function handleDefCommand(
   defMessage: string
 ): Promise<void> {
   const guildId = message.guildId!;
-  const config = getGuildConfig(guildId);
 
-  if (!config.serverKey || !config.defenseChannelId) return;
-
-  const coords = parseCoords(coordsInput);
-  if (!coords) {
-    await message.reply("Neteisingos koordinatės. Naudok formatą 123|456.");
+  // 1. Validate configuration
+  const validation = validateDefenseConfig(guildId);
+  if (!validation.valid) {
+    // For text commands, silently ignore if config is missing
     return;
   }
 
+  // 2. Validate troops
   if (troops < 1) {
     await message.reply("Karių skaičius turi būti bent 1.");
     return;
   }
 
-  // Ensure map data
-  const dataReady = await ensureMapData(config.serverKey);
-  if (!dataReady) {
-    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
-    return;
-  }
-
-  const village = await getVillageAt(config.serverKey, coords.x, coords.y);
-  if (!village) {
-    await message.reply(`Arba to kaimo nėra arba jis ką tik įkurtas (${coords.x}|${coords.y}).`);
-    return;
-  }
-
-  // Add or update the request
-  const result = addOrUpdateRequest(
-    guildId,
-    coords.x,
-    coords.y,
-    troops,
-    defMessage,
-    message.author.id
+  // 3. Execute action (text commands now get undo support!)
+  const result = await executeDefAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client,
+      userId: message.author.id,
+    },
+    {
+      coords: coordsInput,
+      troopsNeeded: troops,
+      message: defMessage,
+    }
   );
 
-  if ("error" in result) {
+  // 4. Handle response
+  if (!result.success) {
     await message.reply(result.error);
     return;
   }
 
-  // Update global message
-  await updateGlobalMessage(client, guildId);
-
-  // React to confirm
+  // Success: react and reply with confirmation
   await message.react("✅");
-
-  const actionText = result.isUpdate ? "atnaujinta" : "sukurta";
-  const playerInfo = village.allianceName
-    ? `${village.playerName} [${village.allianceName}]`
-    : village.playerName;
-  await message.reply(
-    `Gynybos užklausa #${result.requestId} ${actionText}: **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - reikia ${troops} karių.`
-  );
+  await message.reply(result.actionText);
 }
 
 async function handleScoutCommand(
@@ -341,38 +296,34 @@ async function handleDeleteDefCommand(
   requestId: number
 ): Promise<void> {
   const guildId = message.guildId!;
-  const config = getGuildConfig(guildId);
 
-  if (!config.serverKey || !config.defenseChannelId) return;
-
-  // Check if request exists
-  const existingRequest = getRequestById(guildId, requestId);
-  if (!existingRequest) {
-    await message.reply(`Užklausa #${requestId} nerasta.`);
+  // 1. Validate configuration
+  const validation = validateDefenseConfig(guildId);
+  if (!validation.valid) {
+    // For text commands, silently ignore if config is missing
     return;
   }
 
-  // Get village info for confirmation message
-  const village = await getVillageAt(config.serverKey, existingRequest.x, existingRequest.y);
-  const villageName = village?.villageName || "Nežinomas";
-  const playerName = village?.playerName || "Nežinomas";
-
-  // Delete the request
-  const success = removeRequest(guildId, requestId);
-  if (!success) {
-    await message.reply(`Nepavyko ištrinti užklausos #${requestId}.`);
-    return;
-  }
-
-  // Update global message
-  await updateGlobalMessage(client, guildId);
-
-  // React to confirm
-  await message.react("✅");
-
-  await message.reply(
-    `Ištrinta užklausa #${requestId}: **${villageName}** (${existingRequest.x}|${existingRequest.y}) - ${playerName}`
+  // 2. Execute action (text commands now get undo support!)
+  const result = await executeDeleteDefAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client,
+      userId: message.author.id,
+    },
+    { requestId }
   );
+
+  // 3. Handle response
+  if (!result.success) {
+    await message.reply(result.error);
+    return;
+  }
+
+  // Success: react and reply with confirmation
+  await message.react("✅");
+  await message.reply(result.actionText);
 }
 
 async function handleLookupCommand(
@@ -448,67 +399,71 @@ async function handleUpdateDefCommand(
   paramsStr: string
 ): Promise<void> {
   const guildId = message.guildId!;
-  const config = getGuildConfig(guildId);
 
-  if (!config.serverKey || !config.defenseChannelId) return;
+  // 1. Validate configuration
+  const validation = validateDefenseConfig(guildId);
+  if (!validation.valid) {
+    // For text commands, silently ignore if config is missing
+    return;
+  }
 
-  // Check admin permission
+  // 2. Check admin permission
   const member = message.member;
   if (!member?.permissions.has("Administrator")) {
     await message.reply("Tik administratoriai gali naudoti šią komandą.");
     return;
   }
 
-  // Check if request exists
-  const existingRequest = getRequestById(guildId, requestId);
-  if (!existingRequest) {
-    await message.reply(`Užklausa #${requestId} nerasta.`);
-    return;
-  }
-
-  // Parse parameters: troops_sent: 500 troops_needed: 2000 message: some text
-  const updates: { troopsSent?: number; troopsNeeded?: number; message?: string } = {};
+  // 3. Parse parameters: troops_sent: 500 troops_needed: 2000 message: some text
+  let troopsSent: number | undefined;
+  let troopsNeeded: number | undefined;
+  let updateMessage: string | undefined;
 
   const troopsSentMatch = paramsStr.match(/troops_sent:\s*(\d+)/i);
   if (troopsSentMatch) {
-    updates.troopsSent = parseInt(troopsSentMatch[1], 10);
+    troopsSent = parseInt(troopsSentMatch[1], 10);
   }
 
   const troopsNeededMatch = paramsStr.match(/troops_needed:\s*(\d+)/i);
   if (troopsNeededMatch) {
-    updates.troopsNeeded = parseInt(troopsNeededMatch[1], 10);
+    troopsNeeded = parseInt(troopsNeededMatch[1], 10);
   }
 
   const messageMatch = paramsStr.match(/message:\s*(.+?)(?:\s+(?:troops_sent|troops_needed):|$)/i);
   if (messageMatch) {
-    updates.message = messageMatch[1].trim();
+    updateMessage = messageMatch[1].trim();
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (troopsSent === undefined && troopsNeeded === undefined && updateMessage === undefined) {
     await message.reply("Nurodyk bent vieną lauką atnaujinti (troops_sent: X, troops_needed: X arba message: tekstas).");
     return;
   }
 
-  // Update the request
-  const result = updateRequest(guildId, requestId, updates);
+  // 4. Execute action (text commands now get undo support!)
+  const result = await executeUpdateDefAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client,
+      userId: message.author.id,
+    },
+    {
+      requestId,
+      troopsSent,
+      troopsNeeded,
+      message: updateMessage,
+    }
+  );
 
-  if ("error" in result) {
+  // 5. Handle response
+  if (!result.success) {
     await message.reply(result.error);
     return;
   }
 
-  // Update global message
-  await updateGlobalMessage(client, guildId);
-
-  // React to confirm
+  // Success: react and reply with confirmation
   await message.react("✅");
-
-  const updatedFields: string[] = [];
-  if (updates.troopsSent !== undefined) updatedFields.push(`išsiųsta karių: ${updates.troopsSent}`);
-  if (updates.troopsNeeded !== undefined) updatedFields.push(`reikia karių: ${updates.troopsNeeded}`);
-  if (updates.message !== undefined) updatedFields.push(`žinutė: "${updates.message}"`);
-
-  await message.reply(`Užklausa #${requestId} atnaujinta: ${updatedFields.join(", ")}`);
+  await message.reply(result.actionText);
 }
 
 async function handleUndoCommand(
@@ -519,25 +474,27 @@ async function handleUndoCommand(
   const guildId = message.guildId!;
   const config = getGuildConfig(guildId);
 
+  // Undo only needs defenseChannelId
   if (!config.defenseChannelId) return;
 
-  // Get action description before undo
-  const action = getAction(guildId, actionId);
-  const actionDesc = action ? getActionDescription(action) : `Veiksmas #${actionId}`;
+  // Execute action
+  const result = await executeUndoAction(
+    {
+      guildId,
+      config,
+      client,
+      userId: message.author.id,
+    },
+    { actionId }
+  );
 
-  // Perform the undo
-  const result = undoAction(guildId, actionId);
-
+  // Handle response
   if (!result.success) {
-    await message.reply(result.message);
+    await message.reply(result.error);
     return;
   }
 
-  // Update global message
-  await updateGlobalMessage(client, guildId);
-
-  // React to confirm
+  // Success: react and reply with confirmation
   await message.react("✅");
-
-  await message.reply(`Atšaukta: ${actionDesc}`);
+  await message.reply(result.actionText);
 }

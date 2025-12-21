@@ -4,8 +4,7 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
-import { undoAction, getAction, getActionDescription } from "../services/action-history";
-import { updateGlobalMessage } from "../services/defense-message";
+import { executeUndoAction } from "../actions";
 import { withRetry } from "../utils/retry";
 
 export const undoCommand: Command = {
@@ -21,9 +20,9 @@ export const undoCommand: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const actionId = interaction.options.getInteger("id", true);
     const guildId = interaction.guildId;
 
+    // 1. Basic validation (undo only needs defenseChannelId)
     if (!guildId) {
       await interaction.reply({
         content: "Ši komanda veikia tik serveryje.",
@@ -41,34 +40,29 @@ export const undoCommand: Command = {
       return;
     }
 
-    // Get the action to show what we're undoing
-    const action = getAction(guildId, actionId);
-    if (!action) {
-      await interaction.reply({
-        content: `Veiksmas #${actionId} nerastas.`,
-        ephemeral: true,
-      });
-      return;
-    }
+    // 2. Parse inputs
+    const actionId = interaction.options.getInteger("id", true);
 
-    // Defer reply as this may take time
+    // 3. Defer reply
     await withRetry(() => interaction.deferReply());
 
-    // Perform the undo
-    const result = undoAction(guildId, actionId);
+    // 4. Execute action
+    const result = await executeUndoAction(
+      {
+        guildId,
+        config,
+        client: interaction.client,
+        userId: interaction.user.id,
+      },
+      { actionId }
+    );
 
+    // 5. Handle response
     if (!result.success) {
-      await interaction.editReply({ content: result.message });
+      await interaction.editReply({ content: result.error });
       return;
     }
 
-    // Update the global message
-    await updateGlobalMessage(interaction.client, guildId);
-
-    // Include description of what was undone
-    const description = getActionDescription(action);
-    await interaction.editReply({
-      content: `<@${interaction.user.id}> atšaukė veiksmą #${actionId}: ${description}`,
-    });
+    await interaction.editReply({ content: result.actionText });
   },
 };

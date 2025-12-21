@@ -3,11 +3,8 @@ import {
   ChatInputCommandInteraction,
 } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig } from "../config/guild-config";
-import { updateRequest, getRequestById, DefenseRequest } from "../services/defense-requests";
-import { updateGlobalMessage } from "../services/defense-message";
+import { validateDefenseConfig, executeUpdateDefAction } from "../actions";
 import { withRetry } from "../utils/retry";
-import { recordAction } from "../services/action-history";
 
 export const updatedefCommand: Command = {
   data: new SlashCommandBuilder()
@@ -42,38 +39,20 @@ export const updatedefCommand: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+    // 1. Validate configuration
+    const validation = validateDefenseConfig(interaction.guildId);
+    if (!validation.valid) {
+      await interaction.reply({ content: validation.error, ephemeral: true });
+      return;
+    }
+
+    // 2. Parse inputs
     const requestId = interaction.options.getInteger("id", true);
     const troopsSent = interaction.options.getInteger("troops_sent");
     const troopsNeeded = interaction.options.getInteger("troops_needed");
     const message = interaction.options.getString("message");
-    const guildId = interaction.guildId;
 
-    if (!guildId) {
-      await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    const config = getGuildConfig(guildId);
-    if (!config.serverKey) {
-      await interaction.reply({
-        content: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    if (!config.defenseChannelId) {
-      await interaction.reply({
-        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Defense`.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-    // Check if at least one update parameter is provided
+    // 3. Check if at least one update parameter is provided (before deferring)
     if (troopsSent === null && troopsNeeded === null && message === null) {
       await interaction.reply({
         content: "Nurodyk bent vieną lauką atnaujinti (troops_sent, troops_needed arba message).",
@@ -82,68 +61,31 @@ export const updatedefCommand: Command = {
       return;
     }
 
-    // Check if request exists
-    const existingRequest = getRequestById(guildId, requestId);
-    if (!existingRequest) {
-      await interaction.reply({
-        content: `Užklausa #${requestId} nerasta.`,
-        ephemeral: true,
-      });
-      return;
-    }
-
-    // Defer reply as updating may take time
+    // 4. Defer reply
     await withRetry(() => interaction.deferReply());
 
-    // Snapshot the request before update for undo support
-    const snapshot: DefenseRequest = {
-      ...existingRequest,
-      contributors: existingRequest.contributors.map(c => ({ ...c })),
-    };
+    // 5. Execute action
+    const result = await executeUpdateDefAction(
+      {
+        guildId: validation.guildId,
+        config: validation.config,
+        client: interaction.client,
+        userId: interaction.user.id,
+      },
+      {
+        requestId,
+        troopsSent: troopsSent ?? undefined,
+        troopsNeeded: troopsNeeded ?? undefined,
+        message: message ?? undefined,
+      }
+    );
 
-    // Build update object
-    const updates: { troopsSent?: number; troopsNeeded?: number; message?: string } = {};
-    if (troopsSent !== null) updates.troopsSent = troopsSent;
-    if (troopsNeeded !== null) updates.troopsNeeded = troopsNeeded;
-    if (message !== null) updates.message = message;
-
-    // Calculate if this update will complete the request
-    const newTroopsSent = troopsSent !== null ? troopsSent : existingRequest.troopsSent;
-    const newTroopsNeeded = troopsNeeded !== null ? troopsNeeded : existingRequest.troopsNeeded;
-    const willComplete = newTroopsSent >= newTroopsNeeded;
-
-    // Update the request
-    const result = updateRequest(guildId, requestId, updates);
-
-    if ("error" in result) {
+    // 6. Handle response
+    if (!result.success) {
       await interaction.editReply({ content: result.error });
       return;
     }
 
-    // Record the action for undo support
-    const actionId = recordAction(guildId, {
-      type: "ADMIN_UPDATE",
-      userId: interaction.user.id,
-      coords: { x: snapshot.x, y: snapshot.y },
-      previousState: snapshot,
-      data: {
-        previousTroopsSent: snapshot.troopsSent,
-        previousTroopsNeeded: snapshot.troopsNeeded,
-        previousMessage: snapshot.message,
-        adminDidComplete: willComplete,
-      },
-    });
-
-    // Update the global message
-    await updateGlobalMessage(interaction.client, guildId);
-
-    const updatedFields: string[] = [];
-    if (troopsSent !== null) updatedFields.push(`išsiųsta karių: ${troopsSent}`);
-    if (troopsNeeded !== null) updatedFields.push(`reikia karių: ${troopsNeeded}`);
-    if (message !== null) updatedFields.push(`žinutė: "${message}"`);
-
-    await interaction.editReply({
-      content: `<@${interaction.user.id}> atnaujino užklausą #${requestId}: ${updatedFields.join(", ")}. (\`/undo ${actionId}\`)`,
-    });
+    await interaction.editReply({ content: result.actionText });
   },
 };

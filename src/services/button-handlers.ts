@@ -17,17 +17,13 @@ import {
   LabelBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../config/guild-config";
+import { getGuildDefenseData } from "./defense-requests";
+import { getVillageAt } from "./map-data";
 import {
-  getGuildDefenseData,
-  reportTroopsSent,
-  getRequestById,
-  addOrUpdateRequest,
-  DefenseRequest,
-} from "./defense-requests";
-import { parseCoords } from "../utils/parse-coords"; // Still used in handleRequestDefModal
-import { updateGlobalMessage, LastActionInfo } from "./defense-message";
-import { getVillageAt, ensureMapData } from "./map-data";
-import { recordAction } from "./action-history";
+  validateDefenseConfig,
+  executeSentAction,
+  executeDefAction,
+} from "../actions";
 
 // Sent troops button/modal IDs
 export const SENT_BUTTON_ID = "sent_troops_button";
@@ -128,25 +124,14 @@ export async function handleSentButton(
 export async function handleSentModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
-      ephemeral: true,
-    });
+  // 1. Validate configuration
+  const validation = validateDefenseConfig(interaction.guildId);
+  if (!validation.valid) {
+    await interaction.reply({ content: validation.error, ephemeral: true });
     return;
   }
 
-  const config = getGuildConfig(guildId);
-  if (!config.serverKey) {
-    await interaction.reply({
-      content: "Travian serveris nesukonfigūruotas.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Extract target from select menu and troops from text input
+  // 2. Extract target from select menu
   const selectedValues = interaction.fields.getStringSelectValues(TARGET_SELECT_ID);
   if (!selectedValues || selectedValues.length === 0) {
     await interaction.reply({
@@ -165,9 +150,8 @@ export async function handleSentModal(
     return;
   }
 
+  // 3. Extract troops from text input
   const troopsInput = interaction.fields.getTextInputValue(TROOPS_INPUT_ID);
-
-  // Parse troops
   const troops = parseInt(troopsInput, 10);
   if (isNaN(troops) || troops < 1) {
     await interaction.reply({
@@ -177,71 +161,31 @@ export async function handleSentModal(
     return;
   }
 
-  // Defer reply
+  // 4. Defer reply
   await interaction.deferReply();
 
-  // Snapshot the request before modification for undo support
-  const requestBefore = getRequestById(guildId, requestId);
-  if (!requestBefore) {
-    await interaction.editReply({ content: `Užklausa #${requestId} nerasta.` });
-    return;
-  }
-  const snapshot: DefenseRequest = {
-    ...requestBefore,
-    contributors: requestBefore.contributors.map((c) => ({ ...c })),
-  };
-
-  // Report the troops sent
-  const result = reportTroopsSent(
-    guildId,
-    requestId,
-    interaction.user.id,
-    troops
+  // 5. Execute action
+  const result = await executeSentAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client: interaction.client,
+      userId: interaction.user.id,
+    },
+    {
+      target: requestId.toString(),
+      troops,
+      creditUserId: interaction.user.id,
+    }
   );
 
-  if ("error" in result) {
+  // 6. Handle response
+  if (!result.success) {
     await interaction.editReply({ content: result.error });
     return;
   }
 
-  // Record the action for undo support
-  const actionId = recordAction(guildId, {
-    type: "TROOPS_SENT",
-    userId: interaction.user.id,
-    coords: { x: snapshot.x, y: snapshot.y },
-    previousState: snapshot,
-    data: {
-      troops,
-      contributorId: interaction.user.id,
-      didComplete: result.isComplete,
-    },
-  });
-
-  // Get village info for the action message
-  const village = await getVillageAt(
-    config.serverKey,
-    result.request.x,
-    result.request.y
-  );
-  const villageName = village?.villageName || "Nežinomas";
-
-  // Build last action info for global message
-  let actionText: string;
-  if (result.isComplete) {
-    actionText = `<@${interaction.user.id}> užbaigė **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
-  } else {
-    actionText = `<@${interaction.user.id}> išsiuntė **${troops}** į **${villageName}** - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
-  }
-
-  const lastAction: LastActionInfo = {
-    text: actionText,
-    undoId: actionId,
-  };
-
-  // Update the global message with last action info
-  await updateGlobalMessage(interaction.client, guildId, lastAction);
-
-  // Delete the deferred reply since info is in global message
+  // Success: delete reply (info is in global message)
   await interaction.deleteReply();
 }
 
@@ -312,47 +256,19 @@ export async function handleRequestDefButton(
 export async function handleRequestDefModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
-      ephemeral: true,
-    });
+  // 1. Validate configuration
+  const validation = validateDefenseConfig(interaction.guildId);
+  if (!validation.valid) {
+    await interaction.reply({ content: validation.error, ephemeral: true });
     return;
   }
 
-  const config = getGuildConfig(guildId);
-  if (!config.serverKey) {
-    await interaction.reply({
-      content: "Travian serveris nesukonfigūruotas.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (!config.defenseChannelId) {
-    await interaction.reply({
-      content: "Gynybos kanalas nesukonfigūruotas.",
-      ephemeral: true,
-    });
-    return;
-  }
-
+  // 2. Extract inputs from modal
   const coordsInput = interaction.fields.getTextInputValue(COORDS_INPUT_ID);
   const troopsInput = interaction.fields.getTextInputValue(TROOPS_NEEDED_INPUT_ID);
   const message = interaction.fields.getTextInputValue(MESSAGE_INPUT_ID) || "";
 
-  // Parse coordinates
-  const coords = parseCoords(coordsInput);
-  if (!coords) {
-    await interaction.reply({
-      content: "Neteisingos koordinatės. Įvesk du skaičius (pvz., 123|456).",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Parse troops
+  // 3. Parse troops (coords validation is done in action)
   const troopsNeeded = parseInt(troopsInput, 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
     await interaction.reply({
@@ -362,64 +278,31 @@ export async function handleRequestDefModal(
     return;
   }
 
-  // Defer reply
+  // 4. Defer reply
   await interaction.deferReply();
 
-  // Ensure map data is available
-  const dataReady = await ensureMapData(config.serverKey);
-  if (!dataReady) {
-    await interaction.editReply({
-      content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
-    });
-    return;
-  }
-
-  // Validate village exists at coordinates
-  const village = await getVillageAt(config.serverKey, coords.x, coords.y);
-  if (!village) {
-    await interaction.editReply({
-      content: `Arba to kaimo nėra arba jis ką tik įkurtas (${coords.x}|${coords.y}).`,
-    });
-    return;
-  }
-
-  // Add or update the request
-  const result = addOrUpdateRequest(
-    guildId,
-    coords.x,
-    coords.y,
-    troopsNeeded,
-    message,
-    interaction.user.id
+  // 5. Execute action
+  const result = await executeDefAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client: interaction.client,
+      userId: interaction.user.id,
+    },
+    {
+      coords: coordsInput,
+      troopsNeeded,
+      message,
+    }
   );
 
-  if ("error" in result) {
+  // 6. Handle response
+  if (!result.success) {
     await interaction.editReply({ content: result.error });
     return;
   }
 
-  // Record the action for undo support
-  const actionId = recordAction(guildId, {
-    type: result.isUpdate ? "DEF_UPDATE" : "DEF_ADD",
-    userId: interaction.user.id,
-    coords: { x: coords.x, y: coords.y },
-    previousState: result.previousRequest,
-    data: {
-      troopsNeeded,
-      message,
-    },
-  });
-
-  // Update the global message
-  await updateGlobalMessage(interaction.client, guildId);
-
-  const actionText = result.isUpdate ? "atnaujino" : "sukūrė";
-  const playerInfo = village.allianceName
-    ? `${village.playerName} [${village.allianceName}]`
-    : village.playerName;
-  await interaction.editReply({
-    content: `<@${interaction.user.id}> ${actionText} užklausą #${result.requestId}: **${village.villageName}** (${coords.x}|${coords.y}) - ${playerInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`,
-  });
+  await interaction.editReply({ content: result.actionText });
 }
 
 export async function handleScoutGoingButton(
