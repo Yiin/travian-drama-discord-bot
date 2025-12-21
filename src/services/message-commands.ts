@@ -11,6 +11,7 @@ import {
 } from "./defense-requests";
 import { updateGlobalMessage, LastActionInfo } from "./defense-message";
 import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName } from "./map-data";
+import { undoAction, getActionDescription, getAction } from "./action-history";
 
 // Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
 // Simple format: /sent 1 200 or !sent 123|456 200 or !sent 123 -456 200 or !stack 1 200 @user
@@ -40,6 +41,9 @@ const STACKINFO_PATTERN = /^[\/!]stackinfo\s*$/i;
 // Pattern: /updatedef or !updatedef followed by ID and optional params
 // Format: !updatedef 1 troops_sent: 500 troops_needed: 2000 message: some text
 const UPDATEDEF_PATTERN = /^[\/!]updatedef\s+(\d+)(?:\s+(.+))?$/i;
+
+// Pattern: /undo or !undo followed by action ID
+const UNDO_PATTERN = /^[\/!]undo\s+(\d+)\s*$/i;
 
 /**
  * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
@@ -109,6 +113,13 @@ export async function handleTextCommand(
     const updatedefMatch = content.match(UPDATEDEF_PATTERN);
     if (updatedefMatch) {
       await handleUpdateDefCommand(client, message, parseInt(updatedefMatch[1], 10), updatedefMatch[2] || "");
+      return;
+    }
+
+    // Try undo command
+    const undoMatch = content.match(UNDO_PATTERN);
+    if (undoMatch) {
+      await handleUndoCommand(client, message, parseInt(undoMatch[1], 10));
       return;
     }
   }
@@ -498,4 +509,35 @@ async function handleUpdateDefCommand(
   if (updates.message !== undefined) updatedFields.push(`žinutė: "${updates.message}"`);
 
   await message.reply(`Užklausa #${requestId} atnaujinta: ${updatedFields.join(", ")}`);
+}
+
+async function handleUndoCommand(
+  client: Client,
+  message: Message,
+  actionId: number
+): Promise<void> {
+  const guildId = message.guildId!;
+  const config = getGuildConfig(guildId);
+
+  if (!config.defenseChannelId) return;
+
+  // Get action description before undo
+  const action = getAction(guildId, actionId);
+  const actionDesc = action ? getActionDescription(action) : `Veiksmas #${actionId}`;
+
+  // Perform the undo
+  const result = undoAction(guildId, actionId);
+
+  if (!result.success) {
+    await message.reply(result.message);
+    return;
+  }
+
+  // Update global message
+  await updateGlobalMessage(client, guildId);
+
+  // React to confirm
+  await message.react("✅");
+
+  await message.reply(`Atšaukta: ${actionDesc}`);
 }
