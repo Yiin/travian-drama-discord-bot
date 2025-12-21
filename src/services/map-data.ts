@@ -382,7 +382,7 @@ export interface PlayerSearchResult {
 }
 
 /**
- * Search for players by exact name (case-insensitive).
+ * Search for players by name (case-insensitive partial match).
  * Returns aggregated stats per player.
  */
 export async function searchPlayersByName(
@@ -395,21 +395,23 @@ export async function searchPlayersByName(
 
   const searchLower = playerName.toLowerCase();
 
+  // Group by playerName since it's unique in Travian
+  // Use MAX for playerId/alliance in case of any data inconsistencies
   const stmt = db.prepare(`
     SELECT
-      playerId,
+      MAX(playerId) as playerId,
       playerName,
-      allianceId,
-      allianceName,
+      MAX(allianceId) as allianceId,
+      MAX(allianceName) as allianceName,
       SUM(population) as totalPopulation,
       COUNT(*) as villageCount
     FROM villages
-    WHERE LOWER(playerName) = ?
-    GROUP BY playerId
+    WHERE LOWER(playerName) LIKE ?
+    GROUP BY LOWER(playerName)
     ORDER BY totalPopulation DESC
     LIMIT ?
   `);
-  stmt.bind([searchLower, limit]);
+  stmt.bind([`%${searchLower}%`, limit]);
 
   const results: PlayerSearchResult[] = [];
   while (stmt.step()) {

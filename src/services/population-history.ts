@@ -183,7 +183,7 @@ export function formatPopulationTrend(trends: PlayerPopulationTrend[]): TrendDis
     const formattedDate = `${day}.${month}`;
 
     lines.push(
-      `${formattedDate}: **${trend.population.toLocaleString()}** pop (${trend.villageCount} kaimai)${changeStr}`
+      `${formattedDate}: **${trend.population.toLocaleString()}** pop (${trend.villageCount} miestai)${changeStr}`
     );
   }
 

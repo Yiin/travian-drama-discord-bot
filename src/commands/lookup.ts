@@ -156,7 +156,7 @@ async function handlePlayerLookup(
     new StringSelectMenuOptionBuilder()
       .setLabel(player.playerName)
       .setDescription(
-        `${player.totalPopulation.toLocaleString()} pop, ${player.villageCount} kaimai`
+        `${player.totalPopulation.toLocaleString()} pop, ${player.villageCount} miestai`
       )
       .setValue(player.playerId.toString())
   );
@@ -247,7 +247,7 @@ async function showPlayerDetails(
       { name: "Kaimų skaičius", value: villages.length.toString(), inline: true },
       { name: "Tauta", value: tribeName, inline: true },
       { name: "Aljansas", value: player.allianceName || "Nėra", inline: true },
-      { name: "Kaimai", value: villageLines.join("\n"), inline: false }
+      { name: "Miestai", value: villageLines.join("\n"), inline: false }
     );
 
   // Add trend field if we have history
