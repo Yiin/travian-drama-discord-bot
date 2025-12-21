@@ -16,6 +16,7 @@ import {
 } from "./defense-requests";
 import { getGuildConfig } from "../config/guild-config";
 import { getVillageAt, getRallyPointLink, getMapLink } from "./map-data";
+import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers";
 
 export interface LastActionInfo {
   text: string;
@@ -104,12 +105,12 @@ export function buildActionButtons(
   hasRequests: boolean
 ): ActionRowBuilder<ButtonBuilder> {
   const defButton = new ButtonBuilder()
-    .setCustomId("request_def_button")
+    .setCustomId(REQUEST_DEF_BUTTON_ID)
     .setLabel("Reikia stack")
     .setStyle(ButtonStyle.Danger);
 
   const sentButton = new ButtonBuilder()
-    .setCustomId("sent_troops_button")
+    .setCustomId(SENT_BUTTON_ID)
     .setLabel("Išsiunčiau")
     .setStyle(ButtonStyle.Success)
     .setDisabled(!hasRequests);

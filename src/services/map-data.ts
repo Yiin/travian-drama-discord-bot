@@ -2,6 +2,7 @@ import initSqlJs, { Database } from "sql.js";
 import fs from "fs";
 import path from "path";
 import https from "https";
+import { captureSnapshot } from "./population-history";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const MAPS_DIR = path.join(DATA_DIR, "maps");
@@ -269,6 +270,9 @@ export async function updateMapData(serverUrl: string): Promise<void> {
   dbCache.set(serverUrl, db);
   lastUpdated.set(serverUrl, Date.now());
 
+  // Capture population snapshot for history tracking
+  captureSnapshot(serverUrl, villages);
+
   console.log(`[MapData] Database updated for ${serverUrl}`);
 }
 
@@ -366,4 +370,96 @@ export async function ensureMapData(serverUrl: string): Promise<boolean> {
     console.error(`[MapData] Failed to ensure map data for ${serverUrl}:`, error);
     return false;
   }
+}
+
+export interface PlayerSearchResult {
+  playerId: number;
+  playerName: string;
+  allianceId: number;
+  allianceName: string;
+  totalPopulation: number;
+  villageCount: number;
+}
+
+/**
+ * Search for players by exact name (case-insensitive).
+ * Returns aggregated stats per player.
+ */
+export async function searchPlayersByName(
+  serverKey: string,
+  playerName: string,
+  limit = 25
+): Promise<PlayerSearchResult[]> {
+  const db = await getDatabase(serverKey);
+  if (!db) return [];
+
+  const searchLower = playerName.toLowerCase();
+
+  const stmt = db.prepare(`
+    SELECT
+      playerId,
+      playerName,
+      allianceId,
+      allianceName,
+      SUM(population) as totalPopulation,
+      COUNT(*) as villageCount
+    FROM villages
+    WHERE LOWER(playerName) = ?
+    GROUP BY playerId
+    ORDER BY totalPopulation DESC
+    LIMIT ?
+  `);
+  stmt.bind([searchLower, limit]);
+
+  const results: PlayerSearchResult[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as Record<string, unknown>;
+    results.push({
+      playerId: row.playerId as number,
+      playerName: row.playerName as string,
+      allianceId: row.allianceId as number,
+      allianceName: row.allianceName as string,
+      totalPopulation: row.totalPopulation as number,
+      villageCount: row.villageCount as number,
+    });
+  }
+  stmt.free();
+
+  return results;
+}
+
+/**
+ * Get all villages for a specific player by ID.
+ */
+export async function getVillagesByPlayerId(
+  serverKey: string,
+  playerId: number
+): Promise<VillageData[]> {
+  const db = await getDatabase(serverKey);
+  if (!db) return [];
+
+  const stmt = db.prepare(
+    "SELECT * FROM villages WHERE playerId = ? ORDER BY population DESC"
+  );
+  stmt.bind([playerId]);
+
+  const villages: VillageData[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as Record<string, unknown>;
+    villages.push({
+      targetMapId: row.targetMapId as number,
+      x: row.x as number,
+      y: row.y as number,
+      tribe: row.tribe as number,
+      playerId: row.playerId as number,
+      villageName: row.villageName as string,
+      playerName: row.playerName as string,
+      allianceId: row.allianceId as number,
+      allianceName: row.allianceName as string,
+      population: row.population as number,
+    });
+  }
+  stmt.free();
+
+  return villages;
 }

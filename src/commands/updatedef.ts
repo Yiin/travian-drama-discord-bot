@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  PermissionFlagsBits,
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
@@ -13,7 +12,7 @@ import { recordAction } from "../services/action-history";
 export const updatedefCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("updatedef")
-    .setDescription("Update a defense request (Admin only)")
+    .setDescription("Update a defense request")
     .addIntegerOption((option) =>
       option
         .setName("id")
@@ -40,8 +39,7 @@ export const updatedefCommand: Command = {
         .setName("message")
         .setDescription("Update the request message")
         .setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const requestId = interaction.options.getInteger("id", true);

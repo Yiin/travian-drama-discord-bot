@@ -78,6 +78,7 @@ export async function handleSentButton(
   // Build options from active requests
   const options: StringSelectMenuOptionBuilder[] = [];
   for (let i = 0; i < data.requests.length; i++) {
+    const prefix = i === 0 ? "➡️ " : "";
     const request = data.requests[i];
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     const villageName = village?.villageName || "Nežinomas";
@@ -85,7 +86,8 @@ export async function handleSentButton(
 
     options.push(
       new StringSelectMenuOptionBuilder()
-        .setLabel(`(${request.x}|${request.y}) ${villageName}`)
+        .setDefault(i === 0)
+        .setLabel(`${prefix}(${request.x}|${request.y}) ${villageName}`)
         .setDescription(`${playerName} - ${request.troopsSent}/${request.troopsNeeded}`)
         .setValue(`${i + 1}`) // 1-based request ID
     );
