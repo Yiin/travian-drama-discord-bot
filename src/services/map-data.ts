@@ -252,11 +252,25 @@ async function loadDatabase(serverUrl: string): Promise<Database | null> {
   }
 }
 
+function getMapSqlPath(serverKey: string, date: Date): string {
+  const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
+  return path.join(MAPS_DIR, getServerHash(serverKey), `map-${dateStr}.sql`);
+}
+
 export async function updateMapData(serverUrl: string): Promise<void> {
   console.log(`[MapData] Downloading map.sql from ${serverUrl}...`);
 
   const sqlContent = await downloadMapSql(serverUrl);
   console.log(`[MapData] Downloaded ${sqlContent.length} bytes`);
+
+  // Save raw SQL for record keeping
+  const sqlPath = getMapSqlPath(serverUrl, new Date());
+  const sqlDir = path.dirname(sqlPath);
+  if (!fs.existsSync(sqlDir)) {
+    fs.mkdirSync(sqlDir, { recursive: true });
+  }
+  fs.writeFileSync(sqlPath, sqlContent);
+  console.log(`[MapData] Saved raw SQL to ${sqlPath}`);
 
   const villages = parseMapSql(sqlContent);
   console.log(`[MapData] Parsed ${villages.length} villages`);
