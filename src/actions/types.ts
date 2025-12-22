@@ -116,3 +116,24 @@ export interface UndoActionSuccess extends ActionSuccess {
 }
 
 export type UndoActionResult = UndoActionSuccess | ActionError;
+
+// --- Scout Action Types ---
+
+export interface ScoutActionInput {
+  coords: string; // Coordinates string (will be parsed)
+  message: string;
+  requesterName: string; // Display name of who requested the scout
+  scoutRoleId?: string; // Optional role to ping
+}
+
+export interface ScoutActionSuccess {
+  success: true;
+  villageName: string;
+  playerName: string;
+  population: number;
+  rallyLink: string;
+  villageDisplay: string;
+  coords: { x: number; y: number };
+}
+
+export type ScoutActionResult = ScoutActionSuccess | ActionError;

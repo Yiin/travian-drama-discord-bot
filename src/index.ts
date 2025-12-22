@@ -9,11 +9,13 @@ import {
   handleRequestDefButton,
   handleRequestDefModal,
   handleScoutGoingButton,
+  handleScoutGoingModal,
   SENT_BUTTON_ID,
   SENT_MODAL_ID,
   REQUEST_DEF_BUTTON_ID,
   REQUEST_DEF_MODAL_ID,
   SCOUT_GOING_BUTTON_ID,
+  SCOUT_GOING_MODAL_ID,
 } from "./services/button-handlers";
 
 dotenv.config();
@@ -86,6 +88,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleSentModal(interaction);
       } else if (interaction.customId === REQUEST_DEF_MODAL_ID) {
         await handleRequestDefModal(interaction);
+      } else if (interaction.customId.startsWith(SCOUT_GOING_MODAL_ID)) {
+        await handleScoutGoingModal(interaction);
       }
     } catch (error) {
       console.error("Error handling modal submission:", error);

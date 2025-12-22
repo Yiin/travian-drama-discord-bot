@@ -11,6 +11,8 @@ import {
   executeDeleteDefAction,
   executeUpdateDefAction,
   executeUndoAction,
+  executeScoutAction,
+  sendScoutMessage,
 } from "../actions";
 
 // Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
@@ -253,38 +255,38 @@ async function handleScoutCommand(
 
   if (!config.serverKey || !config.scoutChannelId) return;
 
-  const coords = parseCoords(coordsInput);
-  if (!coords) {
-    await message.reply("Neteisingos koordinatės. Naudok formatą 123|456.");
+  // Execute the scout action
+  const result = await executeScoutAction(
+    {
+      guildId,
+      config,
+      client,
+      userId: message.author.id,
+    },
+    {
+      coords: coordsInput,
+      message: scoutMessage,
+      requesterName: message.author.displayName,
+      scoutRoleId: config.scoutRoleId,
+    }
+  );
+
+  if (!result.success) {
+    await message.reply(result.error);
     return;
   }
 
-  // Ensure map data
-  const dataReady = await ensureMapData(config.serverKey);
-  if (!dataReady) {
-    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
+  // Send the scout message to the channel
+  const sent = await sendScoutMessage(client, config.scoutChannelId, {
+    ...result,
+    message: scoutMessage,
+    requesterName: message.author.displayName,
+    scoutRoleId: config.scoutRoleId,
+  });
+
+  if (!sent) {
+    await message.reply("Sukonfigūruotas žvalgybos kanalas nerastas.");
     return;
-  }
-
-  const village = await getVillageAt(config.serverKey, coords.x, coords.y);
-  if (!village) {
-    await message.reply(`Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas.`);
-    return;
-  }
-
-  const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
-  const villageDisplay = formatVillageDisplay(config.serverKey, village);
-
-  const embed = new EmbedBuilder()
-    .setColor(Colors.Blue)
-    .setDescription(
-      `${villageDisplay} [**[ SIŲSTI ]**](${rallyLink}) - ${scoutMessage}`
-    )
-    .setFooter({ text: `Paprašė ${message.author.displayName}` });
-
-  const channel = (await client.channels.fetch(config.scoutChannelId)) as TextChannel | null;
-  if (channel) {
-    await channel.send({ embeds: [embed] });
   }
 
   // React to confirm

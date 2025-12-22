@@ -11,3 +11,4 @@ export { executeDefAction } from "./def.action";
 export { executeDeleteDefAction } from "./deletedef.action";
 export { executeUpdateDefAction } from "./updatedef.action";
 export { executeUndoAction } from "./undo.action";
+export { executeScoutAction, sendScoutMessage } from "./scout.action";

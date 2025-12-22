@@ -38,8 +38,10 @@ export const COORDS_INPUT_ID = "coords_input";
 export const TROOPS_NEEDED_INPUT_ID = "troops_needed_input";
 export const MESSAGE_INPUT_ID = "message_input";
 
-// Scout going button ID
+// Scout going button/modal IDs
 export const SCOUT_GOING_BUTTON_ID = "scout_going_button";
+export const SCOUT_GOING_MODAL_ID = "scout_going_modal";
+export const SCOUT_TIME_INPUT_ID = "scout_time_input";
 
 export async function handleSentButton(
   interaction: ButtonInteraction
@@ -318,7 +320,62 @@ export async function handleRequestDefModal(
 export async function handleScoutGoingButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const message = interaction.message;
+  // Show modal to ask for landing time
+  const modal = new ModalBuilder()
+    .setCustomId(`${SCOUT_GOING_MODAL_ID}:${interaction.message.id}`)
+    .setTitle("Žvalgyba");
+
+  const timeInput = new TextInputBuilder()
+    .setCustomId(SCOUT_TIME_INPUT_ID)
+    .setPlaceholder("12:30")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(10);
+
+  const timeLabel = new LabelBuilder()
+    .setLabel("Kada leidžiasi?")
+    .setTextInputComponent(timeInput);
+
+  modal.addLabelComponents(timeLabel);
+
+  await interaction.showModal(modal);
+}
+
+export async function handleScoutGoingModal(
+  interaction: ModalSubmitInteraction
+): Promise<void> {
+  // Extract message ID from custom ID
+  const [, messageId] = interaction.customId.split(":");
+  if (!messageId) {
+    await interaction.reply({
+      content: "Nepavyko atnaujinti žinutės.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const timeInput = interaction.fields.getTextInputValue(SCOUT_TIME_INPUT_ID);
+
+  // Fetch the original message
+  const channel = interaction.channel;
+  if (!channel) {
+    await interaction.reply({
+      content: "Nepavyko rasti kanalo.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  let message;
+  try {
+    message = await channel.messages.fetch(messageId);
+  } catch {
+    await interaction.reply({
+      content: "Nepavyko rasti žinutės.",
+      ephemeral: true,
+    });
+    return;
+  }
 
   // Get existing components - the container should be the first component
   const existingComponents = message.components;
@@ -331,10 +388,8 @@ export async function handleScoutGoingButton(
   }
 
   // Extract existing text from the container
-  // The container is the first component, button row is the second
   const containerData = existingComponents[0];
 
-  // Check if container has components property (it's a Container component)
   if (!("components" in containerData) || !Array.isArray(containerData.components)) {
     await interaction.reply({
       content: "Nepavyko atnaujinti žinutės.",
@@ -344,42 +399,44 @@ export async function handleScoutGoingButton(
   }
 
   const containerComponents = containerData.components;
-  const userMention = `<@${interaction.user.id}>`;
+  const userEntry = `<@${interaction.user.id}> (${timeInput})`;
 
   // Parse the existing content to find the structure
   let mainText = "";
-  let messageText = "";
   let footerText = "";
-  let goingUsers: string[] = [];
+  let goingEntries: string[] = [];
 
   for (const comp of containerComponents) {
     if ("content" in comp && typeof comp.content === "string") {
       const content = comp.content;
-      if (content.startsWith("##")) {
-        // Main heading
+      if (content.startsWith("##") || content.startsWith("#")) {
+        // Main heading - preserve all of it
         mainText = content;
-      } else if (content.startsWith(">>>")) {
-        // Quote block - message
-        messageText = content;
-      } else if (content.startsWith("-#")) {
-        // Small text - footer
+      } else if (content.startsWith(">")) {
+        // Footer with requester info
         footerText = content;
       } else if (content.startsWith("**Eina:**")) {
-        // Extract existing users
-        const usersMatch = content.match(/\*\*Eina:\*\* (.+)/);
-        if (usersMatch) {
-          goingUsers = usersMatch[1].split(", ").filter((u: string) => u.trim());
+        // Extract existing entries (user + time pairs)
+        const entriesMatch = content.match(/\*\*Eina:\*\* (.+)/);
+        if (entriesMatch) {
+          goingEntries = entriesMatch[1].split(", ").filter((e: string) => e.trim());
         }
       }
     }
   }
 
-  // Toggle: if user is already in list, remove them; otherwise add them
-  const userIndex = goingUsers.indexOf(userMention);
-  if (userIndex !== -1) {
-    goingUsers.splice(userIndex, 1);
+  // Check if user already has an entry (by user ID)
+  const userId = interaction.user.id;
+  const existingIndex = goingEntries.findIndex((entry) =>
+    entry.includes(`<@${userId}>`)
+  );
+
+  if (existingIndex !== -1) {
+    // Update existing entry with new time
+    goingEntries[existingIndex] = userEntry;
   } else {
-    goingUsers.push(userMention);
+    // Add new entry
+    goingEntries.push(userEntry);
   }
 
   // Rebuild the container
@@ -390,22 +447,13 @@ export async function handleScoutGoingButton(
       new TextDisplayBuilder().setContent(mainText)
     );
   }
-  if (messageText) {
+
+  // Add "Eina:" section
+  if (goingEntries.length > 0) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(messageText)
+      new TextDisplayBuilder().setContent(`**Eina:** ${goingEntries.join(", ")}`)
     );
   }
-
-  // Add "Eina:" section only if there are users
-  if (goingUsers.length > 0) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`**Eina:** ${goingUsers.join(", ")}`)
-    );
-  }
-
-  container.addSeparatorComponents(
-    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
-  );
 
   if (footerText) {
     container.addTextDisplayComponents(
@@ -421,8 +469,11 @@ export async function handleScoutGoingButton(
       .setStyle(ButtonStyle.Primary)
   );
 
-  await interaction.update({
+  await message.edit({
     components: [container, buttonRow],
     flags: MessageFlags.IsComponentsV2,
   });
+
+  // Acknowledge the interaction
+  await interaction.deferUpdate();
 }
