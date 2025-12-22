@@ -95,11 +95,22 @@ const commandDocs: CommandDoc[] = [
   {
     name: "/lookup",
     description: {
-      lt: "Ieškoti kaimo informacijos pagal koordinates",
-      en: "Look up village information by coordinates",
+      lt: "Ieškoti kaimo arba žaidėjo informacijos",
+      en: "Look up village or player information",
     },
-    usage: "/lookup coords:<koordinatės>",
-    example: "/lookup coords:0|0",
+    usage: "/lookup query:<koordinatės arba vardas>",
+    example: "/lookup query:PlayerName",
+  },
+
+  // Addstat command
+  {
+    name: "/addstat",
+    description: {
+      lt: "Pridėti karių siuntimą į statistiką (be gynybos prašymo)",
+      en: "Add troops sent to stats (without defense request)",
+    },
+    usage: "/addstat coords:<koordinatės> troops:<skaičius>",
+    example: "!addstat 123|456 5000",
   },
 
   // Configuration commands
@@ -152,7 +163,7 @@ function buildEmbed(lang: "lt" | "en"): EmbedBuilder {
     ["/def", "/sent", "/stack", "/deletedef", "/updatedef", "/undo", "/stackinfo"].includes(c.name)
   );
   const scoutCommands = commandDocs.filter((c) => c.name === "/scout");
-  const utilityCommands = commandDocs.filter((c) => c.name === "/lookup");
+  const utilityCommands = commandDocs.filter((c) => c.name === "/lookup" || c.name === "/addstat");
   const configCommands = commandDocs.filter((c) =>
     c.name.startsWith("/configure")
   );
