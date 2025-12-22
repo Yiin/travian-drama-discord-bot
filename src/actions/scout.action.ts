@@ -78,7 +78,7 @@ export async function executeScoutAction(
 export async function sendScoutMessage(
   client: Client,
   scoutChannelId: string,
-  data: ScoutActionSuccess & { message: string; requesterName: string; scoutRoleId?: string }
+  data: ScoutActionSuccess & { message: string; requesterId: string; scoutRoleId?: string }
 ): Promise<boolean> {
   const channel = (await client.channels.fetch(scoutChannelId)) as TextChannel | null;
   if (!channel) {
@@ -94,7 +94,7 @@ export async function sendScoutMessage(
       `# ${data.message}\n` +
       `## [**SIŲSTI**](${data.rallyLink})\n` +
       (roleMention ? `${roleMention}\n` : "") +
-      `> -# Paprašė ${data.requesterName}`
+      `> -# Paprašė <@${data.requesterId}>`
   );
 
   container.addTextDisplayComponents(content);

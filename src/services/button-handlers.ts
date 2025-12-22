@@ -18,7 +18,7 @@ import {
 } from "discord.js";
 import { getGuildConfig } from "../config/guild-config";
 import { getGuildDefenseData } from "./defense-requests";
-import { getVillageAt } from "./map-data";
+import { getVillageAt, formatVillageDisplay } from "./map-data";
 import {
   validateDefenseConfig,
   executeSentAction,
@@ -44,15 +44,15 @@ export const SCOUT_GOING_MODAL_ID = "scout_going_modal";
 export const SCOUT_TIME_INPUT_ID = "scout_time_input";
 
 /**
- * Parse time input and format as Discord timestamp if valid.
+ * Parse time input and return Unix timestamp (seconds) if valid.
  *
  * Supported formats:
  * - "hh:mm" or "hh:mm:ss" - treats as next occurrence in future (UTC)
  * - "in HH:MM:SS hrs.at HH:MM:SS" - Travian format, uses travel time to calculate arrival
  *
- * Returns Discord relative timestamp `<t:UNIX:R>` or raw string if unparseable.
+ * Returns Unix timestamp or null if unparseable.
  */
-function formatTimeDisplay(input: string): string {
+function parseTimeToTimestamp(input: string): number | null {
   const trimmed = input.trim();
 
   // Try Travian format: "in  34:43:31  hrs.at  05:05:31"
@@ -64,7 +64,7 @@ function formatTimeDisplay(input: string): string {
 
     // Validate travel time parts
     if (travelMinutes > 59 || travelSeconds > 59) {
-      return `(${trimmed})`;
+      return null;
     }
 
     // Calculate arrival by adding travel time to now
@@ -72,14 +72,13 @@ function formatTimeDisplay(input: string): string {
     const travelMs = ((travelHours * 60 + travelMinutes) * 60 + travelSeconds) * 1000;
     const arrivalMs = now + travelMs;
 
-    const unixTimestamp = Math.floor(arrivalMs / 1000);
-    return `<t:${unixTimestamp}:R>`;
+    return Math.floor(arrivalMs / 1000);
   }
 
   // Try simple format: hh:mm or hh:mm:ss
   const timeMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!timeMatch) {
-    return `(${trimmed})`;
+    return null;
   }
 
   const hours = parseInt(timeMatch[1], 10);
@@ -89,7 +88,7 @@ function formatTimeDisplay(input: string): string {
 
   // Validate ranges
   if (hours > 23 || minutes > 59 || seconds > 59) {
-    return `(${trimmed})`;
+    return null;
   }
 
   // Build UTC timestamp for today
@@ -108,8 +107,18 @@ function formatTimeDisplay(input: string): string {
     target.setUTCDate(target.getUTCDate() + 1);
   }
 
-  const unixTimestamp = Math.floor(target.getTime() / 1000);
-  return `<t:${unixTimestamp}:R>`;
+  return Math.floor(target.getTime() / 1000);
+}
+
+/**
+ * Format time input as Discord timestamp or raw string.
+ */
+function formatTimeDisplay(input: string): string {
+  const timestamp = parseTimeToTimestamp(input);
+  if (timestamp !== null) {
+    return `<t:${timestamp}:R>`;
+  }
+  return `(${input.trim()})`;
 }
 
 export async function handleSentButton(
@@ -471,9 +480,14 @@ export async function handleScoutGoingModal(
   const timeDisplay = formatTimeDisplay(timeInput);
   const userEntry = `<@${interaction.user.id}> ${timeDisplay}`;
 
+  // Parse timestamp for notification scheduling
+  const arrivalTimestamp = parseTimeToTimestamp(timeInput);
+
   // Parse the existing content to find the structure
   let mainText = "";
   let footerText = "";
+  let requesterId: string | null = null;
+  let coords: { x: number; y: number } | null = null;
   let goingEntries: string[] = [];
 
   for (const comp of containerComponents) {
@@ -482,9 +496,18 @@ export async function handleScoutGoingModal(
       if (content.startsWith("##") || content.startsWith("#")) {
         // Main heading - preserve all of it
         mainText = content;
+        // Extract coordinates from [(x|y)] format
+        const coordsMatch = content.match(/\[\((-?\d+)\|(-?\d+)\)\]/);
+        if (coordsMatch) {
+          coords = { x: parseInt(coordsMatch[1], 10), y: parseInt(coordsMatch[2], 10) };
+        }
       } else if (content.startsWith(">")) {
-        // Footer with requester info
+        // Footer with requester info - extract user ID
         footerText = content;
+        const requesterMatch = content.match(/<@(\d+)>/);
+        if (requesterMatch) {
+          requesterId = requesterMatch[1];
+        }
       } else if (content.startsWith("**Eina:**")) {
         // Extract existing entries (user + time pairs)
         const entriesMatch = content.match(/\*\*Eina:\*\* (.+)/);
@@ -543,6 +566,38 @@ export async function handleScoutGoingModal(
     components: [container, buttonRow],
     flags: MessageFlags.IsComponentsV2,
   });
+
+  // Schedule notification if time was parsed successfully
+  if (arrivalTimestamp !== null && requesterId && coords && "send" in channel) {
+    const guildId = interaction.guildId;
+    const config = guildId ? getGuildConfig(guildId) : null;
+
+    if (config?.serverKey) {
+      const now = Math.floor(Date.now() / 1000);
+      const delayMs = (arrivalTimestamp - now) * 1000;
+      const notifyChannel = channel;
+      const goingUserId = interaction.user.id;
+      const serverKey = config.serverKey;
+      const targetCoords = coords;
+
+      if (delayMs > 0) {
+        setTimeout(async () => {
+          try {
+            const village = await getVillageAt(serverKey, targetCoords.x, targetCoords.y);
+            const targetDisplay = village
+              ? formatVillageDisplay(serverKey, village)
+              : `(${targetCoords.x}|${targetCoords.y})`;
+
+            await notifyChannel.send({
+              content: `<@${requesterId}> žvalgai nuo <@${goingUserId}> į ${targetDisplay} turėtų būti jau vietoje!`,
+            });
+          } catch (error) {
+            console.error("Failed to send scout notification:", error);
+          }
+        }, delayMs);
+      }
+    }
+  }
 
   // Acknowledge the interaction
   await interaction.deferUpdate();

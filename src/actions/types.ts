@@ -122,7 +122,7 @@ export type UndoActionResult = UndoActionSuccess | ActionError;
 export interface ScoutActionInput {
   coords: string; // Coordinates string (will be parsed)
   message: string;
-  requesterName: string; // Display name of who requested the scout
+  requesterId: string; // User ID of who requested the scout
   scoutRoleId?: string; // Optional role to ping
 }
 

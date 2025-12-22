@@ -266,7 +266,7 @@ async function handleScoutCommand(
     {
       coords: coordsInput,
       message: scoutMessage,
-      requesterName: message.author.displayName,
+      requesterId: message.author.id,
       scoutRoleId: config.scoutRoleId,
     }
   );
@@ -280,7 +280,7 @@ async function handleScoutCommand(
   const sent = await sendScoutMessage(client, config.scoutChannelId, {
     ...result,
     message: scoutMessage,
-    requesterName: message.author.displayName,
+    requesterId: message.author.id,
     scoutRoleId: config.scoutRoleId,
   });
 

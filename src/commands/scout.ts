@@ -67,7 +67,7 @@ export const scoutCommand: Command = {
       {
         coords: coordsInput,
         message,
-        requesterName: interaction.user.displayName,
+        requesterId: interaction.user.id,
         scoutRoleId: config.scoutRoleId,
       }
     );
@@ -81,7 +81,7 @@ export const scoutCommand: Command = {
     const sent = await sendScoutMessage(interaction.client, config.scoutChannelId, {
       ...result,
       message,
-      requesterName: interaction.user.displayName,
+      requesterId: interaction.user.id,
       scoutRoleId: config.scoutRoleId,
     });
 
