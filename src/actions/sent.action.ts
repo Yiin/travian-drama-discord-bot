@@ -70,9 +70,9 @@ export async function executeSentAction(
   const creditUser = `<@${creditUserId}>`;
   let actionText: string;
   if (result.isComplete) {
-    actionText = `${creditUser} užbaigė **${villageName}** [(${result.request.x}|${result.request.y})[${getMapLink(config.serverKey!, result.request)}]] - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} užbaigė **${villageName}** [(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)}) - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   } else {
-    actionText = `${creditUser} išsiuntė **${troops}** į **${villageName}** [(${result.request.x}|${result.request.y})[${getMapLink(config.serverKey!, result.request)}]] - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} išsiuntė **${troops}** į **${villageName}** [(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)}) - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   }
 
   // 7. Update global message
