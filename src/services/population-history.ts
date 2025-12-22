@@ -136,7 +136,7 @@ export function captureSnapshot(serverKey: string, villages: VillageData[]): voi
 }
 
 /**
- * Gets population history for a specific player.
+ * Gets population history for a specific player by ID.
  * Returns array of { date, population, villageCount } ordered newest first.
  */
 export function getPlayerHistory(serverKey: string, playerId: number): PlayerPopulationTrend[] {
@@ -145,6 +145,29 @@ export function getPlayerHistory(serverKey: string, playerId: number): PlayerPop
 
   for (const snapshot of history.snapshots) {
     const player = snapshot.players.find((p) => p.playerId === playerId);
+    if (player) {
+      results.push({
+        date: snapshot.date,
+        population: player.population,
+        villageCount: player.villageCount,
+      });
+    }
+  }
+
+  return results; // Already sorted newest first
+}
+
+/**
+ * Gets population history for a specific player by name (case-insensitive).
+ * Returns array of { date, population, villageCount } ordered newest first.
+ */
+export function getPlayerHistoryByName(serverKey: string, playerName: string): PlayerPopulationTrend[] {
+  const history = loadHistory(serverKey);
+  const results: PlayerPopulationTrend[] = [];
+  const nameLower = playerName.toLowerCase();
+
+  for (const snapshot of history.snapshots) {
+    const player = snapshot.players.find((p) => p.playerName.toLowerCase() === nameLower);
     if (player) {
       results.push({
         date: snapshot.date,

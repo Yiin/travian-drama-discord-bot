@@ -18,10 +18,10 @@ import {
   ensureMapData,
   getMapLink,
   searchPlayersByName,
-  getVillagesByPlayerId,
+  getVillagesByPlayerName,
   PlayerSearchResult,
 } from "../services/map-data";
-import { getPlayerHistory, formatPopulationTrend } from "../services/population-history";
+import { getPlayerHistoryByName, formatPopulationTrend } from "../services/population-history";
 import { withRetry } from "../utils/retry";
 
 const PLAYER_SELECT_ID = "lookup_player_select";
@@ -203,8 +203,8 @@ async function showPlayerDetails(
   serverKey: string,
   player: PlayerSearchResult
 ): Promise<void> {
-  // Get all villages for this player
-  const villages = await getVillagesByPlayerId(serverKey, player.playerId);
+  // Get all villages for this player by name (more reliable than by ID)
+  const villages = await getVillagesByPlayerName(serverKey, player.playerName);
 
   if (villages.length === 0) {
     await interaction.editReply({
@@ -231,7 +231,7 @@ async function showPlayerDetails(
   }
 
   // Get population trend
-  const trends = getPlayerHistory(serverKey, player.playerId);
+  const trends = getPlayerHistoryByName(serverKey, player.playerName);
   const trendDisplay = formatPopulationTrend(trends);
 
   // Build embed

@@ -556,3 +556,40 @@ export async function getVillagesByPlayerId(
 
   return villages;
 }
+
+/**
+ * Get all villages for a specific player by name (case-insensitive).
+ */
+export async function getVillagesByPlayerName(
+  serverKey: string,
+  playerName: string
+): Promise<VillageData[]> {
+  const db = await getDatabase(serverKey);
+  if (!db) return [];
+
+  const stmt = db.prepare(
+    "SELECT * FROM villages WHERE LOWER(playerName) = LOWER(?) ORDER BY population DESC"
+  );
+  stmt.bind([playerName]);
+
+  const villages: VillageData[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as Record<string, unknown>;
+    villages.push({
+      targetMapId: row.targetMapId as number,
+      x: row.x as number,
+      y: row.y as number,
+      tribe: row.tribe as number,
+      villageId: row.villageId as number,
+      playerId: row.playerId as number,
+      villageName: row.villageName as string,
+      playerName: row.playerName as string,
+      allianceId: row.allianceId as number,
+      allianceName: row.allianceName as string,
+      population: row.population as number,
+    });
+  }
+  stmt.free();
+
+  return villages;
+}
