@@ -2,7 +2,7 @@ import { Client, Message, TextChannel, Colors, EmbedBuilder } from "discord.js";
 import { getGuildConfig } from "../config/guild-config";
 import { parseCoords } from "../utils/parse-coords";
 import { getRequestById } from "./defense-requests";
-import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName } from "./map-data";
+import { getVillageAt, ensureMapData, getRallyPointLink, getTribeName, formatVillageDisplay } from "./map-data";
 import { updateGlobalMessage } from "./defense-message";
 import {
   validateDefenseConfig,
@@ -273,11 +273,12 @@ async function handleScoutCommand(
   }
 
   const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId);
+  const villageDisplay = formatVillageDisplay(config.serverKey, village);
 
   const embed = new EmbedBuilder()
     .setColor(Colors.Blue)
     .setDescription(
-      `(${coords.x}|${coords.y}) **${village.villageName}** (${village.playerName}) [**[ SIŲSTI ]**](${rallyLink}) - ${scoutMessage}`
+      `${villageDisplay} [**[ SIŲSTI ]**](${rallyLink}) - ${scoutMessage}`
     )
     .setFooter({ text: `Paprašė ${message.author.displayName}` });
 

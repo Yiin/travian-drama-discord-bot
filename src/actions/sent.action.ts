@@ -3,7 +3,7 @@ import {
   getRequestById,
   DefenseRequest,
 } from "../services/defense-requests";
-import { getMapLink, getVillageAt } from "../services/map-data";
+import { getMapLink, getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage, LastActionInfo } from "../services/defense-message";
 import { resolveTarget } from "./validation";
@@ -65,14 +65,17 @@ export async function executeSentAction(
     result.request.y
   );
   const villageName = village?.villageName || "Nežinomas";
+  const villageDisplay = village
+    ? formatVillageDisplay(config.serverKey!, village)
+    : `[(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)})`;
 
   // 6. Build action text
   const creditUser = `<@${creditUserId}>`;
   let actionText: string;
   if (result.isComplete) {
-    actionText = `${creditUser} užbaigė **${villageName}** [(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)}) - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} užbaigė ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   } else {
-    actionText = `${creditUser} išsiuntė **${troops}** į **${villageName}** [(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)}) - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} išsiuntė **${troops}** į ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   }
 
   // 7. Update global message

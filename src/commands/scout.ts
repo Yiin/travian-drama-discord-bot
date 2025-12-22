@@ -16,7 +16,7 @@ import {
   getVillageAt,
   getRallyPointLink,
   ensureMapData,
-  getMapLink,
+  formatVillageDisplay,
 } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 import { SCOUT_GOING_BUTTON_ID } from "../services/button-handlers";
@@ -113,14 +113,14 @@ export const scoutCommand: Command = {
     }
 
     const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 3);
-    const mapLink = getMapLink(config.serverKey, village);
+    const villageDisplay = formatVillageDisplay(config.serverKey, village);
 
     // Build Components v2 message with larger text
     const container = new ContainerBuilder().setAccentColor(0x3498db); // Blue accent
 
     const roleMention = config.scoutRoleId ? `<@&${config.scoutRoleId}>` : "";
     const content = new TextDisplayBuilder().setContent(
-      `## [(${coords.x}|${coords.y})](${mapLink}) ${village.villageName} · ${village.population} pop · ${village.playerName}\n` +
+      `## ${villageDisplay} · ${village.population} pop\n` +
       `# ${message}\n` +
       `## [**SIŲSTI**](${rallyLink})\n` +
       (roleMention ? `${roleMention}\n` : "") +

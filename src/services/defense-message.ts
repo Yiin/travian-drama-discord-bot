@@ -15,7 +15,7 @@ import {
   clearRecentlyCompleted,
 } from "./defense-requests";
 import { getGuildConfig } from "../config/guild-config";
-import { getVillageAt, getRallyPointLink, getMapLink } from "./map-data";
+import { getVillageAt, getRallyPointLink, getMapLink, formatVillageDisplay } from "./map-data";
 import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers";
 
 export interface LastActionInfo {
@@ -51,12 +51,14 @@ export async function buildGlobalEmbed(
     const isFirst = i === 0;
     const icon = isFirst ? "➡️ " : "";
     const displayId = i + 1; // IDs are 1-based position in array
-    let line = `**${displayId}.** ${icon} [(${request.x}|${request.y})](${getMapLink(config.serverKey, request)})`;
+    let line = `**${displayId}.** ${icon}`;
 
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
       const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 1);
-      line += ` **${village.villageName}** (${village.playerName}) [**[ SIŲSTI ]**](${rallyLink})`;
+      line += ` ${formatVillageDisplay(config.serverKey, village)} [**[ SIŲSTI ]**](${rallyLink})`;
+    } else {
+      line += ` [(${request.x}|${request.y})](${getMapLink(config.serverKey, request)})`;
     }
 
     // Add troop counts

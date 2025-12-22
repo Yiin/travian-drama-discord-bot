@@ -1,5 +1,5 @@
 import { addOrUpdateRequest } from "../services/defense-requests";
-import { getVillageAt, ensureMapData } from "../services/map-data";
+import { getVillageAt, ensureMapData, formatVillageDisplay } from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { parseAndValidateCoords } from "./validation";
@@ -66,10 +66,9 @@ export async function executeDefAction(
 
   // 7. Build action text
   const actionVerb = result.isUpdate ? "atnaujino" : "sukūrė";
-  const playerInfo = village.allianceName
-    ? `${village.playerName} [${village.allianceName}]`
-    : village.playerName;
-  const actionText = `<@${userId}> ${actionVerb} užklausą #${result.requestId}: **${village.villageName}** (${x}|${y}) - ${playerInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
+  const villageDisplay = formatVillageDisplay(config.serverKey!, village);
+  const allianceInfo = village.allianceName ? ` [${village.allianceName}]` : "";
+  const actionText = `<@${userId}> ${actionVerb} užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,

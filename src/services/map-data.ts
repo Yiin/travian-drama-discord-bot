@@ -355,6 +355,18 @@ export function getMapLink(serverKey: string, position: { x: number; y: number }
   return `https://${serverKey}.travian.com/karte.php?x=${position.x}&y=${position.y}`
 }
 
+/**
+ * Format village display string for Discord messages.
+ * Format: [(x|y)](maplink) **Village Name** (Player)
+ */
+export function formatVillageDisplay(
+  serverKey: string,
+  village: { x: number; y: number; villageName: string; playerName: string }
+): string {
+  const mapLink = getMapLink(serverKey, village);
+  return `[(${village.x}|${village.y})](${mapLink}) **${village.villageName}** (${village.playerName})`;
+}
+
 export function getTribeName(tribe: number): string {
   return TRIBES[tribe] || "Unknown";
 }

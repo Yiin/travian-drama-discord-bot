@@ -83,8 +83,8 @@ export async function handleSentButton(
     options.push(
       new StringSelectMenuOptionBuilder()
         .setDefault(i === 0)
-        .setLabel(`${prefix}(${request.x}|${request.y}) ${villageName}`)
-        .setDescription(`${playerName} - ${request.troopsSent}/${request.troopsNeeded}`)
+        .setLabel(`${prefix}(${request.x}|${request.y}) ${villageName} (${playerName})`)
+        .setDescription(`${request.troopsSent}/${request.troopsNeeded}`)
         .setValue(`${i + 1}`) // 1-based request ID
     );
   }

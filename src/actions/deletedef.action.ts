@@ -3,7 +3,7 @@ import {
   getRequestById,
   DefenseRequest,
 } from "../services/defense-requests";
-import { getVillageAt } from "../services/map-data";
+import { getVillageAt, getMapLink, formatVillageDisplay } from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { ActionContext, DeleteDefActionInput, DeleteDefActionResult } from "./types";
@@ -41,6 +41,9 @@ export async function executeDeleteDefAction(
   );
   const villageName = village?.villageName || "Nežinomas";
   const playerName = village?.playerName || "Nežinomas";
+  const villageDisplay = village
+    ? formatVillageDisplay(config.serverKey!, village)
+    : `[(${existingRequest.x}|${existingRequest.y})](${getMapLink(config.serverKey!, existingRequest)})`;
 
   // 4. Delete the request
   const success = removeRequest(guildId, requestId);
@@ -61,7 +64,7 @@ export async function executeDeleteDefAction(
   await updateGlobalMessage(client, guildId);
 
   // 7. Build action text
-  const actionText = `<@${userId}> ištrynė užklausą #${requestId}: **${villageName}** (${existingRequest.x}|${existingRequest.y}) - ${playerName}. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> ištrynė užklausą #${requestId}: ${villageDisplay}. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,
