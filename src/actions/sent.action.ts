@@ -50,6 +50,7 @@ export async function executeSentAction(
     type: "TROOPS_SENT",
     userId,
     coords: { x: snapshot.x, y: snapshot.y },
+    requestId,
     previousState: snapshot,
     data: {
       troops,

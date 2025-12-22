@@ -56,6 +56,7 @@ export async function executeDeleteDefAction(
     type: "REQUEST_DELETED",
     userId,
     coords: { x: snapshot.x, y: snapshot.y },
+    requestId,
     previousState: snapshot,
     data: {},
   });

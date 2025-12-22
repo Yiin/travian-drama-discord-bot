@@ -88,11 +88,9 @@ export function getGlobalMessageId(guildId: string): string | undefined {
 export interface AddRequestResult {
   request: DefenseRequest;
   requestId: number; // 1-based position ID
-  isUpdate: boolean;
-  previousRequest?: DefenseRequest;
 }
 
-export function addOrUpdateRequest(
+export function addRequest(
   guildId: string,
   x: number,
   y: number,
@@ -102,38 +100,12 @@ export function addOrUpdateRequest(
 ): AddRequestResult | { error: string } {
   const data = getGuildDefenseData(guildId);
 
-  // Check if coordinates already exist
-  const existingIndex = data.requests.findIndex(
-    (r) => r.x === x && r.y === y
-  );
-
-  if (existingIndex !== -1) {
-    // Update existing request
-    const previousRequest = { ...data.requests[existingIndex] };
-    data.requests[existingIndex] = {
-      ...data.requests[existingIndex],
-      troopsNeeded,
-      message,
-      requesterId,
-      troopsSent: 0, // Reset troops sent on update
-      contributors: [],
-      createdAt: Date.now(),
-    };
-    saveGuildData(guildId, data);
-    return {
-      request: data.requests[existingIndex],
-      requestId: existingIndex + 1, // 1-based position
-      isUpdate: true,
-      previousRequest,
-    };
-  }
-
   // Check max requests limit
   if (data.requests.length >= MAX_REQUESTS) {
     return { error: `Maximum of ${MAX_REQUESTS} active requests reached.` };
   }
 
-  // Create new request
+  // Create new request (multiple requests per coordinate allowed)
   const newRequest: DefenseRequest = {
     x,
     y,
@@ -148,7 +120,7 @@ export function addOrUpdateRequest(
   data.requests.push(newRequest);
   saveGuildData(guildId, data);
 
-  return { request: newRequest, requestId: data.requests.length, isUpdate: false };
+  return { request: newRequest, requestId: data.requests.length };
 }
 
 export function getRequestById(
@@ -160,15 +132,19 @@ export function getRequestById(
   return data.requests[requestId - 1];
 }
 
-export function getRequestByCoords(
+export function getRequestsByCoords(
   guildId: string,
   x: number,
   y: number
-): { request: DefenseRequest; requestId: number } | undefined {
+): { request: DefenseRequest; requestId: number }[] {
   const data = getGuildDefenseData(guildId);
-  const index = data.requests.findIndex((r) => r.x === x && r.y === y);
-  if (index === -1) return undefined;
-  return { request: data.requests[index], requestId: index + 1 };
+  const results: { request: DefenseRequest; requestId: number }[] = [];
+  data.requests.forEach((r, index) => {
+    if (r.x === x && r.y === y) {
+      results.push({ request: r, requestId: index + 1 });
+    }
+  });
+  return results;
 }
 
 export interface ReportTroopsResult {
@@ -307,34 +283,18 @@ export interface RestoreResult {
 
 /**
  * Restores a request back to the active list.
- * If atEnd is true, adds at end regardless of existing request at coords.
+ * Always adds to end (multiple requests per coordinate allowed).
  * Returns the new 1-based request ID.
  */
 export function restoreRequest(
   guildId: string,
-  request: DefenseRequest,
-  atEnd: boolean = false
+  request: DefenseRequest
 ): RestoreResult {
   const data = getGuildDefenseData(guildId);
 
   // Check max requests limit
   if (data.requests.length >= MAX_REQUESTS) {
     return { success: false, error: "Pasiektas maksimalus užklausų limitas (20)." };
-  }
-
-  // Check if coords already occupied
-  const existingIndex = data.requests.findIndex(
-    (r) => r.x === request.x && r.y === request.y
-  );
-
-  if (existingIndex !== -1 && !atEnd) {
-    // Replace existing request at same coords
-    data.requests[existingIndex] = {
-      ...request,
-      contributors: [...request.contributors],
-    };
-    saveGuildData(guildId, data);
-    return { success: true, requestId: existingIndex + 1 };
   }
 
   // Add at end
@@ -347,26 +307,8 @@ export function restoreRequest(
   return { success: true, requestId: data.requests.length };
 }
 
-/**
- * Removes a request by coordinates.
- * Returns the removed request if found.
- */
-export function removeRequestByCoords(
-  guildId: string,
-  x: number,
-  y: number
-): DefenseRequest | undefined {
-  const data = getGuildDefenseData(guildId);
-  const index = data.requests.findIndex((r) => r.x === x && r.y === y);
-
-  if (index === -1) {
-    return undefined;
-  }
-
-  const [removed] = data.requests.splice(index, 1);
-  saveGuildData(guildId, data);
-  return removed;
-}
+// removeRequestByCoords removed - use removeRequest(guildId, requestId) instead
+// Multiple requests per coordinate are now allowed
 
 export interface SubtractTroopsResult {
   success: boolean;
@@ -375,20 +317,19 @@ export interface SubtractTroopsResult {
 }
 
 /**
- * Subtracts troops from a request (reverse of reportTroopsSent).
+ * Subtracts troops from a request by requestId (reverse of reportTroopsSent).
  * Also updates the contributor's total.
  */
 export function subtractTroops(
   guildId: string,
-  x: number,
-  y: number,
+  requestId: number,
   contributorId: string,
   troops: number
 ): SubtractTroopsResult {
   const data = getGuildDefenseData(guildId);
-  const index = data.requests.findIndex((r) => r.x === x && r.y === y);
+  const index = requestId - 1; // Convert 1-based to 0-based
 
-  if (index === -1) {
+  if (index < 0 || index >= data.requests.length) {
     return { success: false, error: "Užklausa nerasta." };
   }
 

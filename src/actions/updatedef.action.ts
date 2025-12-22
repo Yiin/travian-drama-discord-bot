@@ -62,6 +62,7 @@ export async function executeUpdateDefAction(
     type: "ADMIN_UPDATE",
     userId,
     coords: { x: snapshot.x, y: snapshot.y },
+    requestId,
     previousState: snapshot,
     data: {
       previousTroopsSent: snapshot.troopsSent,

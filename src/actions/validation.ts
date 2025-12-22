@@ -1,5 +1,5 @@
 import { getGuildConfig, GuildConfig } from "../config/guild-config";
-import { getRequestById, getRequestByCoords } from "../services/defense-requests";
+import { getRequestById, getRequestsByCoords } from "../services/defense-requests";
 import { parseCoords } from "../utils/parse-coords";
 import { ConfigValidation } from "./types";
 
@@ -45,14 +45,22 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
   // Try coordinates first
   const coords = parseCoords(targetInput);
   if (coords) {
-    const found = getRequestByCoords(guildId, coords.x, coords.y);
-    if (!found) {
+    const matches = getRequestsByCoords(guildId, coords.x, coords.y);
+    if (matches.length === 0) {
       return {
         success: false,
         error: `Nerasta aktyvi užklausa koordinatėse (${coords.x}|${coords.y}).`,
       };
     }
-    return { success: true, requestId: found.requestId };
+    if (matches.length > 1) {
+      // Multiple requests at same coordinates - require position ID
+      const ids = matches.map((m) => m.requestId).join(", ");
+      return {
+        success: false,
+        error: `Yra ${matches.length} užklausos šiose koordinatėse. Naudok eilės numerį (${ids}).`,
+      };
+    }
+    return { success: true, requestId: matches[0].requestId };
   }
 
   // Try as numeric ID

@@ -1,4 +1,4 @@
-import { addOrUpdateRequest } from "../services/defense-requests";
+import { addRequest } from "../services/defense-requests";
 import { getVillageAt, ensureMapData, formatVillageDisplay } from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
@@ -43,18 +43,18 @@ export async function executeDefAction(
     };
   }
 
-  // 4. Add or update the request
-  const result = addOrUpdateRequest(guildId, x, y, troopsNeeded, message, userId);
+  // 4. Add the request (multiple requests per coordinate allowed)
+  const result = addRequest(guildId, x, y, troopsNeeded, message, userId);
   if ("error" in result) {
     return { success: false, error: result.error };
   }
 
   // 5. Record the action for undo support
   const actionId = recordAction(guildId, {
-    type: result.isUpdate ? "DEF_UPDATE" : "DEF_ADD",
+    type: "DEF_ADD",
     userId,
     coords: { x, y },
-    previousState: result.previousRequest,
+    requestId: result.requestId,
     data: {
       troopsNeeded,
       message,
@@ -65,10 +65,9 @@ export async function executeDefAction(
   await updateGlobalMessage(client, guildId);
 
   // 7. Build action text
-  const actionVerb = result.isUpdate ? "atnaujino" : "sukūrė";
   const villageDisplay = formatVillageDisplay(config.serverKey!, village);
   const allianceInfo = village.allianceName ? ` [${village.allianceName}]` : "";
-  const actionText = `<@${userId}> ${actionVerb} užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> sukūrė užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,
@@ -78,7 +77,6 @@ export async function executeDefAction(
     villageName: village.villageName,
     playerName: village.playerName,
     allianceName: village.allianceName,
-    isUpdate: result.isUpdate,
     coords: { x, y },
   };
 }

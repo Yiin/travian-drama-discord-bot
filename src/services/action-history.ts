@@ -2,9 +2,9 @@ import fs from "fs";
 import path from "path";
 import {
   DefenseRequest,
-  getRequestByCoords,
+  getRequestById,
   restoreRequest,
-  removeRequestByCoords,
+  removeRequest,
   subtractTroops,
   getGuildDefenseData,
 } from "./defense-requests";
@@ -40,6 +40,7 @@ export interface Action {
   userId: string;
   timestamp: number;
   coords: { x: number; y: number };
+  requestId: number; // 1-based position ID at time of action
   previousState?: DefenseRequest;
   data: ActionData;
   undone: boolean;
@@ -94,6 +95,7 @@ export interface RecordActionInput {
   type: ActionType;
   userId: string;
   coords: { x: number; y: number };
+  requestId: number; // 1-based position ID at time of action
   previousState?: DefenseRequest;
   data: ActionData;
 }
@@ -110,6 +112,7 @@ export function recordAction(
     userId: input.userId,
     timestamp: Date.now(),
     coords: input.coords,
+    requestId: input.requestId,
     previousState: input.previousState
       ? { ...input.previousState, contributors: [...input.previousState.contributors] }
       : undefined,
@@ -159,6 +162,9 @@ export interface UndoResult {
 /**
  * Performs the undo operation for a given action.
  * Returns a result with success status and a message describing what happened.
+ *
+ * Note: Uses stored requestId for lookups, but position-based IDs may shift
+ * when other requests are removed. We verify coordinates match before operating.
  */
 export function undoAction(guildId: string, actionId: number): UndoResult {
   const action = getAction(guildId, actionId);
@@ -176,15 +182,18 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
   switch (action.type) {
     case "DEF_ADD": {
-      // Remove the request that was added
-      const removed = removeRequestByCoords(guildId, x, y);
-      markUndone(guildId, actionId);
-      if (removed) {
+      // Remove the request that was added using stored requestId
+      // Verify coordinates match to handle shifted positions
+      const existing = getRequestById(guildId, action.requestId);
+      if (existing && existing.x === x && existing.y === y) {
+        removeRequest(guildId, action.requestId);
+        markUndone(guildId, actionId);
         return {
           success: true,
           message: `Atšaukta: gynybos užklausa ${coordsStr} pašalinta.`,
         };
       }
+      markUndone(guildId, actionId);
       return {
         success: true,
         message: `Atšaukta: užklausa ${coordsStr} jau buvo pašalinta arba užbaigta.`,
@@ -192,7 +201,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     }
 
     case "DEF_UPDATE": {
-      // Restore the previous state
+      // Legacy: restore the previous state (no longer created but handle old history)
       if (!action.previousState) {
         markUndone(guildId, actionId);
         return {
@@ -201,24 +210,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         };
       }
 
-      // Check if there's a request at these coords
-      const existing = getRequestByCoords(guildId, x, y);
-      if (existing) {
-        // Replace with previous state
-        const result = restoreRequest(guildId, action.previousState, false);
-        markUndone(guildId, actionId);
-        if (result.success) {
-          return {
-            success: true,
-            message: `Atšaukta: užklausa ${coordsStr} atstatyta į ankstesnę būseną (${action.previousState.troopsSent}/${action.previousState.troopsNeeded}).`,
-            requestId: result.requestId,
-          };
-        }
-        return { success: false, message: result.error || "Nepavyko atstatyti." };
-      }
-
-      // Request doesn't exist, restore at end
-      const result = restoreRequest(guildId, action.previousState, true);
+      const result = restoreRequest(guildId, action.previousState);
       markUndone(guildId, actionId);
       if (result.success) {
         return {
@@ -251,17 +243,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
           };
         }
 
-        // Check if coords are occupied by a new request
-        const existing = getRequestByCoords(guildId, x, y);
-        const atEnd = existing !== undefined;
-
-        // Restore the request with troops subtracted
+        // Restore the request
         const restoredRequest: DefenseRequest = {
           ...action.previousState,
           contributors: [...action.previousState.contributors],
         };
 
-        const result = restoreRequest(guildId, restoredRequest, atEnd);
+        const result = restoreRequest(guildId, restoredRequest);
         if (!result.success) {
           return { success: false, message: result.error || "Nepavyko atstatyti." };
         }
@@ -274,8 +262,9 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         };
       }
 
-      // Request was NOT completed - just subtract troops
-      const existing = getRequestByCoords(guildId, x, y);
+      // Request was NOT completed - subtract troops using stored requestId
+      // Verify coordinates match to handle shifted positions
+      const existing = getRequestById(guildId, action.requestId);
       if (!existing) {
         markUndone(guildId, actionId);
         return {
@@ -284,14 +273,23 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         };
       }
 
-      const subtractResult = subtractTroops(guildId, x, y, contributorId, troops);
+      if (existing.x !== x || existing.y !== y) {
+        // Position shifted, request at this ID is different now
+        markUndone(guildId, actionId);
+        return {
+          success: true,
+          message: `Atšaukta: užklausos pozicija pasikeitė, kariai neatimti.`,
+        };
+      }
+
+      const subtractResult = subtractTroops(guildId, action.requestId, contributorId, troops);
       markUndone(guildId, actionId);
 
       if (subtractResult.success && subtractResult.request) {
         return {
           success: true,
           message: `Atšaukta: ${troops} karių atimta iš ${coordsStr}. Progresas: ${subtractResult.request.troopsSent}/${subtractResult.request.troopsNeeded}.`,
-          requestId: existing.requestId,
+          requestId: action.requestId,
         };
       }
 
@@ -311,11 +309,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         };
       }
 
-      // Check if coords are occupied
-      const existing = getRequestByCoords(guildId, x, y);
-      const atEnd = existing !== undefined;
-
-      const result = restoreRequest(guildId, action.previousState, atEnd);
+      const result = restoreRequest(guildId, action.previousState);
       markUndone(guildId, actionId);
 
       if (result.success) {
@@ -342,10 +336,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
       if (adminDidComplete) {
         // Request was completed by admin update - restore it
-        const existing = getRequestByCoords(guildId, x, y);
-        const atEnd = existing !== undefined;
-
-        const result = restoreRequest(guildId, action.previousState, atEnd);
+        const result = restoreRequest(guildId, action.previousState);
         markUndone(guildId, actionId);
 
         if (result.success) {
@@ -358,11 +349,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         return { success: false, message: result.error || "Nepavyko atstatyti." };
       }
 
-      // Not completed - restore to existing request
-      const existing = getRequestByCoords(guildId, x, y);
-      if (!existing) {
-        // Request doesn't exist, restore it
-        const result = restoreRequest(guildId, action.previousState, true);
+      // Not completed - check if request still exists at stored position
+      const existing = getRequestById(guildId, action.requestId);
+      if (!existing || existing.x !== x || existing.y !== y) {
+        // Request doesn't exist or position shifted - restore it
+        const result = restoreRequest(guildId, action.previousState);
         markUndone(guildId, actionId);
         if (result.success) {
           return {
@@ -374,8 +365,10 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         return { success: false, message: result.error || "Nepavyko atstatyti." };
       }
 
-      // Restore previous state to existing request
-      const result = restoreRequest(guildId, action.previousState, false);
+      // Request still at same position - restore previous state
+      // First remove, then restore to get the previous state
+      removeRequest(guildId, action.requestId);
+      const result = restoreRequest(guildId, action.previousState);
       markUndone(guildId, actionId);
       if (result.success) {
         return {

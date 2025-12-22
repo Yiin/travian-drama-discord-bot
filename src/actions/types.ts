@@ -67,7 +67,6 @@ export interface DefActionSuccess extends ActionSuccess {
   villageName: string;
   playerName: string;
   allianceName?: string;
-  isUpdate: boolean;
   coords: { x: number; y: number };
 }
 

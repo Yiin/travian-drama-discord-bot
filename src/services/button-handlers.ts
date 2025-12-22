@@ -80,11 +80,21 @@ export async function handleSentButton(
     const villageName = village?.villageName || "Nežinomas";
     const playerName = village?.playerName || "Nežinomas";
 
+    // Build description: progress + message (truncated if needed)
+    let description = `${request.troopsSent}/${request.troopsNeeded}`;
+    if (request.message) {
+      const maxMsgLen = 100 - description.length - 3; // Discord limit is 100 chars
+      const truncatedMsg = request.message.length > maxMsgLen
+        ? request.message.substring(0, maxMsgLen - 3) + "..."
+        : request.message;
+      description += ` - ${truncatedMsg}`;
+    }
+
     options.push(
       new StringSelectMenuOptionBuilder()
         .setDefault(i === 0)
         .setLabel(`${prefix}(${request.x}|${request.y}) ${villageName} (${playerName})`)
-        .setDescription(`${request.troopsSent}/${request.troopsNeeded}`)
+        .setDescription(description)
         .setValue(`${i + 1}`) // 1-based request ID
     );
   }
