@@ -9,6 +9,7 @@
     "dev": "ts-node src/index.ts",
     "register": "ts-node src/register-commands.ts",
     "register:prod": "node dist/register-commands.js",
+    "migrate": "ts-node src/migrate-map-data.ts",
     "test": "vitest run"
   },
   "keywords": [

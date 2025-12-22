@@ -17,6 +17,7 @@ export interface VillageData {
   x: number;
   y: number;
   tribe: number;
+  villageId: number;
   playerId: number;
   villageName: string;
   playerName: string;
@@ -105,7 +106,8 @@ function parseMapSql(sqlContent: string): VillageData[] {
           x: parseInt(values[1], 10),
           y: parseInt(values[2], 10),
           tribe: parseInt(values[3], 10),
-          playerId: parseInt(values[4], 10),
+          villageId: parseInt(values[4], 10),
+          playerId: parseInt(values[6], 10),
           villageName: cleanString(values[5]),
           playerName: cleanString(values[7]),
           allianceId: parseInt(values[8], 10) || 0,
@@ -178,6 +180,7 @@ async function createDatabase(villages: VillageData[]): Promise<Database> {
       x INTEGER NOT NULL,
       y INTEGER NOT NULL,
       tribe INTEGER,
+      villageId INTEGER,
       playerId INTEGER,
       villageName TEXT,
       playerName TEXT,
@@ -191,8 +194,8 @@ async function createDatabase(villages: VillageData[]): Promise<Database> {
 
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO villages
-    (targetMapId, x, y, tribe, playerId, villageName, playerName, allianceId, allianceName, population)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (targetMapId, x, y, tribe, villageId, playerId, villageName, playerName, allianceId, allianceName, population)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   for (const v of villages) {
@@ -201,6 +204,7 @@ async function createDatabase(villages: VillageData[]): Promise<Database> {
       v.x,
       v.y,
       v.tribe,
+      v.villageId,
       v.playerId,
       v.villageName,
       v.playerName,
@@ -312,6 +316,7 @@ export async function getVillageAt(
       x: row.x as number,
       y: row.y as number,
       tribe: row.tribe as number,
+      villageId: row.villageId as number,
       playerId: row.playerId as number,
       villageName: row.villageName as string,
       playerName: row.playerName as string,
@@ -501,6 +506,7 @@ export async function getPlayerByExactName(
       x: vRow.x as number,
       y: vRow.y as number,
       tribe: vRow.tribe as number,
+      villageId: vRow.villageId as number,
       playerId: vRow.playerId as number,
       villageName: vRow.villageName as string,
       playerName: vRow.playerName as string,
@@ -537,6 +543,7 @@ export async function getVillagesByPlayerId(
       x: row.x as number,
       y: row.y as number,
       tribe: row.tribe as number,
+      villageId: row.villageId as number,
       playerId: row.playerId as number,
       villageName: row.villageName as string,
       playerName: row.playerName as string,
