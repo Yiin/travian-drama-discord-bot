@@ -4,6 +4,7 @@ import {
   getActionDescription,
 } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
+import { removeContribution } from "../services/stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
 
 /**
@@ -31,13 +32,24 @@ export async function executeUndoAction(
     return { success: false, error: result.message };
   }
 
-  // 3. Update the global message
+  // 3. Reverse stats contribution if this was a TROOPS_SENT action
+  if (action.type === "TROOPS_SENT" && action.data.troops && action.data.contributorId) {
+    removeContribution(
+      guildId,
+      action.data.contributorId,
+      action.coords.x,
+      action.coords.y,
+      action.data.troops
+    );
+  }
+
+  // 4. Update the global message
   await updateGlobalMessage(client, guildId);
 
-  // 4. Get description of what was undone
+  // 5. Get description of what was undone
   const description = getActionDescription(action);
 
-  // 5. Build action text
+  // 6. Build action text
   const actionText = `<@${userId}> atšaukė veiksmą #${actionId}: ${description}`;
 
   return {

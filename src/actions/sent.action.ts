@@ -6,6 +6,7 @@ import {
 import { getMapLink, getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage, LastActionInfo } from "../services/defense-message";
+import { recordContribution } from "../services/stats";
 import { resolveTarget } from "./validation";
 import { ActionContext, SentActionInput, SentActionResult } from "./types";
 
@@ -45,7 +46,10 @@ export async function executeSentAction(
     return { success: false, error: result.error };
   }
 
-  // 4. Record action for undo support
+  // 4. Record contribution to stats
+  recordContribution(guildId, creditUserId, snapshot.x, snapshot.y, troops);
+
+  // 5. Record action for undo support
   const actionId = recordAction(guildId, {
     type: "TROOPS_SENT",
     userId,
@@ -59,7 +63,7 @@ export async function executeSentAction(
     },
   });
 
-  // 5. Get village info for display
+  // 6. Get village info for display
   const village = await getVillageAt(
     config.serverKey!,
     result.request.x,
@@ -70,7 +74,7 @@ export async function executeSentAction(
     ? formatVillageDisplay(config.serverKey!, village)
     : `[(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)})`;
 
-  // 6. Build action text
+  // 7. Build action text
   const creditUser = `<@${creditUserId}>`;
   let actionText: string;
   if (result.isComplete) {
@@ -79,7 +83,7 @@ export async function executeSentAction(
     actionText = `${creditUser} išsiuntė **${troops}** į ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   }
 
-  // 7. Update global message
+  // 8. Update global message
   const lastAction: LastActionInfo = { text: actionText, undoId: actionId };
   await updateGlobalMessage(client, guildId, lastAction);
 

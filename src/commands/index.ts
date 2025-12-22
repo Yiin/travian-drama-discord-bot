@@ -8,6 +8,7 @@ import { scoutCommand } from "./scout";
 import { lookupCommand } from "./lookup";
 import { sentCommand, stackCommand } from "./sent";
 import { stackinfoCommand } from "./stackinfo";
+import { statsCommand } from "./stats";
 import { updatedefCommand } from "./updatedef";
 import { undoCommand } from "./undo";
 
@@ -26,5 +27,6 @@ registerCommand(lookupCommand);
 registerCommand(sentCommand);
 registerCommand(stackCommand);
 registerCommand(stackinfoCommand);
+registerCommand(statsCommand);
 registerCommand(updatedefCommand);
 registerCommand(undoCommand);

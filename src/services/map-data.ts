@@ -443,6 +443,78 @@ export async function searchPlayersByName(
 }
 
 /**
+ * Get player by exact name (case-insensitive).
+ * Returns player info and villages if found, null otherwise.
+ */
+export async function getPlayerByExactName(
+  serverKey: string,
+  playerName: string
+): Promise<{ player: PlayerSearchResult; villages: VillageData[] } | null> {
+  const db = await getDatabase(serverKey);
+  if (!db) return null;
+
+  const searchLower = playerName.toLowerCase();
+
+  // Find exact match (case-insensitive)
+  const playerStmt = db.prepare(`
+    SELECT
+      MAX(playerId) as playerId,
+      playerName,
+      MAX(allianceId) as allianceId,
+      MAX(allianceName) as allianceName,
+      SUM(population) as totalPopulation,
+      COUNT(*) as villageCount
+    FROM villages
+    WHERE LOWER(playerName) = ?
+    GROUP BY LOWER(playerName)
+  `);
+  playerStmt.bind([searchLower]);
+
+  if (!playerStmt.step()) {
+    playerStmt.free();
+    return null;
+  }
+
+  const row = playerStmt.getAsObject() as Record<string, unknown>;
+  playerStmt.free();
+
+  const player: PlayerSearchResult = {
+    playerId: row.playerId as number,
+    playerName: row.playerName as string,
+    allianceId: row.allianceId as number,
+    allianceName: row.allianceName as string,
+    totalPopulation: row.totalPopulation as number,
+    villageCount: row.villageCount as number,
+  };
+
+  // Get all villages for this player
+  const villagesStmt = db.prepare(
+    "SELECT * FROM villages WHERE LOWER(playerName) = ? ORDER BY population DESC"
+  );
+  villagesStmt.bind([searchLower]);
+
+  const villages: VillageData[] = [];
+  while (villagesStmt.step()) {
+    const vRow = villagesStmt.getAsObject() as Record<string, unknown>;
+    villages.push({
+      targetMapId: vRow.targetMapId as number,
+      x: vRow.x as number,
+      y: vRow.y as number,
+      tribe: vRow.tribe as number,
+      playerId: vRow.playerId as number,
+      villageName: vRow.villageName as string,
+      playerName: vRow.playerName as string,
+      allianceId: vRow.allianceId as number,
+      allianceName: vRow.allianceName as string,
+      population: vRow.population as number,
+    });
+  }
+  villagesStmt.free();
+
+  return { player, villages };
+}
+
+/**
  * Get all villages for a specific player by ID.
  */
 export async function getVillagesByPlayerId(
