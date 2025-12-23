@@ -81,7 +81,7 @@ export const scoutCommand: Command = {
     const sent = await sendScoutMessage(interaction.client, config.scoutChannelId, {
       ...result,
       message,
-      requesterId: interaction.user.id,
+      requesterName: interaction.user.displayName,
       scoutRoleId: config.scoutRoleId,
     });
 

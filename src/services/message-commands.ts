@@ -401,7 +401,7 @@ async function handleScoutCommand(
   const sent = await sendScoutMessage(client, config.scoutChannelId, {
     ...result,
     message: scoutMessage,
-    requesterId: message.author.id,
+    requesterName: message.author.displayName,
     scoutRoleId: config.scoutRoleId,
   });
 
