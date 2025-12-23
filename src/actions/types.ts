@@ -131,7 +131,7 @@ export interface ScoutActionSuccess {
   villageName: string;
   playerName: string;
   population: number;
-  rallyLink: string;
+  rallyLink?: string; // undefined for unknown/new villages
   villageDisplay: string;
   coords: { x: number; y: number };
 }

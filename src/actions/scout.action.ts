@@ -47,25 +47,21 @@ export async function executeScoutAction(
     };
   }
 
-  // 3. Validate village exists at coordinates
+  // 3. Get village info (may be null for new/unknown villages)
   const village = await getVillageAt(config.serverKey!, x, y);
-  if (!village) {
-    return {
-      success: false,
-      error: `Kaimas koordinatėse (${x}|${y}) nerastas. Patikrink koordinates ir bandyk dar kartą.`,
-    };
-  }
 
   // 4. Get rally link and formatted display
-  const rallyLink = getRallyPointLink(config.serverKey!, village.targetMapId, 3);
-  const villageDisplay = formatVillageDisplay(config.serverKey!, village);
+  // For unknown villages, we can't generate a rally link (no targetMapId)
+  const villageDisplay = village
+    ? formatVillageDisplay(config.serverKey!, village)
+    : `(${x}|${y}) Unknown/new village`;
 
   return {
     success: true,
-    villageName: village.villageName,
-    playerName: village.playerName,
-    population: village.population,
-    rallyLink,
+    villageName: village?.villageName ?? "Unknown/new village",
+    playerName: village?.playerName ?? "Unknown",
+    population: village?.population ?? 0,
+    rallyLink: village ? getRallyPointLink(config.serverKey!, village.targetMapId, 3) : undefined,
     villageDisplay,
     coords: { x, y },
   };
@@ -89,10 +85,13 @@ export async function sendScoutMessage(
   const container = new ContainerBuilder().setAccentColor(0x3498db); // Blue accent
 
   const roleMention = data.scoutRoleId ? `<@&${data.scoutRoleId}>` : "";
+  const sendLink = data.rallyLink
+    ? `## [**SIŲSTI**](${data.rallyLink})\n`
+    : "";
   const content = new TextDisplayBuilder().setContent(
     `## ${data.villageDisplay} · ${data.population} pop\n` +
       `# ${data.message}\n` +
-      `## [**SIŲSTI**](${data.rallyLink})\n` +
+      sendLink +
       (roleMention ? `${roleMention}\n` : "") +
       `> -# Paprašė <@${data.requesterId}>`
   );

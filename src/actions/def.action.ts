@@ -34,14 +34,8 @@ export async function executeDefAction(
     };
   }
 
-  // 3. Validate village exists at coordinates
+  // 3. Get village info (may be null for new/unknown villages)
   const village = await getVillageAt(config.serverKey!, x, y);
-  if (!village) {
-    return {
-      success: false,
-      error: `Arba to kaimo nėra arba jis ką tik įkurtas (${x}|${y}).`,
-    };
-  }
 
   // 4. Add the request (multiple requests per coordinate allowed)
   const result = addRequest(guildId, x, y, troopsNeeded, message, userId);
@@ -65,8 +59,10 @@ export async function executeDefAction(
   await updateGlobalMessage(client, guildId);
 
   // 7. Build action text
-  const villageDisplay = formatVillageDisplay(config.serverKey!, village);
-  const allianceInfo = village.allianceName ? ` [${village.allianceName}]` : "";
+  const villageDisplay = village
+    ? formatVillageDisplay(config.serverKey!, village)
+    : `(${x}|${y}) Unknown/new village`;
+  const allianceInfo = village?.allianceName ? ` [${village.allianceName}]` : "";
   const actionText = `<@${userId}> sukūrė užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
 
   return {
@@ -74,9 +70,9 @@ export async function executeDefAction(
     actionId,
     actionText,
     requestId: result.requestId,
-    villageName: village.villageName,
-    playerName: village.playerName,
-    allianceName: village.allianceName,
+    villageName: village?.villageName ?? "Unknown/new village",
+    playerName: village?.playerName ?? "Unknown",
+    allianceName: village?.allianceName,
     coords: { x, y },
   };
 }
