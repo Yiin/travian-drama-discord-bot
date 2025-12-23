@@ -485,7 +485,6 @@ export async function handleScoutGoingModal(
 
   // Parse the existing content to find the structure
   let mainText = "";
-  let footerText = "";
   let requesterId: string | null = null;
   let coords: { x: number; y: number } | null = null;
   let goingEntries: string[] = [];
@@ -501,10 +500,9 @@ export async function handleScoutGoingModal(
         if (coordsMatch) {
           coords = { x: parseInt(coordsMatch[1], 10), y: parseInt(coordsMatch[2], 10) };
         }
-      } else if (content.startsWith(">")) {
-        // Footer with requester info - extract user ID
-        footerText = content;
-        const requesterMatch = content.match(/<@(\d+)>/);
+        // Extract requester ID from footer line (> -# Paprašė <@userId>)
+        // This is in the same content block, not a separate component
+        const requesterMatch = content.match(/Paprašė <@(\d+)>/);
         if (requesterMatch) {
           requesterId = requesterMatch[1];
         }
@@ -545,12 +543,6 @@ export async function handleScoutGoingModal(
   if (goingEntries.length > 0) {
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`**Eina:** ${goingEntries.join(", ")}`)
-    );
-  }
-
-  if (footerText) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(footerText)
     );
   }
 
