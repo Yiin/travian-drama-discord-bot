@@ -82,6 +82,7 @@ const ADDSTAT_PATTERN = /^[\/!]addstat\s+(.+?)\s+(\d+)\s*$/i;
 /**
  * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
  * Works for both new messages and edited messages
+ * Supports multiple commands per message, one per line
  */
 export async function handleTextCommand(
   client: Client,
@@ -97,8 +98,25 @@ export async function handleTextCommand(
   const config = getGuildConfig(guildId);
   const channelId = message.channelId;
 
-  const content = message.content.trim();
+  // Split message into lines and process each as a potential command
+  const lines = message.content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
+  for (const content of lines) {
+    // Process each line as a separate command
+    await processSingleCommand(client, message, content, config, channelId);
+  }
+}
+
+/**
+ * Process a single command line
+ */
+async function processSingleCommand(
+  client: Client,
+  message: Message,
+  content: string,
+  config: ReturnType<typeof getGuildConfig>,
+  channelId: string
+): Promise<void> {
   // Lookup command works in any channel
   const lookupMatch = content.match(LOOKUP_PATTERN);
   if (lookupMatch) {
