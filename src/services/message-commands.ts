@@ -75,9 +75,9 @@ const STATS_VILLAGE_PATTERN = /^[\/!]stats\s+village\s+(.+?)\s*$/i;
 const STATS_STACKS_PATTERN = /^[\/!]stats\s+stacks\s*$/i;
 const STATS_RESET_PATTERN = /^[\/!]stats\s+reset\s*$/i;
 
-// Pattern: /addstat or !addstat followed by coords and troops
-// !addstat 123|456 5000 or !addstat 123 -456 5000
-const ADDSTAT_PATTERN = /^[\/!]addstat\s+(.+?)\s+(\d+)\s*$/i;
+// Pattern: /addstat or !addstat followed by coords, troops (can be negative), and optional user mention
+// !addstat 123|456 5000 or !addstat 123 -456 -500 @user
+const ADDSTAT_PATTERN = /^[\/!]addstat\s+(.+?)\s+(-?\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
 
 /**
  * Handle text messages that look like slash commands (e.g., "/sent id: 1 troops: 200")
@@ -190,7 +190,8 @@ async function processSingleCommand(
   // Addstat command works in any channel
   const addstatMatch = content.match(ADDSTAT_PATTERN);
   if (addstatMatch) {
-    await handleAddstatCommand(client, message, addstatMatch[1], parseInt(addstatMatch[2], 10));
+    const forUserId = addstatMatch[3]; // Optional user mention
+    await handleAddstatCommand(client, message, addstatMatch[1], parseInt(addstatMatch[2], 10), forUserId);
     return;
   }
 
@@ -1534,7 +1535,8 @@ async function handleAddstatCommand(
   client: Client,
   message: Message,
   coordsInput: string,
-  troops: number
+  troops: number,
+  forUserId?: string
 ): Promise<void> {
   const guildId = message.guildId!;
 
@@ -1544,14 +1546,17 @@ async function handleAddstatCommand(
     return;
   }
 
-  if (troops < 1) {
-    await message.reply("Karių skaičius turi būti bent 1.");
+  if (troops === 0) {
+    await message.reply("Karių skaičius negali būti 0.");
     return;
   }
 
-  // Record the contribution
-  recordContribution(guildId, message.author.id, coords.x, coords.y, troops);
+  // Record the contribution for the specified user or the message author
+  const targetUserId = forUserId || message.author.id;
+  recordContribution(guildId, targetUserId, coords.x, coords.y, troops);
 
   await message.react("✅");
-  await message.reply(`Užregistruota: **${troops.toLocaleString()}** karių į (${coords.x}|${coords.y}) statistiką.`);
+  const userMention = forUserId ? ` (<@${forUserId}>)` : "";
+  const action = troops > 0 ? "Pridėta" : "Atimta";
+  await message.reply(`${action}: **${Math.abs(troops).toLocaleString()}** karių ${troops > 0 ? "į" : "iš"} (${coords.x}|${coords.y}) statistikos${userMention}.`);
 }
