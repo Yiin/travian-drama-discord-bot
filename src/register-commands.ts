@@ -21,7 +21,7 @@ async function registerCommands() {
 
     const commandData = commands.map((cmd) => cmd.data.toJSON());
 
-    await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+    await rest.put(Routes.applicationGuildCommands(clientId!, guildId!), {
       body: commandData,
     });
 
