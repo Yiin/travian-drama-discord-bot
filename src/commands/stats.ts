@@ -20,10 +20,7 @@ import {
 } from "../services/stats";
 import { getVillageAt, getMapLink, getPlayerByExactName } from "../services/map-data";
 import { parseCoords } from "../utils/parse-coords";
-
-function formatNumber(num: number): string {
-  return num.toLocaleString("en-US");
-}
+import { formatNumber } from "../utils/format";
 
 export const statsCommand: Command = {
   data: new SlashCommandBuilder()
