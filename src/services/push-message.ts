@@ -131,47 +131,41 @@ export async function updatePushGlobalMessage(
 
   console.log(`[PushMessage] Guild ${guildId} using push channel: ${config.pushChannelId}`);
 
-  try {
-    const channel = (await client.channels.fetch(
-      config.pushChannelId
-    )) as TextChannel | null;
+  const channel = (await client.channels.fetch(
+    config.pushChannelId
+  )) as TextChannel | null;
 
-    if (!channel) {
-      console.error(`[PushMessage] Could not fetch push channel for guild ${guildId}`);
-      return null;
-    }
-
-    // Send separate confirmation message first (stays in chat history)
-    if (lastAction) {
-      const undoPart = lastAction.undoId ? ` (\`/undo ${lastAction.undoId}\`)` : "";
-      await channel.send(`${lastAction.text}${undoPart}`);
-    }
-
-    const data = getGuildPushData(guildId);
-    const embed = await buildPushEmbed(guildId, client);
-    const buttonRow = buildPushActionButtons(data.requests.length > 0);
-    const messageId = getGlobalPushMessageId(guildId);
-
-    // Delete existing message if it exists
-    if (messageId) {
-      try {
-        const existingMessage = await channel.messages.fetch(messageId);
-        await existingMessage.delete();
-      } catch {
-        // Message might have been deleted already, ignore
-      }
-    }
-
-    // Post new message
-    const newMessage = await channel.send({
-      embeds: [embed],
-      components: [buttonRow],
-    });
-    setGlobalPushMessageId(guildId, newMessage.id);
-
-    return newMessage;
-  } catch (error) {
-    console.error(`[PushMessage] Error updating global message:`, error);
-    return null;
+  if (!channel) {
+    throw new Error(`Could not fetch push channel for guild ${guildId}`);
   }
+
+  // Send separate confirmation message first (stays in chat history)
+  if (lastAction) {
+    const undoPart = lastAction.undoId ? ` (\`/undo ${lastAction.undoId}\`)` : "";
+    await channel.send(`${lastAction.text}${undoPart}`);
+  }
+
+  const data = getGuildPushData(guildId);
+  const embed = await buildPushEmbed(guildId, client);
+  const buttonRow = buildPushActionButtons(data.requests.length > 0);
+  const messageId = getGlobalPushMessageId(guildId);
+
+  // Delete existing message if it exists
+  if (messageId) {
+    try {
+      const existingMessage = await channel.messages.fetch(messageId);
+      await existingMessage.delete();
+    } catch {
+      // Message might have been deleted already, ignore
+    }
+  }
+
+  // Post new message
+  const newMessage = await channel.send({
+    embeds: [embed],
+    components: [buttonRow],
+  });
+  setGlobalPushMessageId(guildId, newMessage.id);
+
+  return newMessage;
 }

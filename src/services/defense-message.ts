@@ -134,51 +134,45 @@ export async function updateGlobalMessage(
 
   console.log(`[DefenseMessage] Guild ${guildId} using defense channel: ${config.defenseChannelId}`);
 
-  try {
-    const channel = (await client.channels.fetch(
-      config.defenseChannelId
-    )) as TextChannel | null;
+  const channel = (await client.channels.fetch(
+    config.defenseChannelId
+  )) as TextChannel | null;
 
-    if (!channel) {
-      console.error(`[DefenseMessage] Could not fetch defense channel for guild ${guildId}`);
-      return null;
-    }
-
-    // Send separate confirmation message first (stays in chat history)
-    if (lastAction) {
-      const undoPart = lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
-      await channel.send(`${lastAction.text}${undoPart}`);
-    }
-
-    const data = getGuildDefenseData(guildId);
-    const embed = await buildGlobalEmbed(guildId, client);
-    const buttonRow = buildActionButtons(data.requests.length > 0);
-    const messageId = getGlobalMessageId(guildId);
-
-    // Delete existing message if it exists
-    if (messageId) {
-      try {
-        const existingMessage = await channel.messages.fetch(messageId);
-        await existingMessage.delete();
-      } catch {
-        // Message might have been deleted already, ignore
-      }
-    }
-
-    // Post new message
-    const newMessage = await channel.send({
-      embeds: [embed],
-      components: [buttonRow],
-    });
-    setGlobalMessageId(guildId, newMessage.id);
-
-    // Clear recently completed after showing them
-    clearRecentlyCompleted(guildId);
-
-    return newMessage;
-  } catch (error) {
-    console.error(`[DefenseMessage] Error updating global message:`, error);
-    return null;
+  if (!channel) {
+    throw new Error(`Could not fetch defense channel for guild ${guildId}`);
   }
+
+  // Send separate confirmation message first (stays in chat history)
+  if (lastAction) {
+    const undoPart = lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
+    await channel.send(`${lastAction.text}${undoPart}`);
+  }
+
+  const data = getGuildDefenseData(guildId);
+  const embed = await buildGlobalEmbed(guildId, client);
+  const buttonRow = buildActionButtons(data.requests.length > 0);
+  const messageId = getGlobalMessageId(guildId);
+
+  // Delete existing message if it exists
+  if (messageId) {
+    try {
+      const existingMessage = await channel.messages.fetch(messageId);
+      await existingMessage.delete();
+    } catch {
+      // Message might have been deleted already, ignore
+    }
+  }
+
+  // Post new message
+  const newMessage = await channel.send({
+    embeds: [embed],
+    components: [buttonRow],
+  });
+  setGlobalMessageId(guildId, newMessage.id);
+
+  // Clear recently completed after showing them
+  clearRecentlyCompleted(guildId);
+
+  return newMessage;
 }
 
