@@ -26,7 +26,7 @@ export const stackinfoCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
+        content: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -34,7 +34,7 @@ export const stackinfoCommand: Command = {
 
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Defense`.",
+        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel type:Defense`.",
         ephemeral: true,
       });
       return;

@@ -1,9 +1,10 @@
 import { addPushRequest } from "../services/push-requests";
 import { getVillageAt, ensureMapData, formatVillageDisplay } from "../services/map-data";
-import { updatePushGlobalMessage } from "../services/push-message";
+import { updatePushGlobalMessage, PushLastActionInfo } from "../services/push-message";
 import { parseAndValidateCoords } from "./validation";
 import { validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushRequestActionInput, PushRequestActionResult } from "./types";
+import { recordAction } from "../services/action-history";
 
 /**
  * Execute the "push request" action - create a push request.
@@ -50,8 +51,17 @@ export async function executePushRequestAction(
     return { success: false, error: result.error };
   }
 
-  // 6. Update the global message
-  await updatePushGlobalMessage(client, guildId);
+  // 6. Record the action for undo
+  const actionId = recordAction(guildId, {
+    type: "PUSH_REQUEST_ADD",
+    userId,
+    coords: { x, y },
+    requestId: result.requestId,
+    data: {
+      resourcesNeeded,
+      contributorAccount: accountName,
+    },
+  });
 
   // 7. Build action text
   const villageDisplay = village
@@ -60,9 +70,13 @@ export async function executePushRequestAction(
   const allianceInfo = village?.allianceName ? ` [${village.allianceName}]` : "";
   const actionText = `**${accountName}** sukūrė push užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${formatNumber(resourcesNeeded)} resursų.`;
 
+  // 8. Update the global message with undo reference
+  const lastAction: PushLastActionInfo = { text: actionText, undoId: actionId };
+  await updatePushGlobalMessage(client, guildId, lastAction);
+
   return {
     success: true,
-    actionId: 0, // Push doesn't use undo system yet
+    actionId,
     actionText,
     requestId: result.requestId,
     villageName: village?.villageName ?? "Unknown/new village",

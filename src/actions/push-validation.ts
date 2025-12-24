@@ -24,14 +24,14 @@ export function validatePushConfig(guildId: string | null): PushConfigValidation
   if (!config.serverKey) {
     return {
       valid: false,
-      error: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/configure server`.",
+      error: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/configure server`.",
     };
   }
 
   if (!config.pushChannelId) {
     return {
       valid: false,
-      error: "Push kanalas nesukonfigūruotas. Adminas turi paleisti `/configure channel type:Push`.",
+      error: "Push kanalas nesukonfigūruotas. Adminas turi panaudoti `/configure channel type:Push`.",
     };
   }
 

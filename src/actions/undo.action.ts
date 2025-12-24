@@ -2,9 +2,12 @@ import {
   undoAction as performUndo,
   getAction,
   getActionDescription,
+  isPushAction,
 } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
+import { updatePushGlobalMessage } from "../services/push-message";
 import { removeContribution } from "../services/stats";
+import { removePushContribution } from "../services/push-stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
 
 /**
@@ -43,8 +46,23 @@ export async function executeUndoAction(
     );
   }
 
-  // 4. Update the global message
-  await updateGlobalMessage(client, guildId);
+  // 3b. Reverse push stats contribution if this was a PUSH_RESOURCES_SENT action
+  if (action.type === "PUSH_RESOURCES_SENT" && action.data.resources && action.data.contributorAccount) {
+    removePushContribution(
+      guildId,
+      action.data.contributorAccount,
+      action.coords.x,
+      action.coords.y,
+      action.data.resources
+    );
+  }
+
+  // 4. Update the appropriate global message based on action type
+  if (isPushAction(action)) {
+    await updatePushGlobalMessage(client, guildId);
+  } else {
+    await updateGlobalMessage(client, guildId);
+  }
 
   // 5. Get description of what was undone
   const description = getActionDescription(action);

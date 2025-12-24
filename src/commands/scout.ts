@@ -38,7 +38,7 @@ export const scoutCommand: Command = {
     if (!config.serverKey) {
       await interaction.reply({
         content:
-          "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
+          "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -47,7 +47,7 @@ export const scoutCommand: Command = {
     if (!config.scoutChannelId) {
       await interaction.reply({
         content:
-          "Žvalgybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Scout`.",
+          "Žvalgybos kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel type:Scout`.",
         ephemeral: true,
       });
       return;

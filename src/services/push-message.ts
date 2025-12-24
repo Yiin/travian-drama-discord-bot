@@ -75,9 +75,6 @@ export async function buildPushEmbed(
       line += " **BAIGTA**";
     }
 
-    // Add requester account name
-    line += ` - ${request.requesterAccount}`;
-
     lines.push(line);
   }
 

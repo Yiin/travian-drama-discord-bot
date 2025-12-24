@@ -1,12 +1,14 @@
 import {
   reportResourcesSent,
   getPushRequestById,
+  PushRequest,
 } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay, getMapLink } from "../services/map-data";
 import { updatePushGlobalMessage, PushLastActionInfo } from "../services/push-message";
 import { recordPushContribution } from "../services/push-stats";
 import { resolvePushTarget, validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushSentActionInput, PushSentActionResult } from "./types";
+import { recordAction } from "../services/action-history";
 
 /**
  * Execute the "push sent" action - report resources sent to a push request.
@@ -35,11 +37,15 @@ export async function executePushSentAction(
   }
   const { requestId } = targetResult;
 
-  // 3. Get request before modification
+  // 3. Get request before modification (deep copy for undo)
   const requestBefore = getPushRequestById(guildId, requestId);
   if (!requestBefore) {
     return { success: false, error: `Push užklausa #${requestId} nerasta.` };
   }
+  const previousState: PushRequest = {
+    ...requestBefore,
+    contributors: [...requestBefore.contributors],
+  };
 
   // 4. Perform the operation
   const result = reportResourcesSent(guildId, requestId, accountName, resources);
@@ -69,13 +75,27 @@ export async function executePushSentAction(
     actionText = `**${accountName}** išsiuntė **${formatNumber(resources)}** į ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
   }
 
-  // 8. Update global message
-  const lastAction: PushLastActionInfo = { text: actionText };
+  // 8. Record action for undo
+  const actionId = recordAction(guildId, {
+    type: "PUSH_RESOURCES_SENT",
+    userId,
+    coords: { x: result.request.x, y: result.request.y },
+    requestId,
+    previousPushState: previousState,
+    data: {
+      resources,
+      contributorAccount: accountName,
+      pushDidComplete: result.isComplete && !result.wasAlreadyComplete,
+    },
+  });
+
+  // 9. Update global message with undo reference
+  const lastAction: PushLastActionInfo = { text: actionText, undoId: actionId };
   await updatePushGlobalMessage(client, guildId, lastAction);
 
   return {
     success: true,
-    actionId: 0, // Push doesn't use undo system yet
+    actionId,
     actionText,
     villageName,
     resourcesSent: result.request.resourcesSent,

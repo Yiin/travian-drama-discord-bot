@@ -146,7 +146,7 @@ export const lookupCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/configure`.",
+        content: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/configure`.",
         ephemeral: true,
       });
       return;

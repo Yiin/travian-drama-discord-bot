@@ -284,3 +284,42 @@ export function subtractResources(
   saveGuildData(guildId, data);
   return { success: true, request };
 }
+
+export interface RestorePushRequestResult {
+  success: boolean;
+  requestId?: number;
+  error?: string;
+}
+
+/**
+ * Restores a push request from a previous state (for undo support).
+ * Appends to the end of the requests list.
+ */
+export function restorePushRequest(
+  guildId: string,
+  request: PushRequest
+): RestorePushRequestResult {
+  const data = getGuildPushData(guildId);
+
+  // Check max requests limit
+  if (data.requests.length >= MAX_PUSH_REQUESTS) {
+    return {
+      success: false,
+      error: `Pasiektas maksimalus užklausų limitas (${MAX_PUSH_REQUESTS}).`,
+    };
+  }
+
+  // Create a copy of the request with its contributors
+  const restoredRequest: PushRequest = {
+    ...request,
+    contributors: [...request.contributors],
+  };
+
+  data.requests.push(restoredRequest);
+  saveGuildData(guildId, data);
+
+  return {
+    success: true,
+    requestId: data.requests.length, // 1-based ID
+  };
+}

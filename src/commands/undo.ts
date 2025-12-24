@@ -32,9 +32,9 @@ export const undoCommand: Command = {
     }
 
     const config = getGuildConfig(guildId);
-    if (!config.defenseChannelId) {
+    if (!config.defenseChannelId && !config.pushChannelId) {
       await interaction.reply({
-        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Defense`.",
+        content: "Nei gynybos, nei push kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel`.",
         ephemeral: true,
       });
       return;

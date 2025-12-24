@@ -17,14 +17,14 @@ export function validateDefenseConfig(guildId: string | null): ConfigValidation 
   if (!config.serverKey) {
     return {
       valid: false,
-      error: "Travian serveris nesukonfigūruotas. Adminas turi paleisti `/setserver`.",
+      error: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/setserver`.",
     };
   }
 
   if (!config.defenseChannelId) {
     return {
       valid: false,
-      error: "Gynybos kanalas nesukonfigūruotas. Adminas turi paleisti `/setchannel type:Defense`.",
+      error: "Gynybos kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel type:Defense`.",
     };
   }
 
