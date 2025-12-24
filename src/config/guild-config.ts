@@ -8,6 +8,7 @@ export interface GuildConfig {
   defenseChannelId?: string;
   scoutChannelId?: string;
   scoutRoleId?: string;
+  pushChannelId?: string;
   serverKey?: string;
 }
 
@@ -53,6 +54,15 @@ export function setScoutChannel(
 ): void {
   const configs = loadConfigs();
   configs[guildId] = { ...configs[guildId], scoutChannelId: channelId };
+  saveConfigs(configs);
+}
+
+export function setPushChannel(
+  guildId: string,
+  channelId: string
+): void {
+  const configs = loadConfigs();
+  configs[guildId] = { ...configs[guildId], pushChannelId: channelId };
   saveConfigs(configs);
 }
 

@@ -16,7 +16,7 @@ import {
 } from "../services/map-data";
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, ScoutActionInput, ScoutActionResult, ActionError } from "./types";
-import { SCOUT_GOING_BUTTON_ID } from "../services/button-handlers";
+import { SCOUT_GOING_BUTTON_ID } from "../services/button-handlers/index";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.

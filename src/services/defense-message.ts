@@ -16,7 +16,7 @@ import {
 } from "./defense-requests";
 import { getGuildConfig } from "../config/guild-config";
 import { getVillageAt, getRallyPointLink, getMapLink, formatVillageDisplay } from "./map-data";
-import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers";
+import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers/index";
 
 export interface LastActionInfo {
   text: string;

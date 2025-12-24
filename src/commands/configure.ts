@@ -5,7 +5,7 @@ import {
   ChannelType,
 } from "discord.js";
 import { Command } from "../types";
-import { setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, getGuildConfig } from "../config/guild-config";
+import { setServerKey, setDefenseChannel, setScoutChannel, setPushChannel, setScoutRole, getGuildConfig } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 
@@ -56,7 +56,8 @@ export const configureCommand: Command = {
             .setRequired(true)
             .addChoices(
               { name: "Defense", value: "defense" },
-              { name: "Scout", value: "scout" }
+              { name: "Scout", value: "scout" },
+              { name: "Push", value: "push" }
             )
         )
         .addChannelOption((option) =>
@@ -153,10 +154,17 @@ async function handleChannelConfig(
       content: `Defense requests will now be sent to <#${channel.id}>`,
       ephemeral: true,
     });
-  } else {
+  } else if (type === "scout") {
     setScoutChannel(guildId, channel.id);
     await interaction.reply({
       content: `Scout requests will now be sent to <#${channel.id}>`,
+      ephemeral: true,
+    });
+  } else if (type === "push") {
+    console.log(`[Configure] Setting push channel for guild ${guildId} to ${channel.id}`);
+    setPushChannel(guildId, channel.id);
+    await interaction.reply({
+      content: `Push requests will now be sent to <#${channel.id}>`,
       ephemeral: true,
     });
   }

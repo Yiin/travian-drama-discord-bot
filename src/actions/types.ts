@@ -137,3 +137,69 @@ export interface ScoutActionSuccess {
 }
 
 export type ScoutActionResult = ScoutActionSuccess | ActionError;
+
+// --- Push Request Action Types ---
+
+export interface PushRequestActionInput {
+  coords: string;
+  resourcesNeeded: number;
+}
+
+export interface PushRequestActionSuccess extends ActionSuccess {
+  requestId: number;
+  villageName: string;
+  playerName: string;
+  allianceName?: string;
+  requesterAccount: string;
+  coords: { x: number; y: number };
+}
+
+export type PushRequestActionResult = PushRequestActionSuccess | ActionError;
+
+// --- Push Sent Action Types ---
+
+export interface PushSentActionInput {
+  target: string; // Request ID or coordinates string
+  resources: number;
+}
+
+export interface PushSentActionSuccess extends ActionSuccess {
+  villageName: string;
+  resourcesSent: number;
+  resourcesNeeded: number;
+  isComplete: boolean;
+  coords: { x: number; y: number };
+}
+
+export type PushSentActionResult = PushSentActionSuccess | ActionError;
+
+// --- Push Delete Action Types ---
+
+export interface PushDeleteActionInput {
+  requestId: number;
+}
+
+export interface PushDeleteActionSuccess extends ActionSuccess {
+  requestId: number;
+  villageName: string;
+  playerName: string;
+  coords: { x: number; y: number };
+}
+
+export type PushDeleteActionResult = PushDeleteActionSuccess | ActionError;
+
+// --- Push Edit Action Types ---
+
+export interface PushEditActionInput {
+  requestId: number;
+  resourcesNeeded: number;
+}
+
+export interface PushEditActionSuccess extends ActionSuccess {
+  requestId: number;
+  oldAmount: number;
+  newAmount: number;
+  coords: { x: number; y: number };
+}
+
+export type PushEditActionResult = PushEditActionSuccess | ActionError;

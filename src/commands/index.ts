@@ -15,6 +15,7 @@ import { stackinfoCommand } from "./stackinfo";
 import { statsCommand } from "./stats";
 import { updatedefCommand } from "./updatedef";
 import { undoCommand } from "./undo";
+import { pushCommand } from "./push";
 
 export const commands = new Collection<string, Command>();
 
@@ -38,3 +39,4 @@ registerCommand(stackinfoCommand);
 registerCommand(statsCommand);
 registerCommand(updatedefCommand);
 registerCommand(undoCommand);
+registerCommand(pushCommand);
