@@ -5,9 +5,9 @@ import {
   TextInputBuilder,
   TextInputStyle,
   LabelBuilder,
-  PermissionFlagsBits,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
+import { requireAdmin } from "../../utils/permissions";
 import { getPushRequestByChannelId, removePushRequest } from "../push-requests";
 import {
   validatePushConfig,
@@ -177,31 +177,7 @@ export async function handlePushDeleteButton(
   }
 
   // Check if user has admin permissions
-  const member = interaction.member;
-  if (!member) {
-    await interaction.reply({
-      content: "Nepavyko patikrinti teisių.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Check for MANAGE_CHANNELS or ADMINISTRATOR permission
-  const permissions = typeof member.permissions === "string"
-    ? BigInt(member.permissions)
-    : member.permissions.bitfield;
-
-  const hasPermission =
-    (permissions & PermissionFlagsBits.ManageChannels) !== 0n ||
-    (permissions & PermissionFlagsBits.Administrator) !== 0n;
-
-  if (!hasPermission) {
-    await interaction.reply({
-      content: "Tik administratoriai gali ištrinti push kanalus.",
-      ephemeral: true,
-    });
-    return;
-  }
+  if (!await requireAdmin(interaction)) return;
 
   // Get the push request for this channel
   const channelId = interaction.channelId;

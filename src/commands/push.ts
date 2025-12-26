@@ -18,6 +18,7 @@ import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
+import { requireAdmin } from "../utils/permissions";
 
 export const pushCommand: Command = {
   data: new SlashCommandBuilder()
@@ -150,6 +151,9 @@ export const pushCommand: Command = {
 };
 
 async function handleRequest(interaction: ChatInputCommandInteraction): Promise<void> {
+  // 0. Check admin permission
+  if (!await requireAdmin(interaction)) return;
+
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {

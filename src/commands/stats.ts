@@ -10,6 +10,7 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
+import { requireAdmin } from "../utils/permissions";
 import {
   getLeaderboard,
   getUserStats,
@@ -88,13 +89,7 @@ export const statsCommand: Command = {
     }
 
     // Check administrator permission
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({
-        content: "This command requires Administrator permission.",
-        ephemeral: true,
-      });
-      return;
-    }
+    if (!await requireAdmin(interaction)) return;
 
     const subcommand = interaction.options.getSubcommand();
 

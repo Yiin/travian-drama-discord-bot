@@ -6,7 +6,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { CommandContext } from "../types";
-import { requireAdmin } from "../middleware";
+import { requireAdminMiddleware } from "../middleware";
 import { formatNumber } from "../../../utils/format";
 import { parseCoords } from "../../../utils/parse-coords";
 import { getGuildConfig } from "../../../config/guild-config";
@@ -308,9 +308,9 @@ async function handleStatsResetCommandInner(ctx: CommandContext): Promise<void> 
 }
 
 // Wrap all with admin checks
-export const handleStatsLeaderboardCommand = requireAdmin(handleStatsLeaderboardCommandInner);
-export const handleStatsUserCommand = requireAdmin(handleStatsUserCommandInner);
-export const handleStatsPlayerCommand = requireAdmin(handleStatsPlayerCommandInner);
-export const handleStatsVillageCommand = requireAdmin(handleStatsVillageCommandInner);
-export const handleStatsStacksCommand = requireAdmin(handleStatsStacksCommandInner);
-export const handleStatsResetCommand = requireAdmin(handleStatsResetCommandInner);
+export const handleStatsLeaderboardCommand = requireAdminMiddleware(handleStatsLeaderboardCommandInner);
+export const handleStatsUserCommand = requireAdminMiddleware(handleStatsUserCommandInner);
+export const handleStatsPlayerCommand = requireAdminMiddleware(handleStatsPlayerCommandInner);
+export const handleStatsVillageCommand = requireAdminMiddleware(handleStatsVillageCommandInner);
+export const handleStatsStacksCommand = requireAdminMiddleware(handleStatsStacksCommandInner);
+export const handleStatsResetCommand = requireAdminMiddleware(handleStatsResetCommandInner);

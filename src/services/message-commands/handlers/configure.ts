@@ -1,5 +1,5 @@
 import { CommandContext } from "../types";
-import { requireAdmin } from "../middleware";
+import { requireAdminMiddleware } from "../middleware";
 import { normalizeServerKey, isValidServerKey } from "../utils";
 import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
@@ -76,6 +76,6 @@ async function handleConfigureScoutRoleCommandInner(
 }
 
 // Wrap with admin checks
-export const handleConfigureServerCommand = requireAdmin(handleConfigureServerCommandInner);
-export const handleConfigureChannelCommand = requireAdmin(handleConfigureChannelCommandInner);
-export const handleConfigureScoutRoleCommand = requireAdmin(handleConfigureScoutRoleCommandInner);
+export const handleConfigureServerCommand = requireAdminMiddleware(handleConfigureServerCommandInner);
+export const handleConfigureChannelCommand = requireAdminMiddleware(handleConfigureChannelCommandInner);
+export const handleConfigureScoutRoleCommand = requireAdminMiddleware(handleConfigureScoutRoleCommandInner);

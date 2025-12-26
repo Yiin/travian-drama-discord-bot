@@ -1,5 +1,5 @@
 import { CommandContext } from "../types";
-import { requireAdmin } from "../middleware";
+import { requireAdminMiddleware } from "../middleware";
 import {
   validateDefenseConfig,
   executeSentAction,
@@ -198,7 +198,7 @@ async function handleUpdateDefCommandInner(
 }
 
 // Wrap with admin check
-export const handleUpdateDefCommand = requireAdmin(handleUpdateDefCommandInner);
+export const handleUpdateDefCommand = requireAdminMiddleware(handleUpdateDefCommandInner);
 
 export async function handleUndoCommand(
   ctx: CommandContext,
