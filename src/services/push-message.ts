@@ -142,8 +142,8 @@ export async function createPushChannel(
   const playerName = village?.playerName || "unknown";
   const sanitizedPlayerName = sanitizeChannelName(playerName);
 
-  // Create channel name: push-playername-x-y
-  const channelName = `push-${sanitizedPlayerName}-${request.x}-${request.y}`;
+  // Create channel name: push-{id}-{playername}
+  const channelName = `push-${requestId}-${sanitizedPlayerName}`;
 
   // Create the channel
   const channel = await guild.channels.create({

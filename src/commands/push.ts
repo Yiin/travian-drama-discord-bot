@@ -14,6 +14,7 @@ import {
   executePushEditAction,
 } from "../actions";
 import { getPushLeaderboard, getPlayerPushStats } from "../services/push-stats";
+import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
@@ -43,14 +44,7 @@ export const pushCommand: Command = {
     .addSubcommand((sub) =>
       sub
         .setName("sent")
-        .setDescription("Report resources sent")
-        .addIntegerOption((opt) =>
-          opt
-            .setName("index")
-            .setDescription("Push request index")
-            .setRequired(true)
-            .setMinValue(1)
-        )
+        .setDescription("Report resources sent (use in push channel)")
         .addIntegerOption((opt) =>
           opt
             .setName("amount")
@@ -62,26 +56,12 @@ export const pushCommand: Command = {
     .addSubcommand((sub) =>
       sub
         .setName("delete")
-        .setDescription("Delete a push request")
-        .addIntegerOption((opt) =>
-          opt
-            .setName("index")
-            .setDescription("Push request index")
-            .setRequired(true)
-            .setMinValue(1)
-        )
+        .setDescription("Delete this push request (use in push channel)")
     )
     .addSubcommand((sub) =>
       sub
         .setName("edit")
-        .setDescription("Edit push request amount")
-        .addIntegerOption((opt) =>
-          opt
-            .setName("index")
-            .setDescription("Push request index")
-            .setRequired(true)
-            .setMinValue(1)
-        )
+        .setDescription("Edit push request amount (use in push channel)")
         .addIntegerOption((opt) =>
           opt
             .setName("amount")
@@ -215,14 +195,24 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
-  // 2. Parse inputs
-  const requestId = interaction.options.getInteger("index", true);
+  // 2. Get request from channel context
+  const channelId = interaction.channelId;
+  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  if (!requestData) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik push kanale.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // 3. Parse inputs
   const resources = interaction.options.getInteger("amount", true);
 
-  // 3. Defer reply
+  // 4. Defer reply
   await withRetry(() => interaction.deferReply());
 
-  // 4. Execute action
+  // 5. Execute action
   const result = await executePushSentAction(
     {
       guildId: validation.guildId,
@@ -231,18 +221,18 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
       userId: interaction.user.id,
     },
     {
-      target: requestId.toString(),
+      target: requestData.requestId.toString(),
       resources,
     }
   );
 
-  // 5. Handle response
+  // 6. Handle response
   if (!result.success) {
     await interaction.editReply({ content: result.error });
     return;
   }
 
-  // Delete reply since info is shown in global message
+  // Delete reply since info is shown in channel embed
   await interaction.deleteReply();
 }
 
@@ -254,8 +244,16 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     return;
   }
 
-  // 2. Parse inputs
-  const requestId = interaction.options.getInteger("index", true);
+  // 2. Get request from channel context
+  const channelId = interaction.channelId;
+  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  if (!requestData) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik push kanale.",
+      ephemeral: true,
+    });
+    return;
+  }
 
   // 3. Defer reply
   await withRetry(() => interaction.deferReply());
@@ -269,7 +267,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
       userId: interaction.user.id,
     },
     {
-      requestId,
+      requestId: requestData.requestId,
     }
   );
 
@@ -279,7 +277,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  // Channel will be deleted by the action, no need to reply
 }
 
 async function handleEdit(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -290,14 +288,24 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
-  // 2. Parse inputs
-  const requestId = interaction.options.getInteger("index", true);
+  // 2. Get request from channel context
+  const channelId = interaction.channelId;
+  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  if (!requestData) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik push kanale.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // 3. Parse inputs
   const resourcesNeeded = interaction.options.getInteger("amount", true);
 
-  // 3. Defer reply
+  // 4. Defer reply
   await withRetry(() => interaction.deferReply());
 
-  // 4. Execute action
+  // 5. Execute action
   const result = await executePushEditAction(
     {
       guildId: validation.guildId,
@@ -306,12 +314,12 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
       userId: interaction.user.id,
     },
     {
-      requestId,
+      requestId: requestData.requestId,
       resourcesNeeded,
     }
   );
 
-  // 5. Handle response
+  // 6. Handle response
   if (!result.success) {
     await interaction.editReply({ content: result.error });
     return;
