@@ -12,6 +12,7 @@ import {
 import {
   PushRequest,
   updatePushRequestChannelInfo,
+  getPushRequestByChannelId,
 } from "./push-requests";
 import { getGuildConfig } from "../config/guild-config";
 import { getVillageAt, getRallyPointLink, getMapLink, formatVillageDisplay } from "./map-data";
@@ -176,8 +177,8 @@ export async function updatePushChannelEmbed(
   guildId: string,
   request: PushRequest
 ): Promise<void> {
-  if (!request.channelId || !request.messageId) {
-    console.error("[PushMessage] Request has no channel/message ID, cannot update");
+  if (!request.channelId) {
+    console.error("[PushMessage] Request has no channel ID, cannot update");
     return;
   }
 
@@ -193,19 +194,32 @@ export async function updatePushChannelEmbed(
       return;
     }
 
-    const message = await channel.messages.fetch(request.messageId);
-    if (!message) {
-      console.error(`[PushMessage] Could not fetch message ${request.messageId}`);
-      return;
+    // Delete the old message if it exists
+    if (request.messageId) {
+      try {
+        const oldMessage = await channel.messages.fetch(request.messageId);
+        if (oldMessage) {
+          await oldMessage.delete();
+        }
+      } catch {
+        // Message might already be deleted, ignore
+      }
     }
 
+    // Post new embed at the bottom
     const embed = await buildSinglePushEmbed(request, config.serverKey);
     const buttons = buildPushChannelButtons();
 
-    await message.edit({
+    const newMessage = await channel.send({
       embeds: [embed],
       components: [buttons],
     });
+
+    // Update stored message ID
+    const requestData = getPushRequestByChannelId(guildId, request.channelId);
+    if (requestData) {
+      updatePushRequestChannelInfo(guildId, requestData.requestId, request.channelId, newMessage.id);
+    }
   } catch (error) {
     console.error("[PushMessage] Error updating push channel embed:", error);
   }
