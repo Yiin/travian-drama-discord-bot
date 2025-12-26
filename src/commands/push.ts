@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   Colors,
 } from "discord.js";
@@ -105,6 +106,7 @@ export const pushCommand: Command = {
                 .setName("name")
                 .setDescription("In-game player name")
                 .setRequired(true)
+                .setAutocomplete(true)
             )
         )
     ),
@@ -137,6 +139,32 @@ export const pushCommand: Command = {
       case "edit":
         await handleEdit(interaction);
         break;
+    }
+  },
+
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    const focusedOption = interaction.options.getFocused(true);
+
+    if (focusedOption.name === "name") {
+      const guildId = interaction.guildId;
+      if (!guildId) {
+        await interaction.respond([]);
+        return;
+      }
+
+      const leaderboard = getPushLeaderboard(guildId);
+      const searchValue = focusedOption.value.toLowerCase();
+
+      // Filter and limit to 25 results (Discord's max)
+      const filtered = leaderboard
+        .filter((entry) => entry.accountName.toLowerCase().includes(searchValue))
+        .slice(0, 25)
+        .map((entry) => ({
+          name: `${entry.accountName} (${formatNumber(entry.totalResources)})`,
+          value: entry.accountName,
+        }));
+
+      await interaction.respond(filtered);
     }
   },
 };

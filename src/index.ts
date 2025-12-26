@@ -119,6 +119,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  // Handle autocomplete interactions
+  if (interaction.isAutocomplete()) {
+    const command = commands.get(interaction.commandName);
+    if (command?.autocomplete) {
+      try {
+        await command.autocomplete(interaction);
+      } catch (error) {
+        console.error(`Error handling autocomplete for ${interaction.commandName}:`, error);
+      }
+    }
+    return;
+  }
+
   // Handle slash commands
   if (!interaction.isChatInputCommand()) return;
 
