@@ -152,6 +152,7 @@ export interface PushRequestActionSuccess extends ActionSuccess {
   allianceName?: string;
   requesterAccount: string;
   coords: { x: number; y: number };
+  channelId?: string;
 }
 
 export type PushRequestActionResult = PushRequestActionSuccess | ActionError;

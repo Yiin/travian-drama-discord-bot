@@ -28,10 +28,10 @@ export function validatePushConfig(guildId: string | null): PushConfigValidation
     };
   }
 
-  if (!config.pushChannelId) {
+  if (!config.pushCategoryId) {
     return {
       valid: false,
-      error: "Push kanalas nesukonfigūruotas. Adminas turi panaudoti `/configure channel type:Push`.",
+      error: "Push kategorija nesukonfigūruota. Adminas turi panaudoti `/configure push-category`.",
     };
   }
 

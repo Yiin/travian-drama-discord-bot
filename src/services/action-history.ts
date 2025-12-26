@@ -50,6 +50,7 @@ export interface ActionData {
   contributorAccount?: string; // In-game account name for push
   pushDidComplete?: boolean;
   previousResourcesNeeded?: number; // For PUSH_REQUEST_EDIT
+  channelId?: string; // For channel-based push requests
 }
 
 export interface Action {

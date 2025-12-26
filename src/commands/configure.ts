@@ -5,7 +5,7 @@ import {
   ChannelType,
 } from "discord.js";
 import { Command } from "../types";
-import { setServerKey, setDefenseChannel, setScoutChannel, setPushChannel, setScoutRole, getGuildConfig } from "../config/guild-config";
+import { setServerKey, setDefenseChannel, setScoutChannel, setPushCategory, setScoutRole, getGuildConfig } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 
@@ -56,8 +56,7 @@ export const configureCommand: Command = {
             .setRequired(true)
             .addChoices(
               { name: "Defense", value: "defense" },
-              { name: "Scout", value: "scout" },
-              { name: "Push", value: "push" }
+              { name: "Scout", value: "scout" }
             )
         )
         .addChannelOption((option) =>
@@ -66,6 +65,18 @@ export const configureCommand: Command = {
             .setDescription("The channel to send requests to")
             .setRequired(true)
             .addChannelTypes(ChannelType.GuildText)
+        )
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("push-category")
+        .setDescription("Configure the category for push request channels")
+        .addChannelOption((option) =>
+          option
+            .setName("category")
+            .setDescription("The category where push channels will be created")
+            .setRequired(true)
+            .addChannelTypes(ChannelType.GuildCategory)
         )
     )
     .addSubcommand((subcommand) =>
@@ -98,6 +109,8 @@ export const configureCommand: Command = {
       await handleServerConfig(interaction, guildId);
     } else if (subcommand === "channel") {
       await handleChannelConfig(interaction, guildId);
+    } else if (subcommand === "push-category") {
+      await handlePushCategoryConfig(interaction, guildId);
     } else if (subcommand === "scoutrole") {
       await handleScoutRoleConfig(interaction, guildId);
     }
@@ -160,14 +173,21 @@ async function handleChannelConfig(
       content: `Scout requests will now be sent to <#${channel.id}>`,
       ephemeral: true,
     });
-  } else if (type === "push") {
-    console.log(`[Configure] Setting push channel for guild ${guildId} to ${channel.id}`);
-    setPushChannel(guildId, channel.id);
-    await interaction.reply({
-      content: `Push requests will now be sent to <#${channel.id}>`,
-      ephemeral: true,
-    });
   }
+}
+
+async function handlePushCategoryConfig(
+  interaction: ChatInputCommandInteraction,
+  guildId: string
+): Promise<void> {
+  const category = interaction.options.getChannel("category", true);
+
+  console.log(`[Configure] Setting push category for guild ${guildId} to ${category.id}`);
+  setPushCategory(guildId, category.id);
+  await interaction.reply({
+    content: `Push request channels will now be created in <#${category.id}>`,
+    ephemeral: true,
+  });
 }
 
 async function handleScoutRoleConfig(

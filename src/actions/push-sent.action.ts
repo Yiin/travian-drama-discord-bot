@@ -4,7 +4,7 @@ import {
   PushRequest,
 } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay, getMapLink } from "../services/map-data";
-import { updatePushGlobalMessage, PushLastActionInfo } from "../services/push-message";
+import { postContributionMessage, updatePushChannelEmbed, markPushComplete } from "../services/push-message";
 import { recordPushContribution } from "../services/push-stats";
 import { resolvePushTarget, validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushSentActionInput, PushSentActionResult } from "./types";
@@ -89,9 +89,16 @@ export async function executePushSentAction(
     },
   });
 
-  // 9. Update global message with undo reference
-  const lastAction: PushLastActionInfo = { text: actionText, undoId: actionId };
-  await updatePushGlobalMessage(client, guildId, lastAction);
+  // 9. Post contribution message in the push channel
+  const contributionText = `**${accountName}** išsiuntė **${formatNumber(resources)}** resursų`;
+  await postContributionMessage(client, result.request, contributionText);
+
+  // 10. Update the channel embed or mark complete
+  if (result.isComplete && !result.wasAlreadyComplete) {
+    await markPushComplete(client, guildId, result.request);
+  } else {
+    await updatePushChannelEmbed(client, guildId, result.request);
+  }
 
   return {
     success: true,

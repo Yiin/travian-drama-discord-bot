@@ -21,10 +21,11 @@ export interface PushRequest {
   createdAt: number;
   completed: boolean; // true when resourcesSent >= resourcesNeeded
   contributors: PushContributor[];
+  channelId?: string; // Discord channel ID for this push request
+  messageId?: string; // Discord message ID for the embed in the channel
 }
 
 export interface GuildPushData {
-  globalMessageId?: string;
   requests: PushRequest[];
 }
 
@@ -67,14 +68,32 @@ function saveGuildData(guildId: string, data: GuildPushData): void {
   saveAllData(allData);
 }
 
-export function setGlobalPushMessageId(guildId: string, messageId: string): void {
+export function updatePushRequestChannelInfo(
+  guildId: string,
+  requestId: number,
+  channelId: string,
+  messageId: string
+): void {
   const data = getGuildPushData(guildId);
-  data.globalMessageId = messageId;
-  saveGuildData(guildId, data);
+  const index = requestId - 1; // Convert 1-based to 0-based
+  if (index >= 0 && index < data.requests.length) {
+    data.requests[index].channelId = channelId;
+    data.requests[index].messageId = messageId;
+    saveGuildData(guildId, data);
+  }
 }
 
-export function getGlobalPushMessageId(guildId: string): string | undefined {
-  return getGuildPushData(guildId).globalMessageId;
+export function getPushRequestByChannelId(
+  guildId: string,
+  channelId: string
+): { request: PushRequest; requestId: number } | undefined {
+  const data = getGuildPushData(guildId);
+  for (let i = 0; i < data.requests.length; i++) {
+    if (data.requests[i].channelId === channelId) {
+      return { request: data.requests[i], requestId: i + 1 };
+    }
+  }
+  return undefined;
 }
 
 export interface AddPushRequestResult {

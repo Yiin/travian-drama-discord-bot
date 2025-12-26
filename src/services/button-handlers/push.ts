@@ -4,29 +4,23 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   LabelBuilder,
+  PermissionFlagsBits,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
-import { getGuildPushData } from "../push-requests";
-import { getVillageAt } from "../map-data";
+import { getPushRequestByChannelId, removePushRequest } from "../push-requests";
 import {
   validatePushConfig,
   validateUserHasAccount,
-  executePushRequestAction,
   executePushSentAction,
 } from "../../actions";
+import { deletePushChannel } from "../push-message";
 
-// Push button IDs (defined in push-message.ts)
-export { PUSH_REQUEST_BUTTON_ID, PUSH_SENT_BUTTON_ID } from "../push-message";
+// Button IDs (defined in push-message.ts)
+export { PUSH_SENT_BUTTON_ID, PUSH_DELETE_BUTTON_ID } from "../push-message";
 
 // Push modal IDs
-export const PUSH_REQUEST_MODAL_ID = "push_request_modal";
 export const PUSH_SENT_MODAL_ID = "push_sent_modal";
-export const PUSH_COORDS_INPUT_ID = "push_coords_input";
-export const PUSH_AMOUNT_INPUT_ID = "push_amount_input";
-export const PUSH_TARGET_SELECT_ID = "push_target_select";
 export const PUSH_RESOURCES_INPUT_ID = "push_resources_input";
 
 function formatNumber(num: number): string {
@@ -37,119 +31,6 @@ function formatNumber(num: number): string {
     return (num / 1000).toFixed(1) + "k";
   }
   return num.toString();
-}
-
-export async function handlePushRequestButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Verify user has a linked account
-  const accountResult = validateUserHasAccount(guildId, interaction.user.id);
-  if (!accountResult.valid) {
-    await interaction.reply({
-      content: accountResult.error,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const config = getGuildConfig(guildId);
-  if (!config.serverKey) {
-    await interaction.reply({
-      content: "Travian serveris nesukonfigūruotas.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Build modal with text inputs using LabelBuilder
-  const modal = new ModalBuilder()
-    .setCustomId(PUSH_REQUEST_MODAL_ID)
-    .setTitle("Naujas push prašymas");
-
-  const coordsInput = new TextInputBuilder()
-    .setCustomId(PUSH_COORDS_INPUT_ID)
-    .setPlaceholder("123|456")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(20);
-
-  const coordsLabel = new LabelBuilder()
-    .setLabel("Koordinatės")
-    .setTextInputComponent(coordsInput);
-
-  const amountInput = new TextInputBuilder()
-    .setCustomId(PUSH_AMOUNT_INPUT_ID)
-    .setPlaceholder("100000")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(15);
-
-  const amountLabel = new LabelBuilder()
-    .setLabel("Kiek resursų reikia?")
-    .setTextInputComponent(amountInput);
-
-  modal.addLabelComponents(coordsLabel, amountLabel);
-
-  await interaction.showModal(modal);
-}
-
-export async function handlePushRequestModal(
-  interaction: ModalSubmitInteraction
-): Promise<void> {
-  // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
-  if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
-    return;
-  }
-
-  // 2. Extract inputs from modal
-  const coordsInput = interaction.fields.getTextInputValue(PUSH_COORDS_INPUT_ID);
-  const amountInput = interaction.fields.getTextInputValue(PUSH_AMOUNT_INPUT_ID);
-
-  // 3. Parse amount
-  const resourcesNeeded = parseInt(amountInput.replace(/[,.\s]/g, ""), 10);
-  if (isNaN(resourcesNeeded) || resourcesNeeded < 1) {
-    await interaction.reply({
-      content: "Neteisingas resursų skaičius. Įvesk teigiamą skaičių.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // 4. Defer reply
-  await interaction.deferReply();
-
-  // 5. Execute action
-  const result = await executePushRequestAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
-    {
-      coords: coordsInput,
-      resourcesNeeded,
-    }
-  );
-
-  // 6. Handle response
-  if (!result.success) {
-    await interaction.editReply({ content: result.error });
-    return;
-  }
-
-  await interaction.editReply({ content: result.actionText });
 }
 
 export async function handlePushSentButton(
@@ -183,51 +64,21 @@ export async function handlePushSentButton(
     return;
   }
 
-  const data = getGuildPushData(guildId);
-  if (data.requests.length === 0) {
+  // Get the push request for this channel
+  const channelId = interaction.channelId;
+  const requestInfo = getPushRequestByChannelId(guildId, channelId);
+  if (!requestInfo) {
     await interaction.reply({
-      content: "Nėra aktyvių push užklausų.",
+      content: "Šiame kanale nerasta aktyvi push užklausa.",
       ephemeral: true,
     });
     return;
   }
 
-  // Build options from active requests
-  const options: StringSelectMenuOptionBuilder[] = [];
-  for (let i = 0; i < data.requests.length; i++) {
-    const request = data.requests[i];
-    const isFirst = i === 0 && !request.completed;
-    const prefix = request.completed ? "✅ " : isFirst ? "➡️ " : "";
-    const village = await getVillageAt(config.serverKey, request.x, request.y);
-    const villageName = village?.villageName || "Nežinomas";
-    const playerName = village?.playerName || "Nežinomas";
-
-    // Build description: progress
-    const description = `${formatNumber(request.resourcesSent)}/${formatNumber(request.resourcesNeeded)}${request.completed ? " BAIGTA" : ""}`;
-
-    options.push(
-      new StringSelectMenuOptionBuilder()
-        .setDefault(i === 0)
-        .setLabel(`${prefix}(${request.x}|${request.y}) ${villageName} (${playerName})`)
-        .setDescription(description)
-        .setValue(`${i + 1}`) // 1-based request ID
-    );
-  }
-
-  // Build modal with target dropdown and resources input
+  // Build simplified modal with just resources input
   const modal = new ModalBuilder()
     .setCustomId(PUSH_SENT_MODAL_ID)
     .setTitle("Išsiunčiau resursus");
-
-  const targetSelect = new StringSelectMenuBuilder()
-    .setCustomId(PUSH_TARGET_SELECT_ID)
-    .setPlaceholder("Pasirink tikslą...")
-    .setRequired(true)
-    .addOptions(options);
-
-  const targetLabel = new LabelBuilder()
-    .setLabel("Tikslas")
-    .setStringSelectMenuComponent(targetSelect);
 
   const resourcesInput = new TextInputBuilder()
     .setCustomId(PUSH_RESOURCES_INPUT_ID)
@@ -238,10 +89,10 @@ export async function handlePushSentButton(
 
   const resourcesLabel = new LabelBuilder()
     .setLabel("Kiek resursų išsiunčiau?")
-    .setDescription("Resursų skaičius")
+    .setDescription(`Tikslas: ${formatNumber(requestInfo.request.resourcesNeeded)}`)
     .setTextInputComponent(resourcesInput);
 
-  modal.addLabelComponents(targetLabel, resourcesLabel);
+  modal.addLabelComponents(resourcesLabel);
 
   await interaction.showModal(modal);
 }
@@ -256,20 +107,20 @@ export async function handlePushSentModal(
     return;
   }
 
-  // 2. Extract target from select menu
-  const selectedValues = interaction.fields.getStringSelectValues(PUSH_TARGET_SELECT_ID);
-  if (!selectedValues || selectedValues.length === 0) {
+  // 2. Get the push request for this channel
+  const channelId = interaction.channelId;
+  if (!channelId) {
     await interaction.reply({
-      content: "Klaida: nepavyko nustatyti tikslo.",
+      content: "Nepavyko nustatyti kanalo.",
       ephemeral: true,
     });
     return;
   }
 
-  const requestId = parseInt(selectedValues[0], 10);
-  if (isNaN(requestId) || requestId < 1) {
+  const requestInfo = getPushRequestByChannelId(validation.guildId, channelId);
+  if (!requestInfo) {
     await interaction.reply({
-      content: "Klaida: neteisingas tikslo ID.",
+      content: "Šiame kanale nerasta aktyvi push užklausa.",
       ephemeral: true,
     });
     return;
@@ -289,7 +140,7 @@ export async function handlePushSentModal(
   // 4. Defer reply
   await interaction.deferReply();
 
-  // 5. Execute action
+  // 5. Execute action using the request ID from channel lookup
   const result = await executePushSentAction(
     {
       guildId: validation.guildId,
@@ -298,7 +149,7 @@ export async function handlePushSentModal(
       userId: interaction.user.id,
     },
     {
-      target: requestId.toString(),
+      target: requestInfo.requestId.toString(),
       resources,
     }
   );
@@ -309,6 +160,79 @@ export async function handlePushSentModal(
     return;
   }
 
-  // Success: delete reply (info is in global message)
+  // Success: delete the reply (info is shown in the channel)
   await interaction.deleteReply();
+}
+
+export async function handlePushDeleteButton(
+  interaction: ButtonInteraction
+): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik serveryje.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Check if user has admin permissions
+  const member = interaction.member;
+  if (!member) {
+    await interaction.reply({
+      content: "Nepavyko patikrinti teisių.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Check for MANAGE_CHANNELS or ADMINISTRATOR permission
+  const permissions = typeof member.permissions === "string"
+    ? BigInt(member.permissions)
+    : member.permissions.bitfield;
+
+  const hasPermission =
+    (permissions & PermissionFlagsBits.ManageChannels) !== 0n ||
+    (permissions & PermissionFlagsBits.Administrator) !== 0n;
+
+  if (!hasPermission) {
+    await interaction.reply({
+      content: "Tik administratoriai gali ištrinti push kanalus.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Get the push request for this channel
+  const channelId = interaction.channelId;
+  const requestInfo = getPushRequestByChannelId(guildId, channelId);
+  if (!requestInfo) {
+    await interaction.reply({
+      content: "Šiame kanale nerasta aktyvi push užklausa.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Defer reply before deleting
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    // Delete the channel
+    await deletePushChannel(interaction.client, requestInfo.request);
+
+    // Remove from data
+    removePushRequest(guildId, requestInfo.requestId);
+
+    // Note: the reply will be lost when channel is deleted, that's OK
+  } catch (error) {
+    console.error("[PushButton] Error deleting push channel:", error);
+    try {
+      await interaction.editReply({
+        content: "Nepavyko ištrinti kanalo.",
+      });
+    } catch {
+      // Channel might already be deleted, ignore
+    }
+  }
 }

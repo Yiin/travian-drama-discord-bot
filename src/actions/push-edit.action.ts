@@ -1,6 +1,6 @@
 import { updatePushRequest, getPushRequestById, PushRequest } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { updatePushGlobalMessage, PushLastActionInfo } from "../services/push-message";
+import { updatePushChannelEmbed, postContributionMessage } from "../services/push-message";
 import { ActionContext, PushEditActionInput, PushEditActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 
@@ -52,11 +52,11 @@ export async function executePushEditAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> pakeitė push užklausą #${requestId} (${villageDisplay}): ${formatNumber(oldAmount)} → ${formatNumber(resourcesNeeded)}`;
+  const actionText = `<@${userId}> pakeitė push užklausą (${villageDisplay}): ${formatNumber(oldAmount)} → ${formatNumber(resourcesNeeded)}`;
 
-  // 6. Update global message with undo reference
-  const lastAction: PushLastActionInfo = { text: actionText, undoId: actionId };
-  await updatePushGlobalMessage(client, guildId, lastAction);
+  // 6. Post edit notification in the channel and update embed
+  await postContributionMessage(client, result, `📝 Pakeistas tikslas: **${formatNumber(oldAmount)}** → **${formatNumber(resourcesNeeded)}**`);
+  await updatePushChannelEmbed(client, guildId, result);
 
   return {
     success: true,

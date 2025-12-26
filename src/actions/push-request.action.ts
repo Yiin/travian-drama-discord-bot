@@ -1,6 +1,6 @@
 import { addPushRequest } from "../services/push-requests";
 import { getVillageAt, ensureMapData, formatVillageDisplay } from "../services/map-data";
-import { updatePushGlobalMessage, PushLastActionInfo } from "../services/push-message";
+import { createPushChannel } from "../services/push-message";
 import { parseAndValidateCoords } from "./validation";
 import { validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushRequestActionInput, PushRequestActionResult } from "./types";
@@ -51,7 +51,10 @@ export async function executePushRequestAction(
     return { success: false, error: result.error };
   }
 
-  // 6. Record the action for undo
+  // 6. Create the push channel
+  const channelResult = await createPushChannel(client, guildId, result.request, result.requestId);
+
+  // 7. Record the action for undo
   const actionId = recordAction(guildId, {
     type: "PUSH_REQUEST_ADD",
     userId,
@@ -60,19 +63,16 @@ export async function executePushRequestAction(
     data: {
       resourcesNeeded,
       contributorAccount: accountName,
+      channelId: channelResult.channelId,
     },
   });
 
-  // 7. Build action text
+  // 8. Build action text
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${x}|${y}) Unknown/new village`;
   const allianceInfo = village?.allianceName ? ` [${village.allianceName}]` : "";
-  const actionText = `**${accountName}** sukūrė push užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${formatNumber(resourcesNeeded)} resursų.`;
-
-  // 8. Update the global message with undo reference
-  const lastAction: PushLastActionInfo = { text: actionText, undoId: actionId };
-  await updatePushGlobalMessage(client, guildId, lastAction);
+  const actionText = `**${accountName}** sukūrė push užklausą: ${villageDisplay}${allianceInfo} - reikia ${formatNumber(resourcesNeeded)} resursų. <#${channelResult.channelId}>`;
 
   return {
     success: true,
@@ -84,6 +84,7 @@ export async function executePushRequestAction(
     allianceName: village?.allianceName,
     requesterAccount: accountName,
     coords: { x, y },
+    channelId: channelResult.channelId,
   };
 }
 

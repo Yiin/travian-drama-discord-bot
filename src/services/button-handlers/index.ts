@@ -26,16 +26,11 @@ export {
 
 // Push handlers and IDs
 export {
-  handlePushRequestButton,
-  handlePushRequestModal,
   handlePushSentButton,
   handlePushSentModal,
-  PUSH_REQUEST_BUTTON_ID,
+  handlePushDeleteButton,
   PUSH_SENT_BUTTON_ID,
-  PUSH_REQUEST_MODAL_ID,
+  PUSH_DELETE_BUTTON_ID,
   PUSH_SENT_MODAL_ID,
-  PUSH_COORDS_INPUT_ID,
-  PUSH_AMOUNT_INPUT_ID,
-  PUSH_TARGET_SELECT_ID,
   PUSH_RESOURCES_INPUT_ID,
 } from "./push";

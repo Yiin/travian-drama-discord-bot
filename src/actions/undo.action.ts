@@ -5,7 +5,8 @@ import {
   isPushAction,
 } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
-import { updatePushGlobalMessage } from "../services/push-message";
+import { updatePushChannelEmbed, deletePushChannel } from "../services/push-message";
+import { getPushRequestById } from "../services/push-requests";
 import { removeContribution } from "../services/stats";
 import { removePushContribution } from "../services/push-stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
@@ -57,9 +58,20 @@ export async function executeUndoAction(
     );
   }
 
-  // 4. Update the appropriate global message based on action type
+  // 4. Update the appropriate message/channel based on action type
   if (isPushAction(action)) {
-    await updatePushGlobalMessage(client, guildId);
+    // For push actions, try to update the channel embed if the request still exists
+    // Note: For deleted requests that were restored, the channel won't be recreated
+    if (result.requestId) {
+      const request = getPushRequestById(guildId, result.requestId);
+      if (request && request.channelId) {
+        await updatePushChannelEmbed(client, guildId, request);
+      }
+    }
+    // For PUSH_REQUEST_ADD undo (deletion), the channel should be deleted
+    if (action.type === "PUSH_REQUEST_ADD" && action.data.channelId) {
+      // Channel was already deleted as part of the undo, nothing more to do
+    }
   } else {
     await updateGlobalMessage(client, guildId);
   }

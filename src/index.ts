@@ -10,19 +10,17 @@ import {
   handleRequestDefModal,
   handleScoutGoingButton,
   handleScoutGoingModal,
-  handlePushRequestButton,
-  handlePushRequestModal,
   handlePushSentButton,
   handlePushSentModal,
+  handlePushDeleteButton,
   SENT_BUTTON_ID,
   SENT_MODAL_ID,
   REQUEST_DEF_BUTTON_ID,
   REQUEST_DEF_MODAL_ID,
   SCOUT_GOING_BUTTON_ID,
   SCOUT_GOING_MODAL_ID,
-  PUSH_REQUEST_BUTTON_ID,
-  PUSH_REQUEST_MODAL_ID,
   PUSH_SENT_BUTTON_ID,
+  PUSH_DELETE_BUTTON_ID,
   PUSH_SENT_MODAL_ID,
 } from "./services/button-handlers/index";
 
@@ -72,10 +70,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleRequestDefButton(interaction);
       } else if (interaction.customId === SCOUT_GOING_BUTTON_ID) {
         await handleScoutGoingButton(interaction);
-      } else if (interaction.customId === PUSH_REQUEST_BUTTON_ID) {
-        await handlePushRequestButton(interaction);
       } else if (interaction.customId === PUSH_SENT_BUTTON_ID) {
         await handlePushSentButton(interaction);
+      } else if (interaction.customId === PUSH_DELETE_BUTTON_ID) {
+        await handlePushDeleteButton(interaction);
       }
     } catch (error) {
       console.error("Error handling button interaction:", error);
@@ -102,8 +100,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleRequestDefModal(interaction);
       } else if (interaction.customId.startsWith(SCOUT_GOING_MODAL_ID)) {
         await handleScoutGoingModal(interaction);
-      } else if (interaction.customId === PUSH_REQUEST_MODAL_ID) {
-        await handlePushRequestModal(interaction);
       } else if (interaction.customId === PUSH_SENT_MODAL_ID) {
         await handlePushSentModal(interaction);
       }

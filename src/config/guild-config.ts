@@ -8,7 +8,7 @@ export interface GuildConfig {
   defenseChannelId?: string;
   scoutChannelId?: string;
   scoutRoleId?: string;
-  pushChannelId?: string;
+  pushCategoryId?: string;
   serverKey?: string;
 }
 
@@ -57,12 +57,12 @@ export function setScoutChannel(
   saveConfigs(configs);
 }
 
-export function setPushChannel(
+export function setPushCategory(
   guildId: string,
-  channelId: string
+  categoryId: string
 ): void {
   const configs = loadConfigs();
-  configs[guildId] = { ...configs[guildId], pushChannelId: channelId };
+  configs[guildId] = { ...configs[guildId], pushCategoryId: categoryId };
   saveConfigs(configs);
 }
 

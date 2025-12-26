@@ -1,6 +1,6 @@
 import { removePushRequest, getPushRequestById, PushRequest } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { updatePushGlobalMessage, PushLastActionInfo } from "../services/push-message";
+import { deletePushChannel } from "../services/push-message";
 import { ActionContext, PushDeleteActionInput, PushDeleteActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 
@@ -27,31 +27,32 @@ export async function executePushDeleteAction(
   // 2. Get village info for display
   const village = await getVillageAt(config.serverKey!, request.x, request.y);
 
-  // 3. Remove the request
+  // 3. Delete the push channel
+  await deletePushChannel(client, request);
+
+  // 4. Remove the request from data
   const removed = removePushRequest(guildId, requestId);
   if (!removed) {
     return { success: false, error: `Nepavyko ištrinti push užklausos #${requestId}.` };
   }
 
-  // 4. Record action for undo
+  // 5. Record action for undo
   const actionId = recordAction(guildId, {
     type: "PUSH_REQUEST_DELETED",
     userId,
     coords: { x: request.x, y: request.y },
     requestId,
     previousPushState: previousState,
-    data: {},
+    data: {
+      channelId: request.channelId,
+    },
   });
 
-  // 5. Build action text
+  // 6. Build action text
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> ištrynė push užklausą #${requestId}: ${villageDisplay}`;
-
-  // 6. Update global message with undo reference
-  const lastAction: PushLastActionInfo = { text: actionText, undoId: actionId };
-  await updatePushGlobalMessage(client, guildId, lastAction);
+  const actionText = `<@${userId}> ištrynė push užklausą: ${villageDisplay}`;
 
   return {
     success: true,
