@@ -272,7 +272,7 @@ export async function handleScoutGoingModal(
     flags: MessageFlags.IsComponentsV2,
   });
 
-  // Schedule notification if time was parsed successfully
+  // Schedule notification and auto-complete if time was parsed successfully
   if (arrivalTimestamp !== null && requesterId && coords && "send" in channel) {
     const guildId = interaction.guildId;
     const config = guildId ? getGuildConfig(guildId) : null;
@@ -284,6 +284,7 @@ export async function handleScoutGoingModal(
       const goingUserId = interaction.user.id;
       const serverKey = config.serverKey;
       const targetCoords = coords;
+      const scoutMessageId = message.id;
 
       if (delayMs > 0) {
         setTimeout(async () => {
@@ -296,6 +297,14 @@ export async function handleScoutGoingModal(
             await notifyChannel.send({
               content: `<@${requesterId}> žvalgai nuo <@${goingUserId}> į ${targetDisplay} turėtų būti jau vietoje!`,
             });
+
+            // Auto-mark as done
+            try {
+              const scoutMessage = await notifyChannel.messages.fetch(scoutMessageId);
+              await markScoutMessageAsDone(scoutMessage);
+            } catch {
+              // Message may have been deleted or already marked done
+            }
           } catch (error) {
             console.error("Failed to send scout notification:", error);
           }
@@ -314,11 +323,9 @@ export async function handleScoutGoingModal(
 export async function handleScoutDoneButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const message = interaction.message;
+  const success = await markScoutMessageAsDone(interaction.message);
 
-  // Get existing components
-  const existingComponents = message.components;
-  if (existingComponents.length < 1) {
+  if (!success) {
     await interaction.reply({
       content: "Nepavyko atnaujinti žinutės.",
       ephemeral: true,
@@ -326,14 +333,31 @@ export async function handleScoutDoneButton(
     return;
   }
 
-  // Extract existing content from the container
+  await interaction.deferUpdate();
+}
+
+/**
+ * Mark a scout message as done (green accent, strikethrough, no buttons).
+ * Returns true if successful, false otherwise.
+ */
+async function markScoutMessageAsDone(message: { components: readonly any[]; edit: (options: any) => Promise<any> }): Promise<boolean> {
+  const existingComponents = message.components;
+  if (existingComponents.length < 1) {
+    return false;
+  }
+
   const containerData = existingComponents[0];
   if (!("components" in containerData) || !Array.isArray(containerData.components)) {
-    await interaction.reply({
-      content: "Nepavyko atnaujinti žinutės.",
-      ephemeral: true,
-    });
-    return;
+    return false;
+  }
+
+  // Check if already done
+  for (const comp of containerData.components) {
+    if ("content" in comp && typeof comp.content === "string") {
+      if (comp.content.includes("**Atlikta**")) {
+        return false; // Already marked as done
+      }
+    }
   }
 
   // Parse existing content
@@ -384,7 +408,7 @@ export async function handleScoutDoneButton(
     flags: MessageFlags.IsComponentsV2,
   });
 
-  await interaction.deferUpdate();
+  return true;
 }
 
 /**
