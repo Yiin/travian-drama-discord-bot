@@ -2,7 +2,9 @@ import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
+import { loadAndRescheduleNotifications } from "./services/scout-scheduler";
 import { handleTextCommand } from "./services/message-commands";
+import { markScoutMessageAsDoneById } from "./services/button-handlers/scout";
 import {
   handleSentButton,
   handleSentModal,
@@ -42,6 +44,9 @@ client.once(Events.ClientReady, (readyClient) => {
 
   // Start the map data scheduler
   startScheduler();
+
+  // Load and reschedule any pending scout notifications
+  loadAndRescheduleNotifications(readyClient, markScoutMessageAsDoneById);
 });
 
 client.on(Events.MessageCreate, async (message) => {

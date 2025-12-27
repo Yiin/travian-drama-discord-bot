@@ -13,7 +13,7 @@ import {
   LabelBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
-import { getVillageAt, formatVillageDisplay } from "../map-data";
+import { scheduleScoutNotification, cancelScoutNotifications } from "../scout-scheduler";
 
 // Scout button/modal IDs
 export const SCOUT_GOING_BUTTON_ID = "scout_going_button";
@@ -273,44 +273,20 @@ export async function handleScoutGoingModal(
   });
 
   // Schedule notification and auto-complete if time was parsed successfully
-  if (arrivalTimestamp !== null && requesterId && coords && "send" in channel) {
-    const guildId = interaction.guildId;
-    const config = guildId ? getGuildConfig(guildId) : null;
-
-    if (config?.serverKey) {
-      const now = Math.floor(Date.now() / 1000);
-      const delayMs = (arrivalTimestamp - now) * 1000;
-      const notifyChannel = channel;
-      const goingUserId = interaction.user.id;
-      const serverKey = config.serverKey;
-      const targetCoords = coords;
-      const scoutMessageId = message.id;
-
-      if (delayMs > 0) {
-        setTimeout(async () => {
-          try {
-            const village = await getVillageAt(serverKey, targetCoords.x, targetCoords.y);
-            const targetDisplay = village
-              ? formatVillageDisplay(serverKey, village)
-              : `(${targetCoords.x}|${targetCoords.y})`;
-
-            await notifyChannel.send({
-              content: `<@${requesterId}> žvalgai nuo <@${goingUserId}> į ${targetDisplay} turėtų būti jau vietoje!`,
-            });
-
-            // Auto-mark as done
-            try {
-              const scoutMessage = await notifyChannel.messages.fetch(scoutMessageId);
-              await markScoutMessageAsDone(scoutMessage);
-            } catch {
-              // Message may have been deleted or already marked done
-            }
-          } catch (error) {
-            console.error("Failed to send scout notification:", error);
-          }
-        }, delayMs);
-      }
-    }
+  if (arrivalTimestamp !== null && requesterId && coords && interaction.guildId) {
+    scheduleScoutNotification(
+      interaction.client,
+      {
+        messageId: message.id,
+        channelId: channel.id,
+        guildId: interaction.guildId,
+        requesterId,
+        goingUserId: interaction.user.id,
+        coords,
+        arrivalTimestamp,
+      },
+      markScoutMessageAsDoneById
+    );
   }
 
   // Acknowledge the interaction
@@ -332,6 +308,9 @@ export async function handleScoutDoneButton(
     });
     return;
   }
+
+  // Cancel any pending notifications for this message
+  cancelScoutNotifications(interaction.message.id);
 
   await interaction.deferUpdate();
 }
@@ -438,4 +417,26 @@ function applyDoneFormatting(content: string): string {
   }
 
   return result.join("\n");
+}
+
+/**
+ * Mark a scout message as done by message ID and channel ID.
+ * Used by the scheduler to mark messages done after notification fires.
+ */
+export async function markScoutMessageAsDoneById(
+  messageId: string,
+  channelId: string,
+  client?: { channels: { fetch: (id: string) => Promise<any> } }
+): Promise<void> {
+  if (!client) return;
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (!channel || !("messages" in channel)) return;
+
+    const message = await channel.messages.fetch(messageId);
+    await markScoutMessageAsDone(message);
+  } catch {
+    // Message may have been deleted or already marked done
+  }
 }
