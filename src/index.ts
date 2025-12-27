@@ -10,6 +10,7 @@ import {
   handleRequestDefModal,
   handleScoutGoingButton,
   handleScoutGoingModal,
+  handleScoutDoneButton,
   handlePushSentButton,
   handlePushSentModal,
   handlePushDeleteButton,
@@ -19,6 +20,7 @@ import {
   REQUEST_DEF_MODAL_ID,
   SCOUT_GOING_BUTTON_ID,
   SCOUT_GOING_MODAL_ID,
+  SCOUT_DONE_BUTTON_ID,
   PUSH_SENT_BUTTON_ID,
   PUSH_DELETE_BUTTON_ID,
   PUSH_SENT_MODAL_ID,
@@ -70,6 +72,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleRequestDefButton(interaction);
       } else if (interaction.customId === SCOUT_GOING_BUTTON_ID) {
         await handleScoutGoingButton(interaction);
+      } else if (interaction.customId === SCOUT_DONE_BUTTON_ID) {
+        await handleScoutDoneButton(interaction);
       } else if (interaction.customId === PUSH_SENT_BUTTON_ID) {
         await handlePushSentButton(interaction);
       } else if (interaction.customId === PUSH_DELETE_BUTTON_ID) {

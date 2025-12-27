@@ -16,7 +16,7 @@ import {
 } from "../services/map-data";
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, ScoutActionInput, ScoutActionResult, ActionError } from "./types";
-import { SCOUT_GOING_BUTTON_ID } from "../services/button-handlers/index";
+import { SCOUT_GOING_BUTTON_ID, SCOUT_DONE_BUTTON_ID } from "../services/button-handlers/index";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.
@@ -81,8 +81,8 @@ export async function sendScoutMessage(
     return false;
   }
 
-  // Build Components v2 message
-  const container = new ContainerBuilder().setAccentColor(0x3498db); // Blue accent
+  // Build Components v2 message with orange accent (pending state)
+  const container = new ContainerBuilder().setAccentColor(0xf39c12);
 
   const roleMention = data.scoutRoleId ? `<@&${data.scoutRoleId}>` : "";
   const sendLink = data.rallyLink
@@ -98,12 +98,16 @@ export async function sendScoutMessage(
 
   container.addTextDisplayComponents(content);
 
-  // Add "Eina" button
+  // Add "Eina" and "Atlikta" buttons
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(SCOUT_GOING_BUTTON_ID)
       .setLabel("Eina")
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(SCOUT_DONE_BUTTON_ID)
+      .setLabel("Atlikta")
+      .setStyle(ButtonStyle.Success)
   );
 
   await channel.send({

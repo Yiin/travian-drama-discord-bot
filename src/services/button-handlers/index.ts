@@ -19,9 +19,11 @@ export {
 export {
   handleScoutGoingButton,
   handleScoutGoingModal,
+  handleScoutDoneButton,
   SCOUT_GOING_BUTTON_ID,
   SCOUT_GOING_MODAL_ID,
   SCOUT_TIME_INPUT_ID,
+  SCOUT_DONE_BUTTON_ID,
 } from "./scout";
 
 // Push handlers and IDs

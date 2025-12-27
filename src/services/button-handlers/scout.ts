@@ -19,6 +19,12 @@ import { getVillageAt, formatVillageDisplay } from "../map-data";
 export const SCOUT_GOING_BUTTON_ID = "scout_going_button";
 export const SCOUT_GOING_MODAL_ID = "scout_going_modal";
 export const SCOUT_TIME_INPUT_ID = "scout_time_input";
+export const SCOUT_DONE_BUTTON_ID = "scout_done_button";
+
+// Accent colors for scout status
+const ACCENT_PENDING = 0xf39c12;     // Orange
+const ACCENT_IN_PROGRESS = 0x3498db; // Blue
+const ACCENT_DONE = 0x2ecc71;        // Green
 
 /**
  * Parse time input and return Unix timestamp (seconds) if valid.
@@ -233,8 +239,8 @@ export async function handleScoutGoingModal(
     goingEntries.push(userEntry);
   }
 
-  // Rebuild the container
-  const container = new ContainerBuilder().setAccentColor(0x3498db);
+  // Rebuild the container with blue (in progress) accent
+  const container = new ContainerBuilder().setAccentColor(ACCENT_IN_PROGRESS);
 
   if (mainText) {
     container.addTextDisplayComponents(
@@ -249,12 +255,16 @@ export async function handleScoutGoingModal(
     );
   }
 
-  // Keep the button
+  // Keep the buttons
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(SCOUT_GOING_BUTTON_ID)
       .setLabel("Eina")
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(SCOUT_DONE_BUTTON_ID)
+      .setLabel("Atlikta")
+      .setStyle(ButtonStyle.Success)
   );
 
   await message.edit({
@@ -296,4 +306,112 @@ export async function handleScoutGoingModal(
 
   // Acknowledge the interaction
   await interaction.deferUpdate();
+}
+
+/**
+ * Handle "Atlikta" (Done) button click - marks scout request as complete.
+ */
+export async function handleScoutDoneButton(
+  interaction: ButtonInteraction
+): Promise<void> {
+  const message = interaction.message;
+
+  // Get existing components
+  const existingComponents = message.components;
+  if (existingComponents.length < 1) {
+    await interaction.reply({
+      content: "Nepavyko atnaujinti žinutės.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Extract existing content from the container
+  const containerData = existingComponents[0];
+  if (!("components" in containerData) || !Array.isArray(containerData.components)) {
+    await interaction.reply({
+      content: "Nepavyko atnaujinti žinutės.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Parse existing content
+  let mainText = "";
+  let goingEntries: string[] = [];
+
+  for (const comp of containerData.components) {
+    if ("content" in comp && typeof comp.content === "string") {
+      const content = comp.content;
+      if (content.startsWith("##") || content.startsWith("#")) {
+        mainText = content;
+      } else if (content.startsWith("**Eina:**")) {
+        const entriesMatch = content.match(/\*\*Eina:\*\* (.+)/);
+        if (entriesMatch) {
+          goingEntries = entriesMatch[1].split(", ").filter((e: string) => e.trim());
+        }
+      }
+    }
+  }
+
+  // Apply strikethrough and remove link/mention
+  const formattedText = applyDoneFormatting(mainText);
+
+  // Build new container with green accent
+  const container = new ContainerBuilder().setAccentColor(ACCENT_DONE);
+
+  if (formattedText) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(formattedText)
+    );
+  }
+
+  // Add completion marker
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent("**Atlikta**")
+  );
+
+  // Optionally show who went
+  if (goingEntries.length > 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`-# Ėjo: ${goingEntries.join(", ")}`)
+    );
+  }
+
+  // Edit message without buttons
+  await message.edit({
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+  });
+
+  await interaction.deferUpdate();
+}
+
+/**
+ * Apply done formatting: strikethrough headers, remove link/mention lines.
+ */
+function applyDoneFormatting(content: string): string {
+  const lines = content.split("\n");
+  const result: string[] = [];
+
+  for (const line of lines) {
+    // Skip SIUSTI link line
+    if (line.includes("[**SIŲSTI**]") || line.includes("[SIUSTI]")) {
+      continue;
+    }
+    // Skip role mention line (standalone role mention)
+    if (line.match(/^<@&\d+>$/)) {
+      continue;
+    }
+    // Apply strikethrough to headers (## or #)
+    if (line.startsWith("## ") && !line.includes("~~")) {
+      result.push("## ~~" + line.substring(3) + "~~");
+    } else if (line.startsWith("# ") && !line.includes("~~")) {
+      result.push("# ~~" + line.substring(2) + "~~");
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result.join("\n");
 }
