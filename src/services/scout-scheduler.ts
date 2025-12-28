@@ -54,6 +54,8 @@ export function scheduleScoutNotification(
   notification: ScoutNotification,
   markAsDone: (messageId: string, channelId: string, client: Client) => Promise<void>
 ): void {
+  console.log(`[ScoutScheduler] Scheduling notification for message ${notification.messageId}, arrival: ${new Date(notification.arrivalTimestamp * 1000).toISOString()}`);
+
   // Save to persistent storage
   const notifications = loadNotifications();
 
@@ -63,6 +65,7 @@ export function scheduleScoutNotification(
   );
   filtered.push(notification);
   saveNotifications(filtered);
+  console.log(`[ScoutScheduler] Saved ${filtered.length} notifications to disk`);
 
   // Clear any existing timeout for this user+message combo
   const timeoutKey = `${notification.messageId}:${notification.goingUserId}`;
@@ -76,10 +79,14 @@ export function scheduleScoutNotification(
   const delayMs = (notification.arrivalTimestamp - now) * 1000;
 
   if (delayMs > 0) {
+    console.log(`[ScoutScheduler] Setting timeout for ${delayMs}ms (${Math.round(delayMs / 1000 / 60)} minutes)`);
     const timeout = setTimeout(async () => {
+      console.log(`[ScoutScheduler] Timeout fired for message ${notification.messageId}`);
       await fireNotification(client, notification, markAsDone);
     }, delayMs);
     activeTimeouts.set(timeoutKey, timeout);
+  } else {
+    console.log(`[ScoutScheduler] Delay is ${delayMs}ms, not scheduling (time already passed)`);
   }
 }
 
@@ -109,6 +116,7 @@ async function fireNotification(
   notification: ScoutNotification,
   markAsDone: (messageId: string, channelId: string, client: Client) => Promise<void>
 ): Promise<void> {
+  console.log(`[ScoutScheduler] Firing notification for message ${notification.messageId}`);
   const { messageId, channelId, guildId, requesterId, goingUserId, coords } = notification;
 
   // Remove from persistent storage
