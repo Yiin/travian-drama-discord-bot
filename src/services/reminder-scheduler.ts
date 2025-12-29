@@ -88,9 +88,21 @@ function isWithinWindow(
 function calculateNextFireTime(reminder: Reminder): number {
   const fromMinutes = parseTime(reminder.fromTime)!;
   const toMinutes = parseTime(reminder.toTime)!;
+  const interval = reminder.intervalMinutes;
 
   const now = new Date();
   const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Helper to build timestamp from minutes and days offset
+  const buildTimestamp = (minutes: number, daysOffset: number): number => {
+    const date = new Date(now);
+    date.setUTCDate(date.getUTCDate() + daysOffset);
+    date.setUTCHours(Math.floor(minutes / 60));
+    date.setUTCMinutes(minutes % 60);
+    date.setUTCSeconds(0);
+    date.setUTCMilliseconds(0);
+    return date.getTime();
+  };
 
   let nextMinutes: number;
   let daysToAdd = 0;
@@ -100,7 +112,7 @@ function calculateNextFireTime(reminder: Reminder): number {
     const lastFire = new Date(reminder.lastFiredAt);
     const lastFireMinutes =
       lastFire.getUTCHours() * 60 + lastFire.getUTCMinutes();
-    nextMinutes = lastFireMinutes + reminder.intervalMinutes;
+    nextMinutes = lastFireMinutes + interval;
 
     // Normalize to 0-1440 range
     while (nextMinutes >= 1440) {
@@ -108,51 +120,60 @@ function calculateNextFireTime(reminder: Reminder): number {
       daysToAdd++;
     }
   } else {
-    // First fire: start at fromTime
-    nextMinutes = fromMinutes;
+    // First fire: find the next slot at or after current time within the window
+    // Calculate how many intervals have passed since window start today
+    if (isWithinWindow(currentMinutes, fromMinutes, toMinutes)) {
+      // We're currently in the window - find next slot
+      const minutesSinceWindowStart =
+        currentMinutes >= fromMinutes
+          ? currentMinutes - fromMinutes
+          : currentMinutes + 1440 - fromMinutes; // overnight window
+      const intervalsPassed = Math.floor(minutesSinceWindowStart / interval);
+      nextMinutes = fromMinutes + (intervalsPassed + 1) * interval;
+
+      // Normalize
+      while (nextMinutes >= 1440) {
+        nextMinutes -= 1440;
+        daysToAdd++;
+      }
+    } else {
+      // We're outside the window - schedule for next window start
+      nextMinutes = fromMinutes;
+      if (toMinutes > fromMinutes) {
+        // Normal window: if we're past toTime, schedule for tomorrow
+        if (currentMinutes > toMinutes) {
+          daysToAdd = 1;
+        }
+      }
+      // For overnight windows when outside, fromMinutes is always in the future today
+    }
   }
 
   // Check if next time is within window
   if (!isWithinWindow(nextMinutes, fromMinutes, toMinutes)) {
     // Move to start of next window
     nextMinutes = fromMinutes;
-    if (toMinutes > fromMinutes) {
-      // Normal window: if we're past toTime today, schedule for tomorrow
-      if (currentMinutes > toMinutes) {
-        daysToAdd = 1;
-      }
-    } else {
-      // Overnight window: if we're between end and start, schedule for today's start
-      if (currentMinutes > toMinutes && currentMinutes < fromMinutes) {
-        daysToAdd = 0;
-      }
-    }
+    daysToAdd++;
   }
 
-  // Build the target date
-  const targetDate = new Date(now);
-  targetDate.setUTCDate(targetDate.getUTCDate() + daysToAdd);
-  targetDate.setUTCHours(Math.floor(nextMinutes / 60));
-  targetDate.setUTCMinutes(nextMinutes % 60);
-  targetDate.setUTCSeconds(0);
-  targetDate.setUTCMilliseconds(0);
+  // Build the target timestamp
+  let targetTime = buildTimestamp(nextMinutes, daysToAdd);
 
-  // If the calculated time is in the past, move to next occurrence
-  if (targetDate.getTime() <= now.getTime()) {
-    // Try adding the interval
-    const nextAttempt = nextMinutes + reminder.intervalMinutes;
-    if (nextAttempt < 1440 && isWithinWindow(nextAttempt, fromMinutes, toMinutes)) {
-      targetDate.setUTCHours(Math.floor(nextAttempt / 60));
-      targetDate.setUTCMinutes(nextAttempt % 60);
-    } else {
-      // Move to next day's window start
-      targetDate.setUTCDate(targetDate.getUTCDate() + 1);
-      targetDate.setUTCHours(Math.floor(fromMinutes / 60));
-      targetDate.setUTCMinutes(fromMinutes % 60);
+  // Safety check: if still in the past, advance to next occurrence
+  while (targetTime <= now.getTime()) {
+    nextMinutes += interval;
+    if (nextMinutes >= 1440) {
+      nextMinutes -= 1440;
+      daysToAdd++;
     }
+    if (!isWithinWindow(nextMinutes, fromMinutes, toMinutes)) {
+      nextMinutes = fromMinutes;
+      daysToAdd++;
+    }
+    targetTime = buildTimestamp(nextMinutes, daysToAdd);
   }
 
-  return targetDate.getTime();
+  return targetTime;
 }
 
 /**
