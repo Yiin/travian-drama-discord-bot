@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
 import { loadAndRescheduleNotifications } from "./services/scout-scheduler";
+import { loadAndRescheduleReminders } from "./services/reminder-scheduler";
 import { handleTextCommand } from "./services/message-commands";
 import { markScoutMessageAsDoneById } from "./services/button-handlers/scout";
 import {
@@ -47,6 +48,9 @@ client.once(Events.ClientReady, (readyClient) => {
 
   // Load and reschedule any pending scout notifications
   loadAndRescheduleNotifications(readyClient, markScoutMessageAsDoneById);
+
+  // Load and reschedule repeating reminders
+  loadAndRescheduleReminders(readyClient);
 });
 
 client.on(Events.MessageCreate, async (message) => {

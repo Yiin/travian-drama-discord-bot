@@ -16,6 +16,7 @@ import { statsCommand } from "./stats";
 import { updatedefCommand } from "./updatedef";
 import { undoCommand } from "./undo";
 import { pushCommand } from "./push";
+import { reminderCommand } from "./reminder";
 
 export const commands = new Collection<string, Command>();
 
@@ -40,3 +41,4 @@ registerCommand(statsCommand);
 registerCommand(updatedefCommand);
 registerCommand(undoCommand);
 registerCommand(pushCommand);
+registerCommand(reminderCommand);
