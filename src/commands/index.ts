@@ -17,6 +17,7 @@ import { updatedefCommand } from "./updatedef";
 import { undoCommand } from "./undo";
 import { pushCommand } from "./push";
 import { reminderCommand } from "./reminder";
+import { penisCommand } from "./penis";
 
 export const commands = new Collection<string, Command>();
 
@@ -42,3 +43,4 @@ registerCommand(updatedefCommand);
 registerCommand(undoCommand);
 registerCommand(pushCommand);
 registerCommand(reminderCommand);
+registerCommand(penisCommand);
