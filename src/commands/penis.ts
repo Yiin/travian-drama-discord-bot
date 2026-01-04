@@ -23,36 +23,47 @@ export const penisCommand: Command = {
 
     const comments: Record<string, string[]> = {
       tiny: [
-        "Bent jau charakteris didelis... tikriausiai.",
+        "Paslėptas talentas. Labai paslėptas.",
         "Svarbu ne dydis, o... ne, iš tikrųjų svarbu dydis.",
         "Na, bent šildymas pigiau kainuos.",
         "Mikroskopas pridedamas nemokamai.",
-        "F",
+        "Statistiškai egzistuoja.",
+        "Jei mirktelėsi - praleisi.",
+        "Labiau idėja nei objektas.",
+        "Simbolinis.",
+        "Pagarba už pastangas, ne už rezultatą.",
       ],
       small: [
         "Vidutiniškai... žemiau vidurkio.",
         "Kompensuoji su BMW.",
         "Kompaktiška versija.",
         "Ekonominė klasė.",
+        "Nedidelis, bet su charakteriu.",
+        "Diskretiškas.",
+        "Žiūrint iš kokio kampo..."
       ],
       medium: [
         "Nieko ypatingo, bet ir nesiskundžiam.",
         "Standartinė komplektacija.",
         "Pakankama.",
-        "Almost above avarage.",
+        "Beveik virš normos.",
+        "Vokiškas standartas."
       ],
       large: [
-        "Jaučiu vengi aptemptų kelnių?",
-        "👀...",
+        "Sunku nuslėpti.",
+        "Rekomenduojama įspėti iš anksto.",
         "Pagarba.",
         "Premium paketas.",
+        "Išliekantis atmintyje.",
+        "Užtrikrintas dėmesys."
       ],
       huge: [
-        "Svorio centras žemesnis negu įprasta.",
-        "Užuojauta antrai pusei.",
+        "Ryanair sveria atskirai.",
+        "Svorio centras žemiau negu įprasta.",
         "Reikės leidimo nešiotis.",
-        "Trečia koja?",
-        "Nesu tikras kad tai legalu.",
+        "Reikia dviejų rankų.",
+        "Neaišku ar tai legalu.",
+        "Į kambarį užeina pirmas."
       ],
     };
 
