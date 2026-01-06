@@ -13,6 +13,7 @@ export interface ScoutNotification {
   guildId: string;
   requesterId: string;
   goingUserId: string;
+  goingUserName: string;
   coords: { x: number; y: number };
   arrivalTimestamp: number; // Unix timestamp in seconds
 }
@@ -147,9 +148,10 @@ async function fireNotification(
       }
     }
 
-    // Send notification
+    // Send notification (don't tag going user to avoid unnecessary pings)
+    const goingName = notification.goingUserName || `<@${goingUserId}>`;
     await channel.send({
-      content: `<@${requesterId}> žvalgai nuo <@${goingUserId}> į ${targetDisplay} turėtų būti jau vietoje!`,
+      content: `<@${requesterId}> žvalgai nuo ${goingName} į ${targetDisplay} turėtų būti jau vietoje!`,
     });
 
     // Mark as done

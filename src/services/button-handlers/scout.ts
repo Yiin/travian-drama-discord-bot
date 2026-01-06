@@ -282,6 +282,7 @@ export async function handleScoutGoingModal(
         guildId: interaction.guildId,
         requesterId,
         goingUserId: interaction.user.id,
+        goingUserName: interaction.user.displayName,
         coords,
         arrivalTimestamp,
       },
