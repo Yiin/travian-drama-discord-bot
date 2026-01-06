@@ -58,11 +58,11 @@ export const penisCommand: Command = {
         "Užtrikrintas dėmesys."
       ],
       huge: [
-        "Ryanair sveria atskirai.",
+        "Ryanair skaičiuoja prie rankinio bagažo.",
         "Svorio centras žemiau negu įprasta.",
         "Reikės leidimo nešiotis.",
         "Reikia dviejų rankų.",
-        "Neaišku ar tai legalu.",
+        "Nėra aišku ar tai legalu.",
         "Į kambarį užeina pirmas."
       ],
     };
