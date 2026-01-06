@@ -33,7 +33,7 @@ export async function handleScoutCommand(
   const sent = await sendScoutMessage(ctx.client, ctx.config.scoutChannelId, {
     ...result,
     message: scoutMessage,
-    requesterName: ctx.message.author.displayName,
+    requesterId: ctx.message.author.id,
     scoutRoleId: ctx.config.scoutRoleId,
   });
 
