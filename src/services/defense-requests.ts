@@ -353,3 +353,42 @@ export function subtractTroops(
   saveGuildData(guildId, data);
   return { success: true, request };
 }
+
+export interface MoveRequestResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Moves a request from one position to another.
+ * Both positions are 1-based.
+ */
+export function moveRequest(
+  guildId: string,
+  fromPosition: number,
+  toPosition: number
+): MoveRequestResult {
+  const data = getGuildDefenseData(guildId);
+  const fromIndex = fromPosition - 1;
+  const toIndex = toPosition - 1;
+
+  if (fromIndex < 0 || fromIndex >= data.requests.length) {
+    return { success: false, error: `Užklausa #${fromPosition} nerasta.` };
+  }
+
+  if (toIndex < 0 || toIndex >= data.requests.length) {
+    return { success: false, error: `Pozicija #${toPosition} neegzistuoja.` };
+  }
+
+  if (fromIndex === toIndex) {
+    return { success: false, error: "Abi pozicijos yra vienodos." };
+  }
+
+  // Remove the request from its current position
+  const [request] = data.requests.splice(fromIndex, 1);
+  // Insert it at the new position
+  data.requests.splice(toIndex, 0, request);
+
+  saveGuildData(guildId, data);
+  return { success: true };
+}

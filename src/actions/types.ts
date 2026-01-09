@@ -204,3 +204,19 @@ export interface PushEditActionSuccess extends ActionSuccess {
 }
 
 export type PushEditActionResult = PushEditActionSuccess | ActionError;
+
+// --- Move Action Types ---
+
+export interface MoveActionInput {
+  fromPosition: number;
+  toPosition: number;
+}
+
+export interface MoveActionSuccess {
+  success: true;
+  actionText: string;
+  fromPosition: number;
+  toPosition: number;
+}
+
+export type MoveActionResult = MoveActionSuccess | ActionError;

@@ -16,6 +16,7 @@ export { executeDeleteDefAction } from "./deletedef.action";
 export { executeUpdateDefAction } from "./updatedef.action";
 export { executeUndoAction } from "./undo.action";
 export { executeScoutAction, sendScoutMessage } from "./scout.action";
+export { executeMoveAction } from "./move.action";
 
 // Push action handlers
 export { executePushRequestAction } from "./push-request.action";
