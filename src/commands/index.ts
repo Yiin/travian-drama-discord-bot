@@ -19,6 +19,7 @@ import { pushCommand } from "./push";
 import { reminderCommand } from "./reminder";
 import { penisCommand } from "./penis";
 import { moveCommand } from "./move";
+import { editCommand } from "./edit";
 
 export const commands = new Collection<string, Command>();
 
@@ -46,3 +47,4 @@ registerCommand(pushCommand);
 registerCommand(reminderCommand);
 registerCommand(penisCommand);
 registerCommand(moveCommand);
+registerCommand(editCommand);

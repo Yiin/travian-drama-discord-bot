@@ -17,6 +17,13 @@ import {
   handlePushSentButton,
   handlePushSentModal,
   handlePushDeleteButton,
+  handleStackUpButton,
+  handleStackDownButton,
+  handleStackEditButton,
+  handleStackEditModal,
+  handleStackDeleteButton,
+  handleStackConfirmDelete,
+  handleStackCancelDelete,
   SENT_BUTTON_ID,
   SENT_MODAL_ID,
   REQUEST_DEF_BUTTON_ID,
@@ -27,6 +34,13 @@ import {
   PUSH_SENT_BUTTON_ID,
   PUSH_DELETE_BUTTON_ID,
   PUSH_SENT_MODAL_ID,
+  STACK_UP_PREFIX,
+  STACK_DOWN_PREFIX,
+  STACK_EDIT_PREFIX,
+  STACK_DELETE_PREFIX,
+  STACK_CONFIRM_DELETE_PREFIX,
+  STACK_CANCEL_DELETE_PREFIX,
+  STACK_EDIT_MODAL_PREFIX,
 } from "./services/button-handlers/index";
 
 dotenv.config();
@@ -87,6 +101,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handlePushSentButton(interaction);
       } else if (interaction.customId === PUSH_DELETE_BUTTON_ID) {
         await handlePushDeleteButton(interaction);
+      } else if (interaction.customId.startsWith(STACK_UP_PREFIX)) {
+        await handleStackUpButton(interaction);
+      } else if (interaction.customId.startsWith(STACK_DOWN_PREFIX)) {
+        await handleStackDownButton(interaction);
+      } else if (interaction.customId.startsWith(STACK_EDIT_PREFIX + ":")) {
+        await handleStackEditButton(interaction);
+      } else if (interaction.customId.startsWith(STACK_DELETE_PREFIX)) {
+        await handleStackDeleteButton(interaction);
+      } else if (interaction.customId.startsWith(STACK_CONFIRM_DELETE_PREFIX)) {
+        await handleStackConfirmDelete(interaction);
+      } else if (interaction.customId.startsWith(STACK_CANCEL_DELETE_PREFIX)) {
+        await handleStackCancelDelete(interaction);
       }
     } catch (error) {
       console.error("Error handling button interaction:", error);
@@ -115,6 +141,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleScoutGoingModal(interaction);
       } else if (interaction.customId === PUSH_SENT_MODAL_ID) {
         await handlePushSentModal(interaction);
+      } else if (interaction.customId.startsWith(STACK_EDIT_MODAL_PREFIX)) {
+        await handleStackEditModal(interaction);
       }
     } catch (error) {
       console.error("Error handling modal submission:", error);
