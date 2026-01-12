@@ -3,6 +3,38 @@ export interface Coordinates {
   y: number;
 }
 
+export interface PlayerUrlInfo {
+  serverKey: string;
+  playerId: number;
+}
+
+/**
+ * Parse a Travian player profile URL.
+ * Example: https://ts31.x3.europe.travian.com/profile/1685
+ * Returns server key (ts31.x3.europe) and player ID (1685)
+ */
+export function parsePlayerUrl(input: string): PlayerUrlInfo | null {
+  const normalized = input.trim();
+
+  // Match Travian profile URL pattern
+  const match = normalized.match(
+    /^https?:\/\/([a-z0-9.]+)\.travian\.com\/profile\/(\d+)/i
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const serverKey = match[1];
+  const playerId = parseInt(match[2], 10);
+
+  if (isNaN(playerId)) {
+    return null;
+  }
+
+  return { serverKey, playerId };
+}
+
 export function parseCoords(input: string): Coordinates | null {
   // Strip Unicode directional formatting characters (LTR/RTL overrides, etc.)
   // and normalize Unicode minus signs to ASCII hyphen-minus

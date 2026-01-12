@@ -535,6 +535,49 @@ export async function getPlayerByExactName(
 }
 
 /**
+ * Get player by ID.
+ * Returns player info if found, null otherwise.
+ */
+export async function getPlayerById(
+  serverKey: string,
+  playerId: number
+): Promise<PlayerSearchResult | null> {
+  const db = await getDatabase(serverKey);
+  if (!db) return null;
+
+  const stmt = db.prepare(`
+    SELECT
+      playerId,
+      playerName,
+      MAX(allianceId) as allianceId,
+      MAX(allianceName) as allianceName,
+      SUM(population) as totalPopulation,
+      COUNT(*) as villageCount
+    FROM villages
+    WHERE playerId = ?
+    GROUP BY playerId
+  `);
+  stmt.bind([playerId]);
+
+  if (!stmt.step()) {
+    stmt.free();
+    return null;
+  }
+
+  const row = stmt.getAsObject() as Record<string, unknown>;
+  stmt.free();
+
+  return {
+    playerId: row.playerId as number,
+    playerName: row.playerName as string,
+    allianceId: row.allianceId as number,
+    allianceName: row.allianceName as string,
+    totalPopulation: row.totalPopulation as number,
+    villageCount: row.villageCount as number,
+  };
+}
+
+/**
  * Get all villages for a specific player by ID.
  */
 export async function getVillagesByPlayerId(

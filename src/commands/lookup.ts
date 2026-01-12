@@ -9,7 +9,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { Command } from "../types";
-import { parseCoords } from "../utils/parse-coords";
+import { parseCoords, parsePlayerUrl } from "../utils/parse-coords";
 import { getGuildConfig } from "../config/guild-config";
 import {
   getVillageAt,
@@ -19,6 +19,8 @@ import {
   getMapLink,
   searchPlayersByName,
   getVillagesByPlayerName,
+  getVillagesByPlayerId,
+  getPlayerById,
   PlayerSearchResult,
   VillageData,
 } from "../services/map-data";
@@ -123,11 +125,11 @@ const PLAYER_SELECT_ID = "lookup_player_select";
 export const lookupCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("lookup")
-    .setDescription("Rasti informaciją pagal koordinates arba žaidėjo vardą")
+    .setDescription("Rasti informaciją pagal koordinates, žaidėjo vardą arba profilio URL")
     .addStringOption((option) =>
       option
         .setName("query")
-        .setDescription("Koordinatės (pvz., 123|456) arba žaidėjo vardas")
+        .setDescription("Koordinatės (pvz., 123|456), žaidėjo vardas arba profilio URL")
         .setRequired(true)
     ),
 
@@ -144,6 +146,16 @@ export const lookupCommand: Command = {
     }
 
     const config = getGuildConfig(guildId);
+
+    // Try parsing as player profile URL first
+    const playerUrlInfo = parsePlayerUrl(queryInput);
+    if (playerUrlInfo) {
+      // Player URL includes server key, use it directly
+      await handlePlayerIdLookup(interaction, playerUrlInfo.serverKey, playerUrlInfo.playerId);
+      return;
+    }
+
+    // For other lookups, require guild server config
     if (!config.serverKey) {
       await interaction.reply({
         content: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/configure`.",
@@ -152,7 +164,7 @@ export const lookupCommand: Command = {
       return;
     }
 
-    // Try parsing as coordinates first
+    // Try parsing as coordinates
     const coords = parseCoords(queryInput);
 
     if (coords) {
@@ -294,5 +306,43 @@ async function showPlayerDetails(
     content: null,
     embeds: [embed],
     components: [],
+  });
+}
+
+async function handlePlayerIdLookup(
+  interaction: ChatInputCommandInteraction,
+  serverKey: string,
+  playerId: number
+): Promise<void> {
+  await withRetry(() => interaction.deferReply());
+
+  const dataReady = await ensureMapData(serverKey);
+  if (!dataReady) {
+    await interaction.editReply({
+      content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+    });
+    return;
+  }
+
+  const player = await getPlayerById(serverKey, playerId);
+  if (!player) {
+    await interaction.editReply({
+      content: `Žaidėjas su ID ${playerId} nerastas.`,
+    });
+    return;
+  }
+
+  const villages = await getVillagesByPlayerId(serverKey, playerId);
+  if (villages.length === 0) {
+    await interaction.editReply({
+      content: "Žaidėjo kaimų nerasta.",
+    });
+    return;
+  }
+
+  const embed = buildPlayerEmbed(player, villages, serverKey);
+
+  await interaction.editReply({
+    embeds: [embed],
   });
 }
