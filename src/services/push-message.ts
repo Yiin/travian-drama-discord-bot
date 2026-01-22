@@ -14,7 +14,7 @@ import {
   getPushRequestByChannelId,
 } from "./push-requests";
 import { getGuildConfig } from "../config/guild-config";
-import { getVillageAt, getRallyPointLink, getMapLink, formatVillageDisplay } from "./map-data";
+import { getVillageAt, getMapLink, formatVillageDisplay } from "./map-data";
 
 // Button IDs for push channels
 export const PUSH_SENT_BUTTON_ID = "push_sent_button";
@@ -67,13 +67,13 @@ export async function buildSinglePushEmbed(
   // Build description
   const lines: string[] = [];
 
-  // Village info with rally link
+  // Village info with map link
   const village = await getVillageAt(serverKey, request.x, request.y);
+  const mapLink = getMapLink(serverKey, request);
   if (village) {
-    const rallyLink = getRallyPointLink(serverKey, village.targetMapId, 1);
-    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SIŲSTI ]**](${rallyLink})`);
+    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SIŲSTI ]**](${mapLink})`);
   } else {
-    lines.push(`📍 [(${request.x}|${request.y})](${getMapLink(serverKey, request)})`);
+    lines.push(`📍 [(${request.x}|${request.y})](${mapLink})`);
   }
 
   // Progress
