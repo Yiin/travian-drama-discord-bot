@@ -31,7 +31,9 @@ export type ActionType =
   | "PUSH_REQUEST_ADD"
   | "PUSH_RESOURCES_SENT"
   | "PUSH_REQUEST_DELETED"
-  | "PUSH_REQUEST_EDIT";
+  | "PUSH_REQUEST_EDIT"
+  | "PUSH_CONTRIBUTION_EDIT"
+  | "PUSH_CONTRIBUTION_TRANSFER";
 
 export interface ActionData {
   troops?: number;
@@ -51,6 +53,14 @@ export interface ActionData {
   pushDidComplete?: boolean;
   previousResourcesNeeded?: number; // For PUSH_REQUEST_EDIT
   channelId?: string; // For channel-based push requests
+  // For PUSH_CONTRIBUTION_EDIT
+  accountName?: string;
+  oldAmount?: number;
+  newAmount?: number;
+  // For PUSH_CONTRIBUTION_TRANSFER
+  fromAccount?: string;
+  toAccount?: string;
+  transferredAmount?: number;
 }
 
 export interface Action {
@@ -561,6 +571,46 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       return { success: false, message: result.error || "Nepavyko atstatyti." };
     }
 
+    case "PUSH_CONTRIBUTION_EDIT":
+    case "PUSH_CONTRIBUTION_TRANSFER": {
+      // Restore previous contributor state
+      if (!action.previousPushState) {
+        markUndone(guildId, actionId);
+        return {
+          success: false,
+          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+        };
+      }
+
+      const existing = getPushRequestById(guildId, action.requestId);
+      if (!existing || existing.x !== x || existing.y !== y) {
+        // Request doesn't exist or position shifted - restore it
+        const result = restorePushRequest(guildId, action.previousPushState);
+        markUndone(guildId, actionId);
+        if (result.success) {
+          return {
+            success: true,
+            message: `Atšaukta: push užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+            requestId: result.requestId,
+          };
+        }
+        return { success: false, message: result.error || "Nepavyko atstatyti." };
+      }
+
+      // Request still at same position - restore previous state
+      removePushRequest(guildId, action.requestId);
+      const resultRestore = restorePushRequest(guildId, action.previousPushState);
+      markUndone(guildId, actionId);
+      if (resultRestore.success) {
+        return {
+          success: true,
+          message: `Atšaukta: push užklausa ${coordsStr} atstatyta į ankstesnę būseną.`,
+          requestId: resultRestore.requestId,
+        };
+      }
+      return { success: false, message: resultRestore.error || "Nepavyko atstatyti." };
+    }
+
     default:
       return { success: false, message: `Nežinomas veiksmo tipas: ${action.type}` };
   }
@@ -604,6 +654,10 @@ export function getActionDescription(action: Action): string {
       return `Ištrinta push užklausa ${coordsStr}`;
     case "PUSH_REQUEST_EDIT":
       return `Pakeista push užklausa ${coordsStr} (${formatNumber(action.data.previousResourcesNeeded || 0)} → ${formatNumber(action.data.resourcesNeeded || 0)})`;
+    case "PUSH_CONTRIBUTION_EDIT":
+      return `Pakeistas ${action.data.accountName} įnašas ${coordsStr} (${formatNumber(action.data.oldAmount || 0)} → ${formatNumber(action.data.newAmount || 0)})`;
+    case "PUSH_CONTRIBUTION_TRANSFER":
+      return `Perkeltas įnašas ${coordsStr}: ${action.data.fromAccount} → ${action.data.toAccount} (${formatNumber(action.data.transferredAmount || 0)})`;
     default:
       return `Veiksmas ${coordsStr}`;
   }

@@ -84,11 +84,12 @@ export async function buildSinglePushEmbed(
   lines.push(`📊 **${formatNumber(request.resourcesSent)}/${formatNumber(request.resourcesNeeded)}** (${progressPercent}%)`);
   lines.push(buildProgressBar(progressPercent));
 
-  // Contributors
+  // Contributors (sorted by resources, highest first)
   if (request.contributors.length > 0) {
     lines.push("");
     lines.push("📋 **Contributors:**");
-    for (const contributor of request.contributors) {
+    const sortedContributors = [...request.contributors].sort((a, b) => b.resources - a.resources);
+    for (const contributor of sortedContributors) {
       lines.push(`• ${contributor.accountName}: ${formatNumber(contributor.resources)}`);
     }
   }

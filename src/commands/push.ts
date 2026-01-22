@@ -13,7 +13,9 @@ import {
   executePushDeleteAction,
   executePushEditAction,
 } from "../actions";
-import { getPushLeaderboard, getPlayerPushStats } from "../services/push-stats";
+import { executePushEditContributionAction } from "../actions/push-edit-contribution.action";
+import { executePushTransferAction } from "../actions/push-transfer.action";
+import { getPushLeaderboard, getPlayerPushStats, editGlobalStats, transferGlobalStats } from "../services/push-stats";
 import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
@@ -90,6 +92,85 @@ export const pushCommand: Command = {
                 .setAutocomplete(true)
             )
         )
+        .addSubcommand((sub) =>
+          sub
+            .setName("edit")
+            .setDescription("Edit a player's global stats")
+            .addStringOption((opt) =>
+              opt
+                .setName("player")
+                .setDescription("Player's in-game name")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addIntegerOption((opt) =>
+              opt
+                .setName("amount")
+                .setDescription("New total contribution amount")
+                .setRequired(true)
+                .setMinValue(0)
+            )
+        )
+        .addSubcommand((sub) =>
+          sub
+            .setName("transfer")
+            .setDescription("Transfer all stats from one player to another")
+            .addStringOption((opt) =>
+              opt
+                .setName("from")
+                .setDescription("Source player's in-game name")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption((opt) =>
+              opt
+                .setName("to")
+                .setDescription("Target player's in-game name")
+                .setRequired(true)
+            )
+        )
+    )
+    .addSubcommandGroup((group) =>
+      group
+        .setName("contributor")
+        .setDescription("Manage contributors")
+        .addSubcommand((sub) =>
+          sub
+            .setName("edit")
+            .setDescription("Edit a contributor's amount (use in push channel)")
+            .addStringOption((opt) =>
+              opt
+                .setName("player")
+                .setDescription("Contributor's in-game name")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addIntegerOption((opt) =>
+              opt
+                .setName("amount")
+                .setDescription("New contribution amount")
+                .setRequired(true)
+                .setMinValue(0)
+            )
+        )
+        .addSubcommand((sub) =>
+          sub
+            .setName("transfer")
+            .setDescription("Transfer contribution to another player (use in push channel)")
+            .addStringOption((opt) =>
+              opt
+                .setName("from")
+                .setDescription("Source contributor's in-game name")
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption((opt) =>
+              opt
+                .setName("to")
+                .setDescription("Target player's in-game name")
+                .setRequired(true)
+            )
+        )
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -102,6 +183,20 @@ export const pushCommand: Command = {
         await handleStatsLeaderboard(interaction);
       } else if (subcommand === "player") {
         await handleStatsPlayer(interaction);
+      } else if (subcommand === "edit") {
+        await handleStatsEdit(interaction);
+      } else if (subcommand === "transfer") {
+        await handleStatsTransfer(interaction);
+      }
+      return;
+    }
+
+    // Handle contributor subcommand group
+    if (subcommandGroup === "contributor") {
+      if (subcommand === "edit") {
+        await handleContributorEdit(interaction);
+      } else if (subcommand === "transfer") {
+        await handleContributorTransfer(interaction);
       }
       return;
     }
@@ -125,8 +220,10 @@ export const pushCommand: Command = {
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const focusedOption = interaction.options.getFocused(true);
+    const subcommandGroup = interaction.options.getSubcommandGroup(false);
 
-    if (focusedOption.name === "name") {
+    // Stats group uses global leaderboard for autocomplete
+    if (subcommandGroup === "stats" && (focusedOption.name === "name" || focusedOption.name === "player" || focusedOption.name === "from")) {
       const guildId = interaction.guildId;
       if (!guildId) {
         await interaction.respond([]);
@@ -143,6 +240,35 @@ export const pushCommand: Command = {
         .map((entry) => ({
           name: `${entry.accountName} (${formatNumber(entry.totalResources)})`,
           value: entry.accountName,
+        }));
+
+      await interaction.respond(filtered);
+    } else if (subcommandGroup === "contributor" && (focusedOption.name === "player" || focusedOption.name === "from")) {
+      // Contributor group uses current push channel contributors
+      const guildId = interaction.guildId;
+      if (!guildId) {
+        await interaction.respond([]);
+        return;
+      }
+
+      const channelId = interaction.channelId;
+      const requestData = getPushRequestByChannelId(guildId, channelId);
+      if (!requestData) {
+        await interaction.respond([]);
+        return;
+      }
+
+      const searchValue = focusedOption.value.toLowerCase();
+      const contributors = requestData.request.contributors;
+
+      // Sort by resources (highest first) and filter
+      const filtered = [...contributors]
+        .sort((a, b) => b.resources - a.resources)
+        .filter((c) => c.accountName.toLowerCase().includes(searchValue))
+        .slice(0, 25)
+        .map((c) => ({
+          name: `${c.accountName} (${formatNumber(c.resources)})`,
+          value: c.accountName,
         }));
 
       await interaction.respond(filtered);
@@ -332,6 +458,106 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
   await interaction.editReply({ content: result.actionText });
 }
 
+async function handleContributorEdit(interaction: ChatInputCommandInteraction): Promise<void> {
+  // 1. Validate configuration
+  const validation = validatePushConfig(interaction.guildId);
+  if (!validation.valid) {
+    await interaction.reply({ content: validation.error, ephemeral: true });
+    return;
+  }
+
+  // 2. Get request from channel context
+  const channelId = interaction.channelId;
+  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  if (!requestData) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik push kanale.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // 3. Parse inputs
+  const playerName = interaction.options.getString("player", true);
+  const newAmount = interaction.options.getInteger("amount", true);
+
+  // 4. Defer reply
+  await withRetry(() => interaction.deferReply());
+
+  // 5. Execute action
+  const result = await executePushEditContributionAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client: interaction.client,
+      userId: interaction.user.id,
+    },
+    {
+      requestId: requestData.requestId,
+      accountName: playerName,
+      newAmount,
+    }
+  );
+
+  // 6. Handle response
+  if (!result.success) {
+    await interaction.editReply({ content: result.error });
+    return;
+  }
+
+  await interaction.editReply({ content: result.actionText });
+}
+
+async function handleContributorTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
+  // 1. Validate configuration
+  const validation = validatePushConfig(interaction.guildId);
+  if (!validation.valid) {
+    await interaction.reply({ content: validation.error, ephemeral: true });
+    return;
+  }
+
+  // 2. Get request from channel context
+  const channelId = interaction.channelId;
+  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  if (!requestData) {
+    await interaction.reply({
+      content: "Ši komanda veikia tik push kanale.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // 3. Parse inputs
+  const fromAccount = interaction.options.getString("from", true);
+  const toAccount = interaction.options.getString("to", true);
+
+  // 4. Defer reply
+  await withRetry(() => interaction.deferReply());
+
+  // 5. Execute action
+  const result = await executePushTransferAction(
+    {
+      guildId: validation.guildId,
+      config: validation.config,
+      client: interaction.client,
+      userId: interaction.user.id,
+    },
+    {
+      requestId: requestData.requestId,
+      fromAccount,
+      toAccount,
+    }
+  );
+
+  // 6. Handle response
+  if (!result.success) {
+    await interaction.editReply({ content: result.error });
+    return;
+  }
+
+  await interaction.editReply({ content: result.actionText });
+}
+
 async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
@@ -415,6 +641,55 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
   embed.setDescription(lines.join("\n"));
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "Ši komanda veikia tik serveryje.", ephemeral: true });
+    return;
+  }
+
+  const playerName = interaction.options.getString("player", true);
+  const newAmount = interaction.options.getInteger("amount", true);
+
+  await withRetry(() => interaction.deferReply());
+
+  const result = editGlobalStats(guildId, playerName, newAmount);
+
+  if (!result.success) {
+    await interaction.editReply({ content: result.error! });
+    return;
+  }
+
+  const oldAmount = result.previousAmount!;
+  await interaction.editReply({
+    content: `<@${interaction.user.id}> pakeitė **${playerName}** globalią statistiką: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`,
+  });
+}
+
+async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "Ši komanda veikia tik serveryje.", ephemeral: true });
+    return;
+  }
+
+  const fromAccount = interaction.options.getString("from", true);
+  const toAccount = interaction.options.getString("to", true);
+
+  await withRetry(() => interaction.deferReply());
+
+  const result = transferGlobalStats(guildId, fromAccount, toAccount);
+
+  if (!result.success) {
+    await interaction.editReply({ content: result.error! });
+    return;
+  }
+
+  await interaction.editReply({
+    content: `<@${interaction.user.id}> perkėlė **${fromAccount}** statistiką į **${toAccount}** (**${formatNumber(result.transferredAmount!)}**)`,
+  });
 }
 
 function formatNumber(num: number): string {

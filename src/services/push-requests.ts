@@ -342,3 +342,111 @@ export function restorePushRequest(
     requestId: data.requests.length, // 1-based ID
   };
 }
+
+// --- Update contributor resources ---
+
+export interface UpdateContributorResult {
+  success: boolean;
+  request?: PushRequest;
+  previousAmount?: number;
+  error?: string;
+}
+
+/**
+ * Set a contributor's resources to a specific amount.
+ * Updates the request's total resourcesSent accordingly.
+ */
+export function updateContributorResources(
+  guildId: string,
+  requestId: number,
+  accountName: string,
+  newAmount: number
+): UpdateContributorResult {
+  const data = getGuildPushData(guildId);
+  const index = requestId - 1;
+
+  if (index < 0 || index >= data.requests.length) {
+    return { success: false, error: "Užklausa nerasta." };
+  }
+
+  const request = data.requests[index];
+  const contributor = request.contributors.find((c) => c.accountName === accountName);
+
+  if (!contributor) {
+    return { success: false, error: `Dalyvis "${accountName}" nerastas.` };
+  }
+
+  const previousAmount = contributor.resources;
+  const diff = newAmount - previousAmount;
+
+  // Update contributor amount
+  contributor.resources = newAmount;
+
+  // Update total resourcesSent
+  request.resourcesSent += diff;
+
+  // Remove contributor if amount becomes 0 or negative
+  if (newAmount <= 0) {
+    request.contributors = request.contributors.filter((c) => c.accountName !== accountName);
+  }
+
+  // Update completed status
+  request.completed = request.resourcesSent >= request.resourcesNeeded;
+
+  saveGuildData(guildId, data);
+  return { success: true, request, previousAmount };
+}
+
+// --- Transfer contribution ---
+
+export interface TransferContributionResult {
+  success: boolean;
+  request?: PushRequest;
+  transferredAmount?: number;
+  error?: string;
+}
+
+/**
+ * Transfer all resources from one contributor to another.
+ * The source contributor is removed after transfer.
+ */
+export function transferContribution(
+  guildId: string,
+  requestId: number,
+  fromAccount: string,
+  toAccount: string
+): TransferContributionResult {
+  const data = getGuildPushData(guildId);
+  const index = requestId - 1;
+
+  if (index < 0 || index >= data.requests.length) {
+    return { success: false, error: "Užklausa nerasta." };
+  }
+
+  const request = data.requests[index];
+  const fromContributor = request.contributors.find((c) => c.accountName === fromAccount);
+
+  if (!fromContributor) {
+    return { success: false, error: `Dalyvis "${fromAccount}" nerastas.` };
+  }
+
+  if (fromAccount === toAccount) {
+    return { success: false, error: "Negalima perkelti sau pačiam." };
+  }
+
+  const transferredAmount = fromContributor.resources;
+
+  // Find or create target contributor
+  let toContributor = request.contributors.find((c) => c.accountName === toAccount);
+  if (toContributor) {
+    toContributor.resources += transferredAmount;
+  } else {
+    request.contributors.push({ accountName: toAccount, resources: transferredAmount });
+  }
+
+  // Remove source contributor
+  request.contributors = request.contributors.filter((c) => c.accountName !== fromAccount);
+
+  saveGuildData(guildId, data);
+  return { success: true, request, transferredAmount };
+}

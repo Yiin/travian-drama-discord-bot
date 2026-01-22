@@ -220,3 +220,39 @@ export interface MoveActionSuccess {
 }
 
 export type MoveActionResult = MoveActionSuccess | ActionError;
+
+// --- Push Edit Contribution Action Types ---
+
+export interface PushEditContributionActionInput {
+  requestId: number;
+  accountName: string;
+  newAmount: number;
+}
+
+export interface PushEditContributionActionSuccess extends ActionSuccess {
+  requestId: number;
+  accountName: string;
+  oldAmount: number;
+  newAmount: number;
+  coords: { x: number; y: number };
+}
+
+export type PushEditContributionActionResult = PushEditContributionActionSuccess | ActionError;
+
+// --- Push Transfer Action Types ---
+
+export interface PushTransferActionInput {
+  requestId: number;
+  fromAccount: string;
+  toAccount: string;
+}
+
+export interface PushTransferActionSuccess extends ActionSuccess {
+  requestId: number;
+  fromAccount: string;
+  toAccount: string;
+  transferredAmount: number;
+  coords: { x: number; y: number };
+}
+
+export type PushTransferActionResult = PushTransferActionSuccess | ActionError;

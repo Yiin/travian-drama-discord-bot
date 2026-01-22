@@ -251,3 +251,157 @@ export function resetPushStats(guildId: string): void {
 export function getPushLastResetTime(guildId: string): number {
   return getGuildPushStats(guildId).lastReset;
 }
+
+/**
+ * Adjust a player's contribution stats for a specific village.
+ * Used when editing contribution amounts.
+ */
+export function adjustContributionStats(
+  guildId: string,
+  accountName: string,
+  x: number,
+  y: number,
+  adjustment: number
+): void {
+  const stats = getGuildPushStats(guildId);
+
+  // Add adjustment contribution entry
+  stats.contributions.push({
+    accountName,
+    x,
+    y,
+    resources: adjustment,
+    timestamp: Date.now(),
+  });
+
+  saveGuildStats(guildId, stats);
+}
+
+/**
+ * Transfer contribution stats from one player to another for a specific village.
+ * Adds a negative entry for the source and positive entry for the target.
+ */
+export function transferContributionStats(
+  guildId: string,
+  fromAccount: string,
+  toAccount: string,
+  x: number,
+  y: number,
+  amount: number
+): void {
+  const stats = getGuildPushStats(guildId);
+  const now = Date.now();
+
+  // Remove from source
+  stats.contributions.push({
+    accountName: fromAccount,
+    x,
+    y,
+    resources: -amount,
+    timestamp: now,
+  });
+
+  // Add to target
+  stats.contributions.push({
+    accountName: toAccount,
+    x,
+    y,
+    resources: amount,
+    timestamp: now,
+  });
+
+  saveGuildStats(guildId, stats);
+}
+
+// --- Global stats edit/transfer functions ---
+
+export interface EditGlobalStatsResult {
+  success: boolean;
+  previousAmount?: number;
+  error?: string;
+}
+
+/**
+ * Set a player's total global stats to a specific amount.
+ * Calculates the difference from current total and adds an adjustment entry.
+ */
+export function editGlobalStats(
+  guildId: string,
+  accountName: string,
+  newAmount: number
+): EditGlobalStatsResult {
+  const playerStats = getPlayerPushStats(guildId, accountName);
+  const previousAmount = playerStats?.totalResources || 0;
+
+  if (previousAmount === newAmount) {
+    return { success: true, previousAmount };
+  }
+
+  const adjustment = newAmount - previousAmount;
+
+  const stats = getGuildPushStats(guildId);
+  // Use coords (0,0) as a marker for global adjustments
+  stats.contributions.push({
+    accountName,
+    x: 0,
+    y: 0,
+    resources: adjustment,
+    timestamp: Date.now(),
+  });
+
+  saveGuildStats(guildId, stats);
+  return { success: true, previousAmount };
+}
+
+export interface TransferGlobalStatsResult {
+  success: boolean;
+  transferredAmount?: number;
+  error?: string;
+}
+
+/**
+ * Transfer all stats from one player to another.
+ * Creates negative entries for source and positive entries for target.
+ */
+export function transferGlobalStats(
+  guildId: string,
+  fromAccount: string,
+  toAccount: string
+): TransferGlobalStatsResult {
+  if (fromAccount === toAccount) {
+    return { success: false, error: "Negalima perkelti sau pačiam." };
+  }
+
+  const fromStats = getPlayerPushStats(guildId, fromAccount);
+  if (!fromStats || fromStats.totalResources === 0) {
+    return { success: false, error: `Žaidėjas "${fromAccount}" neturi statistikos.` };
+  }
+
+  const stats = getGuildPushStats(guildId);
+  const now = Date.now();
+  const transferredAmount = fromStats.totalResources;
+
+  // Transfer each village contribution
+  for (const village of fromStats.villages) {
+    // Remove from source
+    stats.contributions.push({
+      accountName: fromAccount,
+      x: village.x,
+      y: village.y,
+      resources: -village.resources,
+      timestamp: now,
+    });
+
+    // Add to target
+    stats.contributions.push({
+      accountName: toAccount,
+      x: village.x,
+      y: village.y,
+      resources: village.resources,
+      timestamp: now,
+    });
+  }
+
+  saveGuildStats(guildId, stats);
+  return { success: true, transferredAmount };
+}
