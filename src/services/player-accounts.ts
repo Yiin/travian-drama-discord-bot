@@ -178,6 +178,47 @@ export function removeSitter(
 }
 
 /**
+ * Rename an in-game account (updates both accounts and sitters maps)
+ * Returns true if the account was found and renamed, false otherwise
+ */
+export function renameAccount(
+  guildId: string,
+  oldName: string,
+  newName: string
+): boolean {
+  const data = getGuildPlayerData(guildId);
+  let renamed = false;
+
+  // Rename in accounts map
+  if (data.accounts[oldName]) {
+    data.accounts[newName] = data.accounts[oldName];
+    delete data.accounts[oldName];
+    renamed = true;
+  }
+
+  // Rename in sitters map
+  if (data.sitters[oldName]) {
+    // Merge with existing sitters if newName already has some
+    if (data.sitters[newName]) {
+      const combined = new Set([
+        ...data.sitters[newName],
+        ...data.sitters[oldName],
+      ]);
+      data.sitters[newName] = Array.from(combined);
+    } else {
+      data.sitters[newName] = data.sitters[oldName];
+    }
+    delete data.sitters[oldName];
+    renamed = true;
+  }
+
+  if (renamed) {
+    saveGuildData(guildId, data);
+  }
+  return renamed;
+}
+
+/**
  * Get all players with their owners and sitters
  */
 export function getAllPlayers(

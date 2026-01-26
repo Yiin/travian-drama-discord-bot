@@ -360,6 +360,31 @@ export interface TransferGlobalStatsResult {
 }
 
 /**
+ * Rename all occurrences of an account name in push stats.
+ * Returns the number of contribution records updated.
+ */
+export function renameAccountInPushStats(
+  guildId: string,
+  oldName: string,
+  newName: string
+): number {
+  const stats = getGuildPushStats(guildId);
+  let count = 0;
+
+  for (const contribution of stats.contributions) {
+    if (contribution.accountName === oldName) {
+      contribution.accountName = newName;
+      count++;
+    }
+  }
+
+  if (count > 0) {
+    saveGuildStats(guildId, stats);
+  }
+  return count;
+}
+
+/**
  * Transfer all stats from one player to another.
  * Creates negative entries for source and positive entries for target.
  */

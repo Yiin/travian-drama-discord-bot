@@ -410,6 +410,40 @@ export interface TransferContributionResult {
  * Transfer all resources from one contributor to another.
  * The source contributor is removed after transfer.
  */
+/**
+ * Rename all occurrences of an account name in push requests
+ * (both as requester and as contributor)
+ */
+export function renameAccountInPushRequests(
+  guildId: string,
+  oldName: string,
+  newName: string
+): number {
+  const data = getGuildPushData(guildId);
+  let count = 0;
+
+  for (const request of data.requests) {
+    // Rename requester account
+    if (request.requesterAccount === oldName) {
+      request.requesterAccount = newName;
+      count++;
+    }
+
+    // Rename in contributors
+    for (const contributor of request.contributors) {
+      if (contributor.accountName === oldName) {
+        contributor.accountName = newName;
+        count++;
+      }
+    }
+  }
+
+  if (count > 0) {
+    saveGuildData(guildId, data);
+  }
+  return count;
+}
+
 export function transferContribution(
   guildId: string,
   requestId: number,
