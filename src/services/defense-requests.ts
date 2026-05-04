@@ -20,6 +20,7 @@ export interface DefenseRequest {
   requesterId: string;
   createdAt: number;
   contributors: Contributor[];
+  landingAt?: number; // Unix timestamp (seconds) — when the attack lands
 }
 
 export interface CompletedRequest {
@@ -96,7 +97,8 @@ export function addRequest(
   y: number,
   troopsNeeded: number,
   message: string,
-  requesterId: string
+  requesterId: string,
+  landingAt?: number
 ): AddRequestResult | { error: string } {
   const data = getGuildDefenseData(guildId);
 
@@ -115,6 +117,7 @@ export function addRequest(
     requesterId,
     createdAt: Date.now(),
     contributors: [],
+    landingAt,
   };
 
   data.requests.push(newRequest);

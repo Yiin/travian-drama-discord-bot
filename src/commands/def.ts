@@ -28,6 +28,12 @@ export const defCommand: Command = {
         .setName("message")
         .setDescription("Additional information about the defense request")
         .setRequired(false)
+    )
+    .addStringOption((option) =>
+      option
+        .setName("landing")
+        .setDescription("Atakos kritimo laikas (HH:MM[:SS] UTC arba Travian \"in ...hrs.at...\")")
+        .setRequired(false)
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -42,6 +48,7 @@ export const defCommand: Command = {
     const coordsInput = interaction.options.getString("coords", true);
     const troopsNeeded = interaction.options.getInteger("troops", true);
     const message = interaction.options.getString("message") || "";
+    const landing = interaction.options.getString("landing") || undefined;
 
     // 3. Defer reply
     await withRetry(() => interaction.deferReply());
@@ -58,6 +65,7 @@ export const defCommand: Command = {
         coords: coordsInput,
         troopsNeeded,
         message,
+        landing,
       }
     );
 

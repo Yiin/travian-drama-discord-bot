@@ -28,6 +28,7 @@ export const REQUEST_DEF_MODAL_ID = "request_def_modal";
 export const COORDS_INPUT_ID = "coords_input";
 export const TROOPS_NEEDED_INPUT_ID = "troops_needed_input";
 export const MESSAGE_INPUT_ID = "message_input";
+export const LANDING_INPUT_ID = "landing_input";
 
 export async function handleSentButton(
   interaction: ButtonInteraction
@@ -246,7 +247,19 @@ export async function handleRequestDefButton(
     .setLabel("Papildoma informacija (nebūtina)")
     .setTextInputComponent(messageInput);
 
-  modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel);
+  const landingInput = new TextInputBuilder()
+    .setCustomId(LANDING_INPUT_ID)
+    .setPlaceholder("12:30 arba 12:30:45")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setMaxLength(40);
+
+  const landingLabel = new LabelBuilder()
+    .setLabel("Atakos kritimo laikas (nebūtina)")
+    .setDescription("UTC laikas. Stackas turi atvykti iki šio momento.")
+    .setTextInputComponent(landingInput);
+
+  modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel, landingLabel);
 
   await interaction.showModal(modal);
 }
@@ -265,6 +278,7 @@ export async function handleRequestDefModal(
   const coordsInput = interaction.fields.getTextInputValue(COORDS_INPUT_ID);
   const troopsInput = interaction.fields.getTextInputValue(TROOPS_NEEDED_INPUT_ID);
   const message = interaction.fields.getTextInputValue(MESSAGE_INPUT_ID) || "";
+  const landing = interaction.fields.getTextInputValue(LANDING_INPUT_ID) || undefined;
 
   // 3. Parse troops (coords validation is done in action)
   const troopsNeeded = parseInt(troopsInput, 10);
@@ -291,6 +305,7 @@ export async function handleRequestDefModal(
       coords: coordsInput,
       troopsNeeded,
       message,
+      landing,
     }
   );
 

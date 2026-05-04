@@ -14,6 +14,7 @@ import {
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { scheduleScoutNotification, cancelScoutNotifications } from "../scout-scheduler";
+import { parseTimeToTimestamp, formatTimeDisplay } from "../../utils/time";
 
 // Scout button/modal IDs
 export const SCOUT_GOING_BUTTON_ID = "scout_going_button";
@@ -25,84 +26,6 @@ export const SCOUT_DONE_BUTTON_ID = "scout_done_button";
 const ACCENT_PENDING = 0xf39c12;     // Orange
 const ACCENT_IN_PROGRESS = 0x3498db; // Blue
 const ACCENT_DONE = 0x2ecc71;        // Green
-
-/**
- * Parse time input and return Unix timestamp (seconds) if valid.
- *
- * Supported formats:
- * - "hh:mm" or "hh:mm:ss" - treats as next occurrence in future (UTC)
- * - "in HH:MM:SS hrs.at HH:MM:SS" - Travian format, uses travel time to calculate arrival
- *
- * Returns Unix timestamp or null if unparseable.
- */
-function parseTimeToTimestamp(input: string): number | null {
-  const trimmed = input.trim();
-
-  // Try Travian format: "in  34:43:31  hrs.at  05:05:31"
-  const travianMatch = trimmed.match(/^in\s+(\d+):(\d{2}):(\d{2})\s+hrs\.?\s*at\s+(\d{1,2}):(\d{2}):(\d{2})$/i);
-  if (travianMatch) {
-    const travelHours = parseInt(travianMatch[1], 10);
-    const travelMinutes = parseInt(travianMatch[2], 10);
-    const travelSeconds = parseInt(travianMatch[3], 10);
-
-    // Validate travel time parts
-    if (travelMinutes > 59 || travelSeconds > 59) {
-      return null;
-    }
-
-    // Calculate arrival by adding travel time to now
-    const now = Date.now();
-    const travelMs = ((travelHours * 60 + travelMinutes) * 60 + travelSeconds) * 1000;
-    const arrivalMs = now + travelMs;
-
-    return Math.floor(arrivalMs / 1000);
-  }
-
-  // Try simple format: hh:mm or hh:mm:ss
-  const timeMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if (!timeMatch) {
-    return null;
-  }
-
-  const hours = parseInt(timeMatch[1], 10);
-  const minutes = parseInt(timeMatch[2], 10);
-  // Default to :59 seconds if not provided (ensures it's "next occurrence")
-  const seconds = timeMatch[3] ? parseInt(timeMatch[3], 10) : 59;
-
-  // Validate ranges
-  if (hours > 23 || minutes > 59 || seconds > 59) {
-    return null;
-  }
-
-  // Build UTC timestamp for today
-  const now = new Date();
-  const target = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    hours,
-    minutes,
-    seconds
-  ));
-
-  // If the time has already passed today, assume it's tomorrow
-  if (target.getTime() <= now.getTime()) {
-    target.setUTCDate(target.getUTCDate() + 1);
-  }
-
-  return Math.floor(target.getTime() / 1000);
-}
-
-/**
- * Format time input as Discord timestamp or raw string.
- */
-function formatTimeDisplay(input: string): string {
-  const timestamp = parseTimeToTimestamp(input);
-  if (timestamp !== null) {
-    return `<t:${timestamp}:R>`;
-  }
-  return `(${input.trim()})`;
-}
 
 export async function handleScoutGoingButton(
   interaction: ButtonInteraction

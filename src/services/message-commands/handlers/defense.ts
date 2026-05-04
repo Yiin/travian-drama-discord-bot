@@ -74,6 +74,23 @@ export async function handleDefCommand(
     return;
   }
 
+  // 2b. Pull optional "landing: ..." token out of the trailing message.
+  // Accepts HH:MM[:SS] or the Travian "in HH:MM:SS hrs.at HH:MM:SS" paste.
+  let landing: string | undefined;
+  let cleanedMessage = defMessage;
+  const landingMatch = defMessage.match(
+    /\blanding:\s*(in\s+\d+:\d{2}:\d{2}\s+hrs\.?\s*at\s+\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}(?::\d{2})?)/i
+  );
+  if (landingMatch) {
+    landing = landingMatch[1];
+    cleanedMessage = (
+      defMessage.slice(0, landingMatch.index) +
+      defMessage.slice((landingMatch.index ?? 0) + landingMatch[0].length)
+    )
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
   // 3. Execute action
   const result = await executeDefAction(
     {
@@ -85,7 +102,8 @@ export async function handleDefCommand(
     {
       coords: coordsInput,
       troopsNeeded: troops,
-      message: defMessage,
+      message: cleanedMessage,
+      landing,
     }
   );
 

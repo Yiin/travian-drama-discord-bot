@@ -68,6 +68,13 @@ export async function buildGlobalEmbed(
     );
     line += ` - **${request.troopsSent}/${request.troopsNeeded}** (${progressPercent}%)`;
 
+    // Add landing time if set. Mark overdue with ⚠️.
+    if (request.landingAt) {
+      const overdue = request.landingAt * 1000 < Date.now();
+      const warn = overdue ? "⚠️ " : "";
+      line += ` - ${warn}kritimas <t:${request.landingAt}:R>`;
+    }
+
     // Add message (truncate if too long)
     const truncatedMessage =
       request.message.length > 50

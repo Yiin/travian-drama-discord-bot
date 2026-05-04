@@ -60,6 +60,7 @@ export interface DefActionInput {
   coords: string; // Coordinates string (will be parsed)
   troopsNeeded: number;
   message: string;
+  landing?: string; // Raw landing-time input ("HH:MM[:SS]" UTC, or Travian "in ...hrs.at..." paste)
 }
 
 export interface DefActionSuccess extends ActionSuccess {
