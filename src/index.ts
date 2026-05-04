@@ -24,6 +24,12 @@ import {
   handleStackDeleteButton,
   handleStackConfirmDelete,
   handleStackCancelDelete,
+  handleAccountReminderAddButton,
+  handleAccountReminderSkipButton,
+  handleAccountReminderModal,
+  ACCOUNT_REMINDER_ADD_BUTTON_ID,
+  ACCOUNT_REMINDER_SKIP_BUTTON_ID,
+  ACCOUNT_REMINDER_MODAL_ID,
   SENT_BUTTON_ID,
   SENT_MODAL_ID,
   REQUEST_DEF_BUTTON_ID,
@@ -113,6 +119,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleStackConfirmDelete(interaction);
       } else if (interaction.customId.startsWith(STACK_CANCEL_DELETE_PREFIX)) {
         await handleStackCancelDelete(interaction);
+      } else if (interaction.customId === ACCOUNT_REMINDER_ADD_BUTTON_ID) {
+        await handleAccountReminderAddButton(interaction);
+      } else if (interaction.customId === ACCOUNT_REMINDER_SKIP_BUTTON_ID) {
+        await handleAccountReminderSkipButton(interaction);
       }
     } catch (error) {
       console.error("Error handling button interaction:", error);
@@ -143,6 +153,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handlePushSentModal(interaction);
       } else if (interaction.customId.startsWith(STACK_EDIT_MODAL_PREFIX)) {
         await handleStackEditModal(interaction);
+      } else if (interaction.customId === ACCOUNT_REMINDER_MODAL_ID) {
+        await handleAccountReminderModal(interaction);
       }
     } catch (error) {
       console.error("Error handling modal submission:", error);

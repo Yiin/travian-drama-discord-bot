@@ -9,6 +9,8 @@ export interface GuildPlayerData {
   accounts: Record<string, string[]>;
   // Map InGameName -> array of user IDs who are sitters
   sitters: Record<string, string[]>;
+  // Discord user IDs who opted out via "Nežaidžiu"
+  notPlaying: string[];
 }
 
 type AllGuildData = Record<string, GuildPlayerData>;
@@ -37,12 +39,17 @@ function getDefaultGuildData(): GuildPlayerData {
   return {
     accounts: {},
     sitters: {},
+    notPlaying: [],
   };
 }
 
 export function getGuildPlayerData(guildId: string): GuildPlayerData {
   const allData = loadAllData();
-  return allData[guildId] || getDefaultGuildData();
+  const data = allData[guildId] || getDefaultGuildData();
+  if (!data.notPlaying) {
+    data.notPlaying = [];
+  }
+  return data;
 }
 
 function saveGuildData(guildId: string, data: GuildPlayerData): void {
@@ -77,7 +84,29 @@ export function setAccount(
     data.accounts[inGameName].push(userId);
   }
 
+  // Setting an account implicitly opts the user back in
+  data.notPlaying = data.notPlaying.filter((id) => id !== userId);
+
   saveGuildData(guildId, data);
+}
+
+/**
+ * Mark a user as not playing — excludes them from the account reminder prompt
+ */
+export function markNotPlaying(guildId: string, userId: string): void {
+  const data = getGuildPlayerData(guildId);
+  if (!data.notPlaying.includes(userId)) {
+    data.notPlaying.push(userId);
+    saveGuildData(guildId, data);
+  }
+}
+
+/**
+ * Check whether a user is marked as not playing
+ */
+export function isNotPlaying(guildId: string, userId: string): boolean {
+  const data = getGuildPlayerData(guildId);
+  return data.notPlaying.includes(userId);
 }
 
 /**

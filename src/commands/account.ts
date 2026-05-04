@@ -2,6 +2,10 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   AutocompleteInteraction,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  TextChannel,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -13,6 +17,15 @@ import {
 } from "../services/player-accounts";
 import { renameAccountInPushRequests } from "../services/push-requests";
 import { renameAccountInPushStats } from "../services/push-stats";
+import {
+  getGuildConfig,
+  setAccountReminderMessage,
+} from "../config/guild-config";
+import {
+  ACCOUNT_REMINDER_ADD_BUTTON_ID,
+  ACCOUNT_REMINDER_SKIP_BUTTON_ID,
+} from "../services/button-handlers/index";
+import { requireAdmin } from "../utils/permissions";
 
 export const accountCommand: Command = {
   data: new SlashCommandBuilder()
@@ -39,6 +52,13 @@ export const accountCommand: Command = {
       subcommand
         .setName("del")
         .setDescription("Remove your in-game account association")
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("reminder")
+        .setDescription(
+          "Post a singleton message with Pridėti / Nežaidžiu buttons (admin)"
+        )
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -93,9 +113,73 @@ export const accountCommand: Command = {
       await handleDeleteAccount(interaction, guildId);
     } else if (subcommand === "rename") {
       await handleRenameAccount(interaction, guildId);
+    } else if (subcommand === "reminder") {
+      await handlePostReminder(interaction, guildId);
     }
   },
 };
+
+async function handlePostReminder(
+  interaction: ChatInputCommandInteraction,
+  guildId: string
+): Promise<void> {
+  if (!(await requireAdmin(interaction))) return;
+
+  const channel = interaction.channel;
+  if (!channel || !(channel instanceof TextChannel)) {
+    await interaction.reply({
+      content: "Šią komandą reikia naudoti tekstiniame kanale.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const addButton = new ButtonBuilder()
+    .setCustomId(ACCOUNT_REMINDER_ADD_BUTTON_ID)
+    .setLabel("Pridėti")
+    .setStyle(ButtonStyle.Primary);
+
+  const skipButton = new ButtonBuilder()
+    .setCustomId(ACCOUNT_REMINDER_SKIP_BUTTON_ID)
+    .setLabel("Nežaidžiu")
+    .setStyle(ButtonStyle.Secondary);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    addButton,
+    skipButton
+  );
+
+  const content =
+    "**Susiek savo Discord paskyrą su žaidimo paskyra**\n" +
+    "Paspausk **Pridėti**, kad įvestum savo žaidėjo vardą.\n" +
+    "Paspausk **Nežaidžiu**, jei nežaidi šio serverio.";
+
+  // Delete previous singleton message if it exists
+  const config = getGuildConfig(guildId);
+  if (config.accountReminderChannelId && config.accountReminderMessageId) {
+    try {
+      const oldChannel = (await interaction.client.channels.fetch(
+        config.accountReminderChannelId
+      )) as TextChannel | null;
+      if (oldChannel) {
+        const oldMessage = await oldChannel.messages.fetch(
+          config.accountReminderMessageId
+        );
+        await oldMessage.delete();
+      }
+    } catch {
+      // Old message already gone, ignore
+    }
+  }
+
+  const message = await channel.send({ content, components: [row] });
+  setAccountReminderMessage(guildId, channel.id, message.id);
+
+  await interaction.reply({
+    content: "Reminder paskelbtas.",
+    ephemeral: true,
+  });
+}
 
 async function handleSetAccount(
   interaction: ChatInputCommandInteraction,

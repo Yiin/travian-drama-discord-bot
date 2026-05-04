@@ -10,6 +10,8 @@ export interface GuildConfig {
   scoutRoleId?: string;
   pushCategoryId?: string;
   serverKey?: string;
+  accountReminderChannelId?: string;
+  accountReminderMessageId?: string;
 }
 
 type GuildConfigs = Record<string, GuildConfig>;
@@ -80,6 +82,20 @@ export function setScoutRole(guildId: string, roleId: string | null): void {
 export function setServerKey(guildId: string, serverKey: string): void {
   const configs = loadConfigs();
   configs[guildId] = { ...configs[guildId], serverKey };
+  saveConfigs(configs);
+}
+
+export function setAccountReminderMessage(
+  guildId: string,
+  channelId: string,
+  messageId: string
+): void {
+  const configs = loadConfigs();
+  configs[guildId] = {
+    ...configs[guildId],
+    accountReminderChannelId: channelId,
+    accountReminderMessageId: messageId,
+  };
   saveConfigs(configs);
 }
 
