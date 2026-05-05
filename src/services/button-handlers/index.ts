@@ -48,6 +48,24 @@ export {
   ACCOUNT_REMINDER_NAME_INPUT_ID,
 } from "./account-reminder";
 
+// Def call handlers and IDs
+export {
+  handleDefCallRequestButton,
+  handleDefCallRequestModal,
+  handleDefCallSentButton,
+  handleDefCallSentModal,
+  handleDefCallCloseButton,
+  DEFCALL_REQUEST_BUTTON_ID,
+  DEFCALL_REQUEST_MODAL_ID,
+  DEFCALL_SENT_BUTTON_ID,
+  DEFCALL_SENT_MODAL_ID,
+  DEFCALL_CLOSE_BUTTON_ID,
+  DEFCALL_COORDS_INPUT_ID,
+  DEFCALL_LANDING_INPUT_ID,
+  DEFCALL_COMMENT_INPUT_ID,
+  DEFCALL_TROOPS_INPUT_ID,
+} from "./def-call";
+
 // Stack edit handlers and IDs
 export {
   handleStackUpButton,

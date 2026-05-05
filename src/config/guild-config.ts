@@ -9,6 +9,8 @@ export interface GuildConfig {
   scoutChannelId?: string;
   scoutRoleId?: string;
   pushCategoryId?: string;
+  defCallsChannelId?: string;
+  defCallsCategoryId?: string;
   serverKey?: string;
   accountReminderChannelId?: string;
   accountReminderMessageId?: string;
@@ -65,6 +67,24 @@ export function setPushCategory(
 ): void {
   const configs = loadConfigs();
   configs[guildId] = { ...configs[guildId], pushCategoryId: categoryId };
+  saveConfigs(configs);
+}
+
+export function setDefCallsChannelId(
+  guildId: string,
+  channelId: string
+): void {
+  const configs = loadConfigs();
+  configs[guildId] = { ...configs[guildId], defCallsChannelId: channelId };
+  saveConfigs(configs);
+}
+
+export function setDefCallsCategoryId(
+  guildId: string,
+  categoryId: string
+): void {
+  const configs = loadConfigs();
+  configs[guildId] = { ...configs[guildId], defCallsCategoryId: categoryId };
   saveConfigs(configs);
 }
 

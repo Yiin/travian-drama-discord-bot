@@ -5,7 +5,7 @@ import {
   ChannelType,
 } from "discord.js";
 import { Command } from "../types";
-import { setServerKey, setDefenseChannel, setScoutChannel, setPushCategory, setScoutRole, getGuildConfig } from "../config/guild-config";
+import { setServerKey, setDefenseChannel, setScoutChannel, setPushCategory, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, getGuildConfig } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 
@@ -56,7 +56,8 @@ export const configureCommand: Command = {
             .setRequired(true)
             .addChoices(
               { name: "Defense", value: "defense" },
-              { name: "Scout", value: "scout" }
+              { name: "Scout", value: "scout" },
+              { name: "DefCalls", value: "defcalls" }
             )
         )
         .addChannelOption((option) =>
@@ -75,6 +76,18 @@ export const configureCommand: Command = {
           option
             .setName("category")
             .setDescription("The category where push channels will be created")
+            .setRequired(true)
+            .addChannelTypes(ChannelType.GuildCategory)
+        )
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("def-calls-category")
+        .setDescription("Configure the category for def-call channels")
+        .addChannelOption((option) =>
+          option
+            .setName("category")
+            .setDescription("The category where def-call channels will be created")
             .setRequired(true)
             .addChannelTypes(ChannelType.GuildCategory)
         )
@@ -111,6 +124,8 @@ export const configureCommand: Command = {
       await handleChannelConfig(interaction, guildId);
     } else if (subcommand === "push-category") {
       await handlePushCategoryConfig(interaction, guildId);
+    } else if (subcommand === "def-calls-category") {
+      await handleDefCallsCategoryConfig(interaction, guildId);
     } else if (subcommand === "scoutrole") {
       await handleScoutRoleConfig(interaction, guildId);
     }
@@ -173,7 +188,25 @@ async function handleChannelConfig(
       content: `Scout requests will now be sent to <#${channel.id}>`,
       ephemeral: true,
     });
+  } else if (type === "defcalls") {
+    setDefCallsChannelId(guildId, channel.id);
+    await interaction.reply({
+      content: `Def-call hub set to <#${channel.id}>`,
+      ephemeral: true,
+    });
   }
+}
+
+async function handleDefCallsCategoryConfig(
+  interaction: ChatInputCommandInteraction,
+  guildId: string
+): Promise<void> {
+  const category = interaction.options.getChannel("category", true);
+  setDefCallsCategoryId(guildId, category.id);
+  await interaction.reply({
+    content: `Def-call channels will now be created in <#${category.id}>`,
+    ephemeral: true,
+  });
 }
 
 async function handlePushCategoryConfig(

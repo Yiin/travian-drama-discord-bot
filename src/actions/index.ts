@@ -11,7 +11,7 @@ export type { PushConfigValidation, AccountValidation, PushTargetResolution } fr
 
 // Action handlers
 export { executeSentAction } from "./sent.action";
-export { executeDefAction } from "./def.action";
+export { executeStackAction } from "./stack.action";
 export { executeDeleteDefAction } from "./deletedef.action";
 export { executeUpdateDefAction } from "./updatedef.action";
 export { executeUndoAction } from "./undo.action";
@@ -25,3 +25,8 @@ export { executePushDeleteAction } from "./push-delete.action";
 export { executePushEditAction } from "./push-edit.action";
 export { executePushEditContributionAction } from "./push-edit-contribution.action";
 export { executePushTransferAction } from "./push-transfer.action";
+
+// Def call action handlers
+export { executeDefCallRequestAction } from "./def-call-request.action";
+export { executeDefCallSentAction } from "./def-call-sent.action";
+export { executeDefCallCloseAction } from "./def-call-close.action";

@@ -1,7 +1,7 @@
 import { CommandContext } from "../types";
 import { requireAdminMiddleware } from "../middleware";
 import { normalizeServerKey, isValidServerKey } from "../utils";
-import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole } from "../../../config/guild-config";
+import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, setPushCategory } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
 
 async function handleConfigureServerCommandInner(
@@ -32,17 +32,38 @@ async function handleConfigureServerCommandInner(
 
 async function handleConfigureChannelCommandInner(
   ctx: CommandContext,
-  type: "defense" | "scout",
+  type: "defense" | "scout" | "defcalls",
   channelId: string
 ): Promise<void> {
   if (type === "defense") {
     setDefenseChannel(ctx.guildId, channelId);
     await ctx.message.reply(`Gynybos prašymai bus siunčiami į <#${channelId}>`);
-  } else {
+  } else if (type === "scout") {
     setScoutChannel(ctx.guildId, channelId);
     await ctx.message.reply(`Žvalgybos prašymai bus siunčiami į <#${channelId}>`);
+  } else {
+    setDefCallsChannelId(ctx.guildId, channelId);
+    await ctx.message.reply(`Def-call hub kanalas: <#${channelId}>`);
   }
 
+  await ctx.message.react("✅");
+}
+
+async function handleConfigureDefCallsCategoryCommandInner(
+  ctx: CommandContext,
+  categoryId: string
+): Promise<void> {
+  setDefCallsCategoryId(ctx.guildId, categoryId);
+  await ctx.message.reply(`Def-call kategorija nustatyta: <#${categoryId}>`);
+  await ctx.message.react("✅");
+}
+
+async function handleConfigurePushCategoryCommandInner(
+  ctx: CommandContext,
+  categoryId: string
+): Promise<void> {
+  setPushCategory(ctx.guildId, categoryId);
+  await ctx.message.reply(`Push kategorija nustatyta: <#${categoryId}>`);
   await ctx.message.react("✅");
 }
 
@@ -79,3 +100,5 @@ async function handleConfigureScoutRoleCommandInner(
 export const handleConfigureServerCommand = requireAdminMiddleware(handleConfigureServerCommandInner);
 export const handleConfigureChannelCommand = requireAdminMiddleware(handleConfigureChannelCommandInner);
 export const handleConfigureScoutRoleCommand = requireAdminMiddleware(handleConfigureScoutRoleCommandInner);
+export const handleConfigureDefCallsCategoryCommand = requireAdminMiddleware(handleConfigureDefCallsCategoryCommandInner);
+export const handleConfigurePushCategoryCommand = requireAdminMiddleware(handleConfigurePushCategoryCommandInner);

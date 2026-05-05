@@ -27,6 +27,16 @@ import {
   handleAccountReminderAddButton,
   handleAccountReminderSkipButton,
   handleAccountReminderModal,
+  handleDefCallRequestButton,
+  handleDefCallRequestModal,
+  handleDefCallSentButton,
+  handleDefCallSentModal,
+  handleDefCallCloseButton,
+  DEFCALL_REQUEST_BUTTON_ID,
+  DEFCALL_REQUEST_MODAL_ID,
+  DEFCALL_SENT_BUTTON_ID,
+  DEFCALL_SENT_MODAL_ID,
+  DEFCALL_CLOSE_BUTTON_ID,
   ACCOUNT_REMINDER_ADD_BUTTON_ID,
   ACCOUNT_REMINDER_SKIP_BUTTON_ID,
   ACCOUNT_REMINDER_MODAL_ID,
@@ -81,7 +91,7 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+client.on(Events.MessageUpdate, async (_oldMessage, newMessage) => {
   try {
     // Fetch full message if partial
     const message = newMessage.partial ? await newMessage.fetch() : newMessage;
@@ -123,6 +133,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleAccountReminderAddButton(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_SKIP_BUTTON_ID) {
         await handleAccountReminderSkipButton(interaction);
+      } else if (interaction.customId === DEFCALL_REQUEST_BUTTON_ID) {
+        await handleDefCallRequestButton(interaction);
+      } else if (interaction.customId === DEFCALL_SENT_BUTTON_ID) {
+        await handleDefCallSentButton(interaction);
+      } else if (interaction.customId === DEFCALL_CLOSE_BUTTON_ID) {
+        await handleDefCallCloseButton(interaction);
       }
     } catch (error) {
       console.error("Error handling button interaction:", error);
@@ -155,6 +171,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleStackEditModal(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_MODAL_ID) {
         await handleAccountReminderModal(interaction);
+      } else if (interaction.customId === DEFCALL_REQUEST_MODAL_ID) {
+        await handleDefCallRequestModal(interaction);
+      } else if (interaction.customId === DEFCALL_SENT_MODAL_ID) {
+        await handleDefCallSentModal(interaction);
       }
     } catch (error) {
       console.error("Error handling modal submission:", error);

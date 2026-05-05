@@ -36,13 +36,38 @@ export async function processSingleCommand(
 
   match = content.match(patterns.CONFIGURE_CHANNEL_PATTERN);
   if (match) {
-    await handlers.handleConfigureChannelCommand(ctx, match[1] as "defense" | "scout", match[2]);
+    await handlers.handleConfigureChannelCommand(ctx, match[1] as "defense" | "scout" | "defcalls", match[2]);
     return;
   }
 
   match = content.match(patterns.CONFIGURE_SCOUTROLE_PATTERN);
   if (match) {
     await handlers.handleConfigureScoutRoleCommand(ctx, match[1], match[2]);
+    return;
+  }
+
+  match = content.match(patterns.CONFIGURE_DEFCALLSCATEGORY_PATTERN);
+  if (match) {
+    await handlers.handleConfigureDefCallsCategoryCommand(ctx, match[1]);
+    return;
+  }
+
+  match = content.match(patterns.CONFIGURE_PUSHCATEGORY_PATTERN);
+  if (match) {
+    await handlers.handleConfigurePushCategoryCommand(ctx, match[1]);
+    return;
+  }
+
+  // Def commands - work in any channel
+  match = content.match(patterns.DEF_PATTERN);
+  if (match) {
+    await handlers.handleDefCommand(ctx, match[1], match[2], match[3] || undefined);
+    return;
+  }
+
+  match = content.match(patterns.CLOSE_PATTERN);
+  if (match) {
+    await handlers.handleCloseCommand(ctx);
     return;
   }
 
@@ -135,7 +160,7 @@ export async function processSingleCommand(
 
   // Defense channel commands
   if (isDefenseChannel) {
-    // Sent/stack command (simple or verbose format)
+    // Sent command (simple or verbose format)
     match = content.match(patterns.SENT_PATTERN) || content.match(patterns.SENT_VERBOSE_PATTERN);
     if (match) {
       const forUserId = match[3]; // Optional user mention
@@ -143,10 +168,10 @@ export async function processSingleCommand(
       return;
     }
 
-    // Def command
-    match = content.match(patterns.DEF_PATTERN);
+    // Stack command
+    match = content.match(patterns.STACK_PATTERN);
     if (match) {
-      await handlers.handleDefCommand(ctx, match[1], parseInt(match[2], 10), match[3] || "");
+      await handlers.handleStackCommand(ctx, match[1], parseInt(match[2], 10), match[3] || "");
       return;
     }
 

@@ -10,11 +10,11 @@ import {
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { getGuildDefenseData } from "../defense-requests";
-import { getVillageAt, formatVillageDisplay } from "../map-data";
+import { getVillageAt } from "../map-data";
 import {
   validateDefenseConfig,
   executeSentAction,
-  executeDefAction,
+  executeStackAction,
 } from "../../actions";
 
 // Defense button/modal IDs
@@ -28,7 +28,6 @@ export const REQUEST_DEF_MODAL_ID = "request_def_modal";
 export const COORDS_INPUT_ID = "coords_input";
 export const TROOPS_NEEDED_INPUT_ID = "troops_needed_input";
 export const MESSAGE_INPUT_ID = "message_input";
-export const LANDING_INPUT_ID = "landing_input";
 
 export async function handleSentButton(
   interaction: ButtonInteraction
@@ -247,19 +246,7 @@ export async function handleRequestDefButton(
     .setLabel("Papildoma informacija (nebūtina)")
     .setTextInputComponent(messageInput);
 
-  const landingInput = new TextInputBuilder()
-    .setCustomId(LANDING_INPUT_ID)
-    .setPlaceholder("12:30 arba 12:30:45")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(false)
-    .setMaxLength(40);
-
-  const landingLabel = new LabelBuilder()
-    .setLabel("Atakos kritimo laikas (nebūtina)")
-    .setDescription("UTC laikas. Stackas turi atvykti iki šio momento.")
-    .setTextInputComponent(landingInput);
-
-  modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel, landingLabel);
+  modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel);
 
   await interaction.showModal(modal);
 }
@@ -278,7 +265,6 @@ export async function handleRequestDefModal(
   const coordsInput = interaction.fields.getTextInputValue(COORDS_INPUT_ID);
   const troopsInput = interaction.fields.getTextInputValue(TROOPS_NEEDED_INPUT_ID);
   const message = interaction.fields.getTextInputValue(MESSAGE_INPUT_ID) || "";
-  const landing = interaction.fields.getTextInputValue(LANDING_INPUT_ID) || undefined;
 
   // 3. Parse troops (coords validation is done in action)
   const troopsNeeded = parseInt(troopsInput, 10);
@@ -294,7 +280,7 @@ export async function handleRequestDefModal(
   await interaction.deferReply();
 
   // 5. Execute action
-  const result = await executeDefAction(
+  const result = await executeStackAction(
     {
       guildId: validation.guildId,
       config: validation.config,
@@ -305,7 +291,6 @@ export async function handleRequestDefModal(
       coords: coordsInput,
       troopsNeeded,
       message,
-      landing,
     }
   );
 

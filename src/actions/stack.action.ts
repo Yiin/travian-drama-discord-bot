@@ -1,23 +1,26 @@
 import { addRequest } from "../services/defense-requests";
-import { getVillageAt, ensureMapData, formatVillageDisplay } from "../services/map-data";
+import {
+  getVillageAt,
+  ensureMapData,
+  formatVillageDisplay,
+} from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, DefActionInput, DefActionResult } from "./types";
-import { parseTimeToTimestamp } from "../utils/time";
 
 /**
- * Execute the "def" action - create or update a defense request.
+ * Execute the "stack" action - create a stack defense request.
  *
  * This is the centralized business logic. All interfaces (slash, modal, text)
  * call this function after parsing their inputs.
  */
-export async function executeDefAction(
+export async function executeStackAction(
   context: ActionContext,
-  input: DefActionInput
+  input: DefActionInput,
 ): Promise<DefActionResult> {
   const { guildId, config, client, userId } = context;
-  const { coords: coordsInput, troopsNeeded, message, landing } = input;
+  const { coords: coordsInput, troopsNeeded, message } = input;
 
   // 1. Parse and validate coordinates
   const coordsResult = parseAndValidateCoords(coordsInput);
@@ -25,19 +28,6 @@ export async function executeDefAction(
     return { success: false, error: coordsResult.error };
   }
   const { x, y } = coordsResult;
-
-  // 1b. Parse optional landing time. Reject malformed input rather than silently dropping.
-  let landingAt: number | undefined;
-  if (landing && landing.trim().length > 0) {
-    const parsed = parseTimeToTimestamp(landing);
-    if (parsed === null) {
-      return {
-        success: false,
-        error: `Neatpažintas kritimo laikas: "${landing}". Naudok HH:MM, HH:MM:SS arba Travian formatą "in HH:MM:SS hrs.at HH:MM:SS".`,
-      };
-    }
-    landingAt = parsed;
-  }
 
   // 2. Ensure map data is available
   const dataReady = await ensureMapData(config.serverKey!);
@@ -52,7 +42,14 @@ export async function executeDefAction(
   const village = await getVillageAt(config.serverKey!, x, y);
 
   // 4. Add the request (multiple requests per coordinate allowed)
-  const result = addRequest(guildId, x, y, troopsNeeded, message, userId, landingAt);
+  const result = addRequest(
+    guildId,
+    x,
+    y,
+    troopsNeeded,
+    message,
+    userId,
+  );
   if ("error" in result) {
     return { success: false, error: result.error };
   }
@@ -76,9 +73,10 @@ export async function executeDefAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${x}|${y}) Unknown/new village`;
-  const allianceInfo = village?.allianceName ? ` [${village.allianceName}]` : "";
-  const landingInfo = landingAt ? ` - kritimas <t:${landingAt}:R>` : "";
-  const actionText = `<@${userId}> sukūrė užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių${landingInfo}. (\`/undo ${actionId}\`)`;
+  const allianceInfo = village?.allianceName
+    ? ` [${village.allianceName}]`
+    : "";
+  const actionText = `<@${userId}> sukūrė užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,

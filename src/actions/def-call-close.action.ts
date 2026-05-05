@@ -1,0 +1,70 @@
+import {
+  closeRequest,
+  getRequestById,
+  DefCallRequest,
+} from "../services/def-calls";
+import {
+  deleteDefCallChannel,
+  refreshHubChannel,
+} from "../services/def-calls-message";
+import { recordAction } from "../services/action-history";
+import {
+  ActionContext,
+  DefCallCloseActionInput,
+  DefCallCloseActionResult,
+} from "./types";
+
+export async function executeDefCallCloseAction(
+  context: ActionContext,
+  input: DefCallCloseActionInput,
+  options: { isAdmin: boolean }
+): Promise<DefCallCloseActionResult> {
+  const { guildId, client, userId } = context;
+  const { requestId } = input;
+
+  const request = getRequestById(guildId, requestId);
+  if (!request) {
+    return { success: false, error: `Užklausa #${requestId} nerasta.` };
+  }
+
+  if (request.requesterId !== userId && !options.isAdmin) {
+    return {
+      success: false,
+      error: "Tik prašymą sukūręs žaidėjas arba administratorius gali jį uždaryti.",
+    };
+  }
+
+  const previousState: DefCallRequest = {
+    ...request,
+    contributors: [...request.contributors],
+  };
+
+  const closed = closeRequest(guildId, requestId);
+  if ("error" in closed) {
+    return { success: false, error: closed.error };
+  }
+
+  await deleteDefCallChannel(client, request);
+  await refreshHubChannel(client, guildId);
+
+  const actionId = recordAction(guildId, {
+    type: "DEF_CALL_CLOSED",
+    userId,
+    coords: { x: request.x, y: request.y },
+    requestId,
+    previousDefCallState: previousState,
+    data: {
+      channelId: request.channelId,
+    },
+  });
+
+  const actionText = `Prašymas (${request.x}|${request.y}) uždarytas.`;
+
+  return {
+    success: true,
+    actionId,
+    actionText,
+    requestId,
+    coords: { x: request.x, y: request.y },
+  };
+}

@@ -15,7 +15,12 @@ import {
   clearRecentlyCompleted,
 } from "./defense-requests";
 import { getGuildConfig } from "../config/guild-config";
-import { getVillageAt, getRallyPointLink, getMapLink, formatVillageDisplay } from "./map-data";
+import {
+  getVillageAt,
+  getRallyPointLink,
+  getMapLink,
+  formatVillageDisplay,
+} from "./map-data";
 import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers/index";
 
 export interface LastActionInfo {
@@ -25,7 +30,7 @@ export interface LastActionInfo {
 
 export async function buildGlobalEmbed(
   guildId: string,
-  client: Client
+  _client: Client,
 ): Promise<EmbedBuilder> {
   const data = getGuildDefenseData(guildId);
   const config = getGuildConfig(guildId);
@@ -36,7 +41,7 @@ export async function buildGlobalEmbed(
     .setTimestamp();
 
   if (!config.serverKey) {
-    throw new Error('Server key is not set.')
+    throw new Error("Server key is not set.");
   }
 
   if (data.requests.length === 0) {
@@ -55,7 +60,11 @@ export async function buildGlobalEmbed(
 
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
-      const rallyLink = getRallyPointLink(config.serverKey, village.targetMapId, 1);
+      const rallyLink = getRallyPointLink(
+        config.serverKey,
+        village.targetMapId,
+        1,
+      );
       line += ` ${formatVillageDisplay(config.serverKey, village)} [**[ SIŲSTI ]**](${rallyLink})`;
     } else {
       line += ` [(${request.x}|${request.y})](${getMapLink(config.serverKey, request)})`;
@@ -64,16 +73,9 @@ export async function buildGlobalEmbed(
     // Add troop counts
     const progressPercent = Math.min(
       100,
-      Math.round((request.troopsSent / request.troopsNeeded) * 100)
+      Math.round((request.troopsSent / request.troopsNeeded) * 100),
     );
     line += ` - **${request.troopsSent}/${request.troopsNeeded}** (${progressPercent}%)`;
-
-    // Add landing time if set. Mark overdue with ⚠️.
-    if (request.landingAt) {
-      const overdue = request.landingAt * 1000 < Date.now();
-      const warn = overdue ? "⚠️ " : "";
-      line += ` - ${warn}kritimas <t:${request.landingAt}:R>`;
-    }
 
     // Add message (truncate if too long)
     const truncatedMessage =
@@ -91,7 +93,9 @@ export async function buildGlobalEmbed(
   }
 
   if (data.requests.length > 0) {
-    lines.push('\n*Išsiuntus spausk žemiau esantį mygtuką arba `/stack eilesnr kariai`*')
+    lines.push(
+      "\n*Išsiuntus spausk žemiau esantį mygtuką arba `/stack eilesnr kariai`*",
+    );
   }
 
   embed.setDescription(lines.join("\n"));
@@ -99,9 +103,7 @@ export async function buildGlobalEmbed(
   // Add recently completed to footer
   const completed = data.recentlyCompleted;
   if (completed.length > 0) {
-    const completedText = completed
-      .map((c) => `(${c.x}|${c.y})`)
-      .join(", ");
+    const completedText = completed.map((c) => `(${c.x}|${c.y})`).join(", ");
     embed.setFooter({
       text: `Pabaigtas: ${completedText}`,
     });
@@ -111,7 +113,7 @@ export async function buildGlobalEmbed(
 }
 
 export function buildActionButtons(
-  hasRequests: boolean
+  hasRequests: boolean,
 ): ActionRowBuilder<ButtonBuilder> {
   const defButton = new ButtonBuilder()
     .setCustomId(REQUEST_DEF_BUTTON_ID)
@@ -124,25 +126,32 @@ export function buildActionButtons(
     .setStyle(ButtonStyle.Success)
     .setDisabled(!hasRequests);
 
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(defButton, sentButton);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    defButton,
+    sentButton,
+  );
 }
 
 export async function updateGlobalMessage(
   client: Client,
   guildId: string,
-  lastAction?: LastActionInfo
+  lastAction?: LastActionInfo,
 ): Promise<Message | null> {
   const config = getGuildConfig(guildId);
 
   if (!config.defenseChannelId) {
-    console.error(`[DefenseMessage] No defense channel configured for guild ${guildId}`);
+    console.error(
+      `[DefenseMessage] No defense channel configured for guild ${guildId}`,
+    );
     return null;
   }
 
-  console.log(`[DefenseMessage] Guild ${guildId} using defense channel: ${config.defenseChannelId}`);
+  console.log(
+    `[DefenseMessage] Guild ${guildId} using defense channel: ${config.defenseChannelId}`,
+  );
 
   const channel = (await client.channels.fetch(
-    config.defenseChannelId
+    config.defenseChannelId,
   )) as TextChannel | null;
 
   if (!channel) {
@@ -151,7 +160,8 @@ export async function updateGlobalMessage(
 
   // Send separate confirmation message first (stays in chat history)
   if (lastAction) {
-    const undoPart = lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
+    const undoPart =
+      lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
     await channel.send(`${lastAction.text}${undoPart}`);
   }
 
@@ -182,4 +192,3 @@ export async function updateGlobalMessage(
 
   return newMessage;
 }
-

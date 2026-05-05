@@ -3,10 +3,16 @@ import {
   getAction,
   getActionDescription,
   isPushAction,
+  isDefCallAction,
 } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
-import { updatePushChannelEmbed, deletePushChannel } from "../services/push-message";
+import { updatePushChannelEmbed } from "../services/push-message";
 import { getPushRequestById } from "../services/push-requests";
+import { getRequestById as getDefCallRequestById } from "../services/def-calls";
+import {
+  refreshHubChannel,
+  updateDefCallChannelEmbed,
+} from "../services/def-calls-message";
 import { removeContribution } from "../services/stats";
 import { removePushContribution } from "../services/push-stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
@@ -58,8 +64,27 @@ export async function executeUndoAction(
     );
   }
 
+  // 3c. Reverse stats contribution if this was a DEF_CALL_TROOPS_SENT action
+  if (action.type === "DEF_CALL_TROOPS_SENT" && action.data.troops) {
+    removeContribution(
+      guildId,
+      action.userId,
+      action.coords.x,
+      action.coords.y,
+      action.data.troops
+    );
+  }
+
   // 4. Update the appropriate message/channel based on action type
-  if (isPushAction(action)) {
+  if (isDefCallAction(action)) {
+    if (result.requestId) {
+      const request = getDefCallRequestById(guildId, result.requestId);
+      if (request && request.channelId) {
+        await updateDefCallChannelEmbed(client, guildId, request);
+      }
+    }
+    await refreshHubChannel(client, guildId);
+  } else if (isPushAction(action)) {
     // For push actions, try to update the channel embed if the request still exists
     // Note: For deleted requests that were restored, the channel won't be recreated
     if (result.requestId) {

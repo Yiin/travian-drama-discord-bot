@@ -6,7 +6,6 @@ import {
   restoreRequest,
   removeRequest,
   subtractTroops,
-  getGuildDefenseData,
 } from "./defense-requests";
 import {
   PushRequest,
@@ -15,6 +14,13 @@ import {
   subtractResources,
   restorePushRequest,
 } from "./push-requests";
+import {
+  DefCallRequest,
+  getRequestById as getDefCallRequestById,
+  subtractTroops as subtractDefCallTroops,
+  restoreRequest as restoreDefCallRequest,
+  closeRequest as closeDefCallRequestById,
+} from "./def-calls";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const HISTORY_FILE = path.join(DATA_DIR, "action-history.json");
@@ -33,7 +39,11 @@ export type ActionType =
   | "PUSH_REQUEST_DELETED"
   | "PUSH_REQUEST_EDIT"
   | "PUSH_CONTRIBUTION_EDIT"
-  | "PUSH_CONTRIBUTION_TRANSFER";
+  | "PUSH_CONTRIBUTION_TRANSFER"
+  // Def call action types
+  | "DEF_CALL_REQUEST_ADD"
+  | "DEF_CALL_TROOPS_SENT"
+  | "DEF_CALL_CLOSED";
 
 export interface ActionData {
   troops?: number;
@@ -72,6 +82,7 @@ export interface Action {
   requestId: number; // 1-based position ID at time of action
   previousState?: DefenseRequest;
   previousPushState?: PushRequest; // For push actions
+  previousDefCallState?: DefCallRequest;
   data: ActionData;
   undone: boolean;
 }
@@ -128,6 +139,7 @@ export interface RecordActionInput {
   requestId: number; // 1-based position ID at time of action
   previousState?: DefenseRequest;
   previousPushState?: PushRequest; // For push actions
+  previousDefCallState?: DefCallRequest;
   data: ActionData;
 }
 
@@ -149,6 +161,9 @@ export function recordAction(
       : undefined,
     previousPushState: input.previousPushState
       ? { ...input.previousPushState, contributors: [...input.previousPushState.contributors] }
+      : undefined,
+    previousDefCallState: input.previousDefCallState
+      ? { ...input.previousDefCallState, contributors: [...input.previousDefCallState.contributors] }
       : undefined,
     data: { ...input.data },
     undone: false,
@@ -611,6 +626,79 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       return { success: false, message: resultRestore.error || "Nepavyko atstatyti." };
     }
 
+    // --- Def call action undo cases ---
+
+    case "DEF_CALL_REQUEST_ADD": {
+      const existing = getDefCallRequestById(guildId, action.requestId);
+      if (existing && existing.x === x && existing.y === y) {
+        closeDefCallRequestById(guildId, action.requestId);
+        markUndone(guildId, actionId);
+        return {
+          success: true,
+          message: `Atšaukta: gynybos prašymas ${coordsStr} uždarytas.`,
+        };
+      }
+      markUndone(guildId, actionId);
+      return {
+        success: true,
+        message: `Atšaukta: gynybos prašymas ${coordsStr} jau uždarytas.`,
+      };
+    }
+
+    case "DEF_CALL_TROOPS_SENT": {
+      const { troops, contributorAccount } = action.data;
+      if (!troops || !contributorAccount) {
+        markUndone(guildId, actionId);
+        return {
+          success: false,
+          message: `Veiksmas #${actionId} neturi reikiamų duomenų.`,
+        };
+      }
+
+      const existing = getDefCallRequestById(guildId, action.requestId);
+      if (!existing) {
+        markUndone(guildId, actionId);
+        return {
+          success: true,
+          message: `Atšaukta: prašymas ${coordsStr} jau nebeegzistuoja.`,
+        };
+      }
+
+      if (action.previousDefCallState) {
+        restoreDefCallRequest(guildId, action.requestId, action.previousDefCallState);
+      } else {
+        subtractDefCallTroops(guildId, action.requestId, contributorAccount, troops);
+      }
+      markUndone(guildId, actionId);
+      return {
+        success: true,
+        message: `Atšaukta: ${formatNumber(troops)} karių atimta iš ${coordsStr}.`,
+        requestId: action.requestId,
+      };
+    }
+
+    case "DEF_CALL_CLOSED": {
+      if (!action.previousDefCallState) {
+        markUndone(guildId, actionId);
+        return {
+          success: false,
+          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+        };
+      }
+      const reopened: DefCallRequest = {
+        ...action.previousDefCallState,
+        closed: false,
+        contributors: [...action.previousDefCallState.contributors],
+      };
+      restoreDefCallRequest(guildId, action.requestId, reopened);
+      markUndone(guildId, actionId);
+      return {
+        success: true,
+        message: `Atšaukta: prašymas ${coordsStr} atnaujintas, bet kanalas nebepristatomas — sukurk naują, jei reikia.`,
+        requestId: action.requestId,
+      };
+    }
+
     default:
       return { success: false, message: `Nežinomas veiksmo tipas: ${action.type}` };
   }
@@ -658,6 +746,12 @@ export function getActionDescription(action: Action): string {
       return `Pakeistas ${action.data.accountName} įnašas ${coordsStr} (${formatNumber(action.data.oldAmount || 0)} → ${formatNumber(action.data.newAmount || 0)})`;
     case "PUSH_CONTRIBUTION_TRANSFER":
       return `Perkeltas įnašas ${coordsStr}: ${action.data.fromAccount} → ${action.data.toAccount} (${formatNumber(action.data.transferredAmount || 0)})`;
+    case "DEF_CALL_REQUEST_ADD":
+      return `Sukurtas gynybos prašymas ${coordsStr}`;
+    case "DEF_CALL_TROOPS_SENT":
+      return `Atsiųsta ${formatNumber(action.data.troops || 0)} karių į ${coordsStr}`;
+    case "DEF_CALL_CLOSED":
+      return `Uždarytas gynybos prašymas ${coordsStr}`;
     default:
       return `Veiksmas ${coordsStr}`;
   }
@@ -668,4 +762,11 @@ export function getActionDescription(action: Action): string {
  */
 export function isPushAction(action: Action): boolean {
   return action.type.startsWith("PUSH_");
+}
+
+/**
+ * Checks if an action is a def-call-related action.
+ */
+export function isDefCallAction(action: Action): boolean {
+  return action.type.startsWith("DEF_CALL_");
 }

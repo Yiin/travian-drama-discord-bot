@@ -3,30 +3,30 @@ import {
   ChatInputCommandInteraction,
 } from "discord.js";
 import { Command } from "../types";
-import { validateDefenseConfig, executeSentAction } from "../actions";
+import { validateDefenseConfig, executeStackAction } from "../actions";
 import { withRetry } from "../utils/retry";
 
-export const sentCommand: Command = {
+export const stackCommand: Command = {
   data: new SlashCommandBuilder()
-    .setName("sent")
-    .setDescription("Report troops sent to a defense request")
+    .setName("stack")
+    .setDescription("Sukurti stacko prašymą")
     .addStringOption((option) =>
       option
-        .setName("target")
-        .setDescription("Request ID or coordinates (e.g., 1 or 123|456)")
+        .setName("coords")
+        .setDescription("Coordinates (e.g., 123|456, 123 456, (123|456))")
         .setRequired(true)
     )
     .addIntegerOption((option) =>
       option
         .setName("troops")
-        .setDescription("Number of troops sent")
+        .setDescription("Number of troops needed")
         .setRequired(true)
         .setMinValue(1)
     )
-    .addUserOption((option) =>
+    .addStringOption((option) =>
       option
-        .setName("user")
-        .setDescription("User to credit for sending troops (defaults to you)")
+        .setName("message")
+        .setDescription("Additional information about the defense request")
         .setRequired(false)
     ),
 
@@ -39,15 +39,15 @@ export const sentCommand: Command = {
     }
 
     // 2. Parse inputs
-    const targetInput = interaction.options.getString("target", true);
-    const troops = interaction.options.getInteger("troops", true);
-    const targetUser = interaction.options.getUser("user") || interaction.user;
+    const coordsInput = interaction.options.getString("coords", true);
+    const troopsNeeded = interaction.options.getInteger("troops", true);
+    const message = interaction.options.getString("message") || "";
 
     // 3. Defer reply
     await withRetry(() => interaction.deferReply());
 
     // 4. Execute action
-    const result = await executeSentAction(
+    const result = await executeStackAction(
       {
         guildId: validation.guildId,
         config: validation.config,
@@ -55,9 +55,9 @@ export const sentCommand: Command = {
         userId: interaction.user.id,
       },
       {
-        target: targetInput,
-        troops,
-        creditUserId: targetUser.id,
+        coords: coordsInput,
+        troopsNeeded,
+        message,
       }
     );
 
@@ -67,7 +67,6 @@ export const sentCommand: Command = {
       return;
     }
 
-    // Success: delete reply (info is in global message)
-    await interaction.deleteReply();
+    await interaction.editReply({ content: result.actionText });
   },
 };

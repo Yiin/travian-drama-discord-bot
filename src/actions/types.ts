@@ -60,7 +60,6 @@ export interface DefActionInput {
   coords: string; // Coordinates string (will be parsed)
   troopsNeeded: number;
   message: string;
-  landing?: string; // Raw landing-time input ("HH:MM[:SS]" UTC, or Travian "in ...hrs.at..." paste)
 }
 
 export interface DefActionSuccess extends ActionSuccess {
@@ -239,6 +238,50 @@ export interface PushEditContributionActionSuccess extends ActionSuccess {
 }
 
 export type PushEditContributionActionResult = PushEditContributionActionSuccess | ActionError;
+
+// --- Def Call Action Types ---
+
+export interface DefCallRequestActionInput {
+  coords: string;
+  landing: string;
+  comment?: string;
+}
+
+export interface DefCallRequestActionSuccess extends ActionSuccess {
+  requestId: number;
+  villageName: string;
+  playerName: string;
+  coords: { x: number; y: number };
+  channelId: string;
+  landingAt: number;
+}
+
+export type DefCallRequestActionResult = DefCallRequestActionSuccess | ActionError;
+
+export interface DefCallSentActionInput {
+  requestId: number;
+  troops: number;
+}
+
+export interface DefCallSentActionSuccess extends ActionSuccess {
+  requestId: number;
+  troopsSent: number;
+  totalTroops: number;
+  coords: { x: number; y: number };
+}
+
+export type DefCallSentActionResult = DefCallSentActionSuccess | ActionError;
+
+export interface DefCallCloseActionInput {
+  requestId: number;
+}
+
+export interface DefCallCloseActionSuccess extends ActionSuccess {
+  requestId: number;
+  coords: { x: number; y: number };
+}
+
+export type DefCallCloseActionResult = DefCallCloseActionSuccess | ActionError;
 
 // --- Push Transfer Action Types ---
 

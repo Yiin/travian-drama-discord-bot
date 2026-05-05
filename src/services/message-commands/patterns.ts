@@ -1,8 +1,8 @@
-// Pattern: /sent or /stack (or !sent, !stack) followed by target and troops, optional user mention
-// Simple format: /sent 1 200 or !sent 123|456 200 or !sent 123 -456 200 or !stack 1 200 @user
-export const SENT_PATTERN = /^[\/!](?:sent|stack)\s+(.+?)\s+(\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
+// Pattern: /sent or !sent followed by target and troops, optional user mention
+// Simple format: /sent 1 200 or !sent 123|456 200 or !sent 123 -456 200 or !sent 1 200 @user
+export const SENT_PATTERN = /^[\/!]sent\s+(.+?)\s+(\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
 // Verbose format: /sent id: 1 troops: 200 or !sent target: 123|456 troops: 200 user: @user
-export const SENT_VERBOSE_PATTERN = /^[\/!](?:sent|stack)\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)(?:\s+user:\s*<@!?(\d+)>)?\s*$/i;
+export const SENT_VERBOSE_PATTERN = /^[\/!]sent\s+(?:id|target):\s*(\S+)\s+troops:\s*(\d+)(?:\s+user:\s*<@!?(\d+)>)?\s*$/i;
 
 // Pattern: /scout or !scout followed by coords and message
 // Coords can be space-separated: !scout 51 -32 message here
@@ -10,9 +10,16 @@ export const SCOUT_PATTERN = /^[\/!]scout\s+(\S+(?:\s+-?\d+)?)\s+(.+)$/i;
 // Verbose format: /scout coords: 123|456 message: some text
 export const SCOUT_VERBOSE_PATTERN = /^[\/!]scout\s+coords:\s*(\S+)\s+message:\s*(.+)$/i;
 
-// Pattern: /def or !def followed by coords, troops, and optional message
-// Coords can be space-separated: !def 51 -32 5000 or !def 51|-32 5000 message
-export const DEF_PATTERN = /^[\/!]def\s+(.+?)\s+(\d+)(?:\s+(.+))?\s*$/i;
+// Pattern: /stack or !stack followed by coords, troops, and optional message
+// Coords can be space-separated: !stack 51 -32 5000 or !stack 51|-32 5000 message
+export const STACK_PATTERN = /^[\/!]stack\s+(.+?)\s+(\d+)(?:\s+(.+))?\s*$/i;
+
+// Pattern: /def or !def followed by coords (space-tolerant), landing time, optional comment
+// Examples: !def 123|456 12:30:45  /  /def 51 -32 12:30 my comment
+export const DEF_PATTERN = /^[\/!]def\s+(\S+(?:\s+-?\d+)?)\s+(\S+)(?:\s+(.+))?\s*$/i;
+
+// Pattern: /close or !close (no args)
+export const CLOSE_PATTERN = /^[\/!]close\s*$/i;
 
 // Pattern: /deletedef or !deletedef followed by ID
 export const DELETEDEF_PATTERN = /^[\/!]deletedef\s+(\d+)\s*$/i;
@@ -39,7 +46,9 @@ export const DRAMA_PATTERN = /^[\/!]drama(?:\s+(en|lt))?\s*$/i;
 // !configure channel scout #channel
 // !configure scoutrole @role (or role ID, or "clear")
 export const CONFIGURE_SERVER_PATTERN = /^[\/!]configure\s+server\s+(\S+)\s*$/i;
-export const CONFIGURE_CHANNEL_PATTERN = /^[\/!]configure\s+channel\s+(defense|scout)\s+(?:<#)?(\d+)>?\s*$/i;
+export const CONFIGURE_CHANNEL_PATTERN = /^[\/!]configure\s+channel\s+(defense|scout|defcalls)\s+(?:<#)?(\d+)>?\s*$/i;
+export const CONFIGURE_DEFCALLSCATEGORY_PATTERN = /^[\/!]configure\s+def-calls-category\s+(?:<#)?(\d+)>?\s*$/i;
+export const CONFIGURE_PUSHCATEGORY_PATTERN = /^[\/!]configure\s+push-category\s+(?:<#)?(\d+)>?\s*$/i;
 export const CONFIGURE_SCOUTROLE_PATTERN = /^[\/!]configure\s+scoutrole(?:\s+(?:(?:<@&)?(\d+)>?|(clear)))?\s*$/i;
 
 // Pattern: /stats or !stats with subcommands

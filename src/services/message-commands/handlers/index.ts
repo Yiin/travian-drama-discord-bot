@@ -1,7 +1,7 @@
 // Defense handlers
 export {
   handleSentCommand,
-  handleDefCommand,
+  handleStackCommand,
   handleDeleteDefCommand,
   handleUpdateDefCommand,
   handleUndoCommand,
@@ -22,6 +22,8 @@ export {
   handleConfigureServerCommand,
   handleConfigureChannelCommand,
   handleConfigureScoutRoleCommand,
+  handleConfigureDefCallsCategoryCommand,
+  handleConfigurePushCategoryCommand,
 } from "./configure";
 
 // Stats handlers
@@ -45,3 +47,6 @@ export {
   handleSitterDelCommand,
   handlePlayersCommand,
 } from "./accounts";
+
+// Def call handlers
+export { handleDefCommand, handleCloseCommand } from "./def-call";
