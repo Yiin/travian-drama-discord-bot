@@ -58,6 +58,12 @@ export async function processSingleCommand(
     return;
   }
 
+  match = content.match(patterns.CONFIGURE_TIMEZONE_PATTERN);
+  if (match) {
+    await handlers.handleConfigureTimezoneCommand(ctx, match[1]);
+    return;
+  }
+
   // Def commands - work in any channel
   match = content.match(patterns.DEF_PATTERN);
   if (match) {

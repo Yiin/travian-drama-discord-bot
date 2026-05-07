@@ -50,6 +50,7 @@ export const CONFIGURE_CHANNEL_PATTERN = /^[\/!]configure\s+channel\s+(defense|s
 export const CONFIGURE_DEFCALLSCATEGORY_PATTERN = /^[\/!]configure\s+def-calls-category\s+(?:<#)?(\d+)>?\s*$/i;
 export const CONFIGURE_PUSHCATEGORY_PATTERN = /^[\/!]configure\s+push-category\s+(?:<#)?(\d+)>?\s*$/i;
 export const CONFIGURE_SCOUTROLE_PATTERN = /^[\/!]configure\s+scoutrole(?:\s+(?:(?:<@&)?(\d+)>?|(clear)))?\s*$/i;
+export const CONFIGURE_TIMEZONE_PATTERN = /^[\/!]configure\s+timezone\s+(.+?)\s*$/i;
 
 // Pattern: /stats or !stats with subcommands
 // !stats leaderboard

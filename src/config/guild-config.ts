@@ -12,6 +12,7 @@ export interface GuildConfig {
   defCallsChannelId?: string;
   defCallsCategoryId?: string;
   serverKey?: string;
+  serverTimezone?: string;
   accountReminderChannelId?: string;
   accountReminderMessageId?: string;
 }
@@ -95,6 +96,20 @@ export function setScoutRole(guildId: string, roleId: string | null): void {
     configs[guildId] = rest;
   } else {
     configs[guildId] = { ...configs[guildId], scoutRoleId: roleId };
+  }
+  saveConfigs(configs);
+}
+
+export function setServerTimezone(
+  guildId: string,
+  timezone: string | null
+): void {
+  const configs = loadConfigs();
+  if (timezone === null) {
+    const { serverTimezone, ...rest } = configs[guildId] || {};
+    configs[guildId] = rest;
+  } else {
+    configs[guildId] = { ...configs[guildId], serverTimezone: timezone };
   }
   saveConfigs(configs);
 }

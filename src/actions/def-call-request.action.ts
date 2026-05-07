@@ -53,7 +53,7 @@ export async function executeDefCallRequestAction(
   }
   const { x, y } = coordsResult;
 
-  const landingAt = parseTimeToTimestamp(landing);
+  const landingAt = parseTimeToTimestamp(landing, config.serverTimezone);
   if (landingAt === null) {
     return {
       success: false,

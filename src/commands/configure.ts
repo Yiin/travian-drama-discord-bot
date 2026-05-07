@@ -5,9 +5,10 @@ import {
   ChannelType,
 } from "discord.js";
 import { Command } from "../types";
-import { setServerKey, setDefenseChannel, setScoutChannel, setPushCategory, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, getGuildConfig } from "../config/guild-config";
+import { setServerKey, setDefenseChannel, setScoutChannel, setPushCategory, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, setServerTimezone, getGuildConfig } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
+import { isValidTimezone } from "../utils/time";
 
 function normalizeServerKey(input: string): string {
   let key = input.trim().toLowerCase();
@@ -94,6 +95,17 @@ export const configureCommand: Command = {
     )
     .addSubcommand((subcommand) =>
       subcommand
+        .setName("timezone")
+        .setDescription("Set the Travian server's local timezone (IANA name)")
+        .addStringOption((option) =>
+          option
+            .setName("value")
+            .setDescription("IANA timezone, e.g. Europe/Vilnius. Use 'clear' to unset.")
+            .setRequired(true)
+        )
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
         .setName("scoutrole")
         .setDescription("Set or clear the role to mention for scout requests")
         .addRoleOption((option) =>
@@ -128,9 +140,42 @@ export const configureCommand: Command = {
       await handleDefCallsCategoryConfig(interaction, guildId);
     } else if (subcommand === "scoutrole") {
       await handleScoutRoleConfig(interaction, guildId);
+    } else if (subcommand === "timezone") {
+      await handleTimezoneConfig(interaction, guildId);
     }
   },
 };
+
+async function handleTimezoneConfig(
+  interaction: ChatInputCommandInteraction,
+  guildId: string
+): Promise<void> {
+  const value = interaction.options.getString("value", true);
+  const trimmed = value.trim();
+
+  if (trimmed.toLowerCase() === "clear") {
+    setServerTimezone(guildId, null);
+    await interaction.reply({
+      content: "Serverio laiko juosta išvalyta. Įvedami laikai bus traktuojami kaip UTC.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!isValidTimezone(trimmed)) {
+    await interaction.reply({
+      content: `Neatpažinta laiko juosta: \`${value}\`. Naudok IANA pavadinimą, pvz. \`Europe/Vilnius\`.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  setServerTimezone(guildId, trimmed);
+  await interaction.reply({
+    content: `Serverio laiko juosta nustatyta: \`${trimmed}\`. Įvedami laikai bus traktuojami šios juostos vietine reikšme.`,
+    ephemeral: true,
+  });
+}
 
 async function handleServerConfig(
   interaction: ChatInputCommandInteraction,

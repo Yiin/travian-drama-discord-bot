@@ -1,8 +1,9 @@
 import { CommandContext } from "../types";
 import { requireAdminMiddleware } from "../middleware";
 import { normalizeServerKey, isValidServerKey } from "../utils";
-import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, setPushCategory } from "../../../config/guild-config";
+import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, setPushCategory, setServerTimezone } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
+import { isValidTimezone } from "../../../utils/time";
 
 async function handleConfigureServerCommandInner(
   ctx: CommandContext,
@@ -96,9 +97,33 @@ async function handleConfigureScoutRoleCommandInner(
   await ctx.message.react("✅");
 }
 
+async function handleConfigureTimezoneCommandInner(
+  ctx: CommandContext,
+  value: string
+): Promise<void> {
+  const trimmed = value.trim();
+
+  if (trimmed.toLowerCase() === "clear") {
+    setServerTimezone(ctx.guildId, null);
+    await ctx.message.reply("Serverio laiko juosta išvalyta. Įvedami laikai bus traktuojami kaip UTC.");
+    await ctx.message.react("✅");
+    return;
+  }
+
+  if (!isValidTimezone(trimmed)) {
+    await ctx.message.reply(`Neatpažinta laiko juosta: \`${value}\`. Naudok IANA pavadinimą, pvz. \`Europe/Vilnius\`.`);
+    return;
+  }
+
+  setServerTimezone(ctx.guildId, trimmed);
+  await ctx.message.reply(`Serverio laiko juosta nustatyta: \`${trimmed}\`. Įvedami laikai bus traktuojami šios juostos vietine reikšme.`);
+  await ctx.message.react("✅");
+}
+
 // Wrap with admin checks
 export const handleConfigureServerCommand = requireAdminMiddleware(handleConfigureServerCommandInner);
 export const handleConfigureChannelCommand = requireAdminMiddleware(handleConfigureChannelCommandInner);
 export const handleConfigureScoutRoleCommand = requireAdminMiddleware(handleConfigureScoutRoleCommandInner);
 export const handleConfigureDefCallsCategoryCommand = requireAdminMiddleware(handleConfigureDefCallsCategoryCommandInner);
 export const handleConfigurePushCategoryCommand = requireAdminMiddleware(handleConfigurePushCategoryCommandInner);
+export const handleConfigureTimezoneCommand = requireAdminMiddleware(handleConfigureTimezoneCommandInner);

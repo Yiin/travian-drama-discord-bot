@@ -23,7 +23,6 @@ export const SCOUT_TIME_INPUT_ID = "scout_time_input";
 export const SCOUT_DONE_BUTTON_ID = "scout_done_button";
 
 // Accent colors for scout status
-const ACCENT_PENDING = 0xf39c12;     // Orange
 const ACCENT_IN_PROGRESS = 0x3498db; // Blue
 const ACCENT_DONE = 0x2ecc71;        // Green
 
@@ -109,11 +108,14 @@ export async function handleScoutGoingModal(
   }
 
   const containerComponents = containerData.components;
-  const timeDisplay = formatTimeDisplay(timeInput);
+  const guildConfig = interaction.guildId
+    ? getGuildConfig(interaction.guildId)
+    : {};
+  const timeDisplay = formatTimeDisplay(timeInput, guildConfig.serverTimezone);
   const userEntry = `<@${interaction.user.id}> ${timeDisplay}`;
 
   // Parse timestamp for notification scheduling
-  const arrivalTimestamp = parseTimeToTimestamp(timeInput);
+  const arrivalTimestamp = parseTimeToTimestamp(timeInput, guildConfig.serverTimezone);
 
   // Parse the existing content to find the structure
   let mainText = "";

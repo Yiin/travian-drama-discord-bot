@@ -24,6 +24,7 @@ export {
   handleConfigureScoutRoleCommand,
   handleConfigureDefCallsCategoryCommand,
   handleConfigurePushCategoryCommand,
+  handleConfigureTimezoneCommand,
 } from "./configure";
 
 // Stats handlers
