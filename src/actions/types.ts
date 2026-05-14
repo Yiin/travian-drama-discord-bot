@@ -261,6 +261,7 @@ export type DefCallRequestActionResult = DefCallRequestActionSuccess | ActionErr
 export interface DefCallSentActionInput {
   requestId: number;
   troops: number;
+  creditUserId?: string;
 }
 
 export interface DefCallSentActionSuccess extends ActionSuccess {

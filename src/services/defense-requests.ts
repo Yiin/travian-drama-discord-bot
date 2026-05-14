@@ -294,7 +294,7 @@ export function restoreRequest(
 
   // Check max requests limit
   if (data.requests.length >= MAX_REQUESTS) {
-    return { success: false, error: "Pasiektas maksimalus užklausų limitas (20)." };
+    return { success: false, error: "Maximum request limit reached (20)." };
   }
 
   // Add at end
@@ -330,7 +330,7 @@ export function subtractTroops(
   const index = requestId - 1; // Convert 1-based to 0-based
 
   if (index < 0 || index >= data.requests.length) {
-    return { success: false, error: "Užklausa nerasta." };
+    return { success: false, error: "Request not found." };
   }
 
   const request = data.requests[index];
@@ -373,7 +373,7 @@ export function moveRequest(
   const toIndex = toPosition - 1;
 
   if (fromIndex < 0 || fromIndex >= data.requests.length) {
-    return { success: false, error: `Užklausa #${fromPosition} nerasta.` };
+    return { success: false, error: `Request #${fromPosition} not found.` };
   }
 
   if (toIndex < 0 || toIndex >= data.requests.length) {

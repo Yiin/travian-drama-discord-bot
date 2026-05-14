@@ -24,13 +24,13 @@ export async function executeDefCallCloseAction(
 
   const request = getRequestById(guildId, requestId);
   if (!request) {
-    return { success: false, error: `Užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Request #${requestId} not found.` };
   }
 
   if (request.requesterId !== userId && !options.isAdmin) {
     return {
       success: false,
-      error: "Tik prašymą sukūręs žaidėjas arba administratorius gali jį uždaryti.",
+      error: "Only the player who created the request or an administrator can close it.",
     };
   }
 
@@ -58,7 +58,7 @@ export async function executeDefCallCloseAction(
     },
   });
 
-  const actionText = `Prašymas (${request.x}|${request.y}) uždarytas.`;
+  const actionText = `Request (${request.x}|${request.y}) closed.`;
 
   return {
     success: true,

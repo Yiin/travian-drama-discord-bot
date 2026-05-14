@@ -38,15 +38,15 @@ export function buildVillageEmbed(
   tribeName: string
 ): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle(`Kaimas (${coords.x}|${coords.y})`)
+    .setTitle(`Village (${coords.x}|${coords.y})`)
     .setColor(Colors.Green)
     .addFields(
-      { name: "Kaimas", value: village.villageName || "Nežinomas", inline: true },
-      { name: "Populiacija", value: village.population.toString(), inline: true },
-      { name: "Tauta", value: tribeName, inline: true },
-      { name: "Žaidėjas", value: village.playerName || "Nežinomas", inline: true },
-      { name: "Aljansas", value: village.allianceName || "Nėra", inline: true },
-      { name: "Siųsti karius", value: `[Susirinkimo taškas](${rallyLink})`, inline: false }
+      { name: "Village", value: village.villageName || "Unknown", inline: true },
+      { name: "Population", value: village.population.toString(), inline: true },
+      { name: "Tribe", value: tribeName, inline: true },
+      { name: "Player", value: village.playerName || "Unknown", inline: true },
+      { name: "Alliance", value: village.allianceName || "None", inline: true },
+      { name: "Send troops", value: `[Rally point](${rallyLink})`, inline: false }
     )
     .setTimestamp();
 }
@@ -69,7 +69,7 @@ export function buildPlayerEmbed(
     );
   }
   if (villages.length > 10) {
-    villageLines.push(`... ir dar ${villages.length - 10} kaimų`);
+    villageLines.push(`... and ${villages.length - 10} more villages`);
   }
 
   // Get population trend
@@ -78,18 +78,18 @@ export function buildPlayerEmbed(
 
   // Build embed
   const embed = new EmbedBuilder()
-    .setTitle(`Žaidėjas: ${player.playerName}`)
+    .setTitle(`Player: ${player.playerName}`)
     .setColor(Colors.Blue)
     .addFields(
       {
-        name: "Bendra populiacija",
+        name: "Total population",
         value: player.totalPopulation.toLocaleString(),
         inline: true,
       },
-      { name: "Kaimų skaičius", value: villages.length.toString(), inline: true },
-      { name: "Tauta", value: tribeName, inline: true },
-      { name: "Aljansas", value: player.allianceName || "Nėra", inline: true },
-      { name: "Miestai", value: villageLines.join("\n"), inline: false }
+      { name: "Village count", value: villages.length.toString(), inline: true },
+      { name: "Tribe", value: tribeName, inline: true },
+      { name: "Alliance", value: player.allianceName || "None", inline: true },
+      { name: "Villages", value: villageLines.join("\n"), inline: false }
     );
 
   // Add trend field if we have history
@@ -106,7 +106,7 @@ export function buildPlayerEmbed(
         : "";
 
     embed.addFields({
-      name: `${trendEmoji} Populiacijos istorija${changeText}`,
+      name: `${trendEmoji} Population history${changeText}`,
       value: trendDisplay.lines.join("\n"),
       inline: false,
     });
@@ -125,11 +125,11 @@ const PLAYER_SELECT_ID = "lookup_player_select";
 export const lookupCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("lookup")
-    .setDescription("Rasti informaciją pagal koordinates, žaidėjo vardą arba profilio URL")
+    .setDescription("Find information by coordinates, player name, or profile URL")
     .addStringOption((option) =>
       option
         .setName("query")
-        .setDescription("Koordinatės (pvz., 123|456), žaidėjo vardas arba profilio URL")
+        .setDescription("Coordinates (for example, 123|456), player name, or profile URL")
         .setRequired(true)
     ),
 
@@ -139,7 +139,7 @@ export const lookupCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;
@@ -158,7 +158,7 @@ export const lookupCommand: Command = {
     // For other lookups, require guild server config
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/configure`.",
+        content: "Travian server is not configured. An admin must use `/configure`.",
         ephemeral: true,
       });
       return;
@@ -185,7 +185,7 @@ async function handleCoordinateLookup(
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
     await interaction.editReply({
-      content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      content: "Failed to load map data. Try again later.",
     });
     return;
   }
@@ -194,7 +194,7 @@ async function handleCoordinateLookup(
 
   if (!village) {
     await interaction.editReply({
-      content: `Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas.`,
+      content: `Village at coordinates (${coords.x}|${coords.y}) was not found.`,
     });
     return;
   }
@@ -216,7 +216,7 @@ async function handlePlayerLookup(
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
     await interaction.editReply({
-      content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      content: "Failed to load map data. Try again later.",
     });
     return;
   }
@@ -226,7 +226,7 @@ async function handlePlayerLookup(
 
   if (matchingPlayers.length === 0) {
     await interaction.editReply({
-      content: `Žaidėjas "${playerName}" nerastas.`,
+      content: `Player "${playerName}" was not found.`,
     });
     return;
   }
@@ -249,13 +249,13 @@ async function handlePlayerLookup(
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(PLAYER_SELECT_ID)
-    .setPlaceholder("Pasirink žaidėją...")
+    .setPlaceholder("Select a player...")
     .addOptions(options);
 
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
   const response = await interaction.editReply({
-    content: `Rasta ${matchingPlayers.length} žaidėjų su vardu "${playerName}". Pasirink:`,
+    content: `Found ${matchingPlayers.length} players named "${playerName}". Choose one:`,
     components: [row],
   });
 
@@ -278,7 +278,7 @@ async function handlePlayerLookup(
   } catch {
     // Timeout - remove the select menu
     await interaction.editReply({
-      content: "Laikas baigėsi. Paleisk komandą iš naujo.",
+      content: "Timed out. Run the command again.",
       components: [],
     });
   }
@@ -294,7 +294,7 @@ async function showPlayerDetails(
 
   if (villages.length === 0) {
     await interaction.editReply({
-      content: "Žaidėjo kaimų nerasta.",
+      content: "No villages found for this player.",
       components: [],
     });
     return;
@@ -319,7 +319,7 @@ async function handlePlayerIdLookup(
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
     await interaction.editReply({
-      content: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      content: "Failed to load map data. Try again later.",
     });
     return;
   }
@@ -327,7 +327,7 @@ async function handlePlayerIdLookup(
   const player = await getPlayerById(serverKey, playerId);
   if (!player) {
     await interaction.editReply({
-      content: `Žaidėjas su ID ${playerId} nerastas.`,
+      content: `Player with ID ${playerId} was not found.`,
     });
     return;
   }
@@ -335,7 +335,7 @@ async function handlePlayerIdLookup(
   const villages = await getVillagesByPlayerId(serverKey, playerId);
   if (villages.length === 0) {
     await interaction.editReply({
-      content: "Žaidėjo kaimų nerasta.",
+      content: "No villages found for this player.",
     });
     return;
   }

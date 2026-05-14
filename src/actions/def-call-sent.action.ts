@@ -32,17 +32,24 @@ export async function executeDefCallSentAction(
   input: DefCallSentActionInput
 ): Promise<DefCallSentActionResult> {
   const { guildId, client, userId } = context;
-  const { requestId, troops } = input;
+  const { requestId, troops, creditUserId } = input;
 
-  const accountResult = validateUserHasAccount(guildId, userId);
+  const creditedUserId = creditUserId || userId;
+  const accountResult = validateUserHasAccount(guildId, creditedUserId);
   if (!accountResult.valid) {
+    if (creditUserId && creditUserId !== userId) {
+      return {
+        success: false,
+        error: `<@${creditUserId}> does not have a linked in-game account.`,
+      };
+    }
     return { success: false, error: accountResult.error };
   }
   const { accountName } = accountResult;
 
   const requestBefore = getRequestById(guildId, requestId);
   if (!requestBefore) {
-    return { success: false, error: `Užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Request #${requestId} not found.` };
   }
   const previousState: DefCallRequest = {
     ...requestBefore,
@@ -56,7 +63,7 @@ export async function executeDefCallSentAction(
 
   recordContribution(
     guildId,
-    userId,
+    creditedUserId,
     result.request.x,
     result.request.y,
     troops
@@ -77,12 +84,12 @@ export async function executeDefCallSentAction(
   await postDefCallContributionMessage(
     client,
     result.request,
-    `**${accountName}** atsiuntė **${formatNumber(troops)}** karių`
+    `**${accountName}** sent **${formatNumber(troops)}** troops`
   );
   await updateDefCallChannelEmbed(client, guildId, result.request);
   await refreshHubChannel(client, guildId);
 
-  const actionText = `**${accountName}** atsiuntė **${formatNumber(troops)}** karių į (${result.request.x}|${result.request.y})`;
+  const actionText = `**${accountName}** sent **${formatNumber(troops)}** troops to (${result.request.x}|${result.request.y})`;
 
   return {
     success: true,

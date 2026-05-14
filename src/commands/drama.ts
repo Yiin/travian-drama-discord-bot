@@ -19,61 +19,61 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/def",
     description: {
-      lt: "Sukurti arba atnaujinti gynybos prašymą",
+      lt: "Create or update a defense request",
       en: "Create or update a defense request",
     },
-    usage: "/def coords:<koordinatės> troops:<skaičius> [message:<žinutė>]",
-    example: "/def coords:123|456 troops:5000 message:Ateina hammeris",
+    usage: "/def coords:<coordinates> troops:<number> [message:<message>]",
+    example: "/def coords:123|456 troops:5000 message:Incoming hammer",
   },
   {
     name: "/sent",
     description: {
-      lt: "Pranešti apie išsiųstus karius į gynybos prašymą",
+      lt: "Report troops sent to a defense request",
       en: "Report troops sent to a defense request",
     },
-    usage: "/sent target:<ID arba koordinatės> troops:<skaičius> [user:<vartotojas>]",
+    usage: "/sent target:<ID or coordinates> troops:<number> [user:<user>]",
     example: "/sent target:1 troops:2000",
   },
   {
     name: "/stack",
     description: {
-      lt: "Tas pats kaip /sent - pranešti apie išsiųstus karius",
+      lt: "Same as /sent - report troops sent to a defense request",
       en: "Same as /sent - report troops sent to a defense request",
     },
-    usage: "/stack target:<ID arba koordinatės> troops:<skaičius> [user:<vartotojas>]",
+    usage: "/stack target:<ID or coordinates> troops:<number> [user:<user>]",
     example: "/stack target:123|456 troops:1500",
   },
   {
     name: "/deletedef",
     description: {
-      lt: "Ištrinti gynybos prašymą",
+      lt: "Delete a defense request",
       en: "Delete a defense request",
     },
-    usage: "/deletedef id:<numeris>",
+    usage: "/deletedef id:<number>",
     example: "/deletedef id:3",
   },
   {
     name: "/updatedef",
     description: {
-      lt: "Atnaujinti gynybos prašymą",
+      lt: "Update a defense request",
       en: "Update a defense request",
     },
-    usage: "/updatedef id:<numeris> [troops_sent:<skaičius>] [troops_needed:<skaičius>] [message:<žinutė>]",
+    usage: "/updatedef id:<number> [troops_sent:<number>] [troops_needed:<number>] [message:<message>]",
     example: "/updatedef id:1 troops_sent:3000 troops_needed:6000",
   },
   {
     name: "/undo",
     description: {
-      lt: "Atšaukti ankstesnį veiksmą",
+      lt: "Undo a previous action",
       en: "Undo a previous action",
     },
-    usage: "/undo id:<veiksmo ID>",
+    usage: "/undo id:<action ID>",
     example: "/undo id:5",
   },
   {
     name: "/stackinfo",
     description: {
-      lt: "Iš naujo paskelbti gynybos užklausų sąrašą",
+      lt: "Re-post the defense request list",
       en: "Re-post the defense request list",
     },
     usage: "/stackinfo",
@@ -84,21 +84,21 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/scout",
     description: {
-      lt: "Išsiųsti žvalgybos prašymą",
+      lt: "Send a scouting request",
       en: "Send a scouting request",
     },
-    usage: "/scout coords:<koordinatės> message:<žinutė>",
-    example: "/scout coords:-50|120 message:WWK ar fake?",
+    usage: "/scout coords:<coordinates> message:<message>",
+    example: "/scout coords:-50|120 message:WWK or fake?",
   },
 
   // Lookup command
   {
     name: "/lookup",
     description: {
-      lt: "Ieškoti kaimo arba žaidėjo informacijos",
+      lt: "Look up village or player information",
       en: "Look up village or player information",
     },
-    usage: "/lookup query:<koordinatės arba vardas>",
+    usage: "/lookup query:<coordinates or name>",
     example: "/lookup query:PlayerName",
   },
 
@@ -106,10 +106,10 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/addstat",
     description: {
-      lt: "Pridėti karių siuntimą į statistiką (be gynybos prašymo)",
+      lt: "Add troops sent to stats (without a defense request)",
       en: "Add troops sent to stats (without defense request)",
     },
-    usage: "/addstat coords:<koordinatės> troops:<skaičius>",
+    usage: "/addstat coords:<coordinates> troops:<number>",
     example: "!addstat 123|456 5000",
   },
 
@@ -117,16 +117,16 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/account set",
     description: {
-      lt: "Priskirti save prie žaidimo paskyros",
+      lt: "Associate yourself with an in-game account",
       en: "Associate yourself with an in-game account",
     },
-    usage: "/account set <vardas>",
+    usage: "/account set <name>",
     example: "!account set MyPlayerName",
   },
   {
     name: "/account del",
     description: {
-      lt: "Pašalinti savo žaidimo paskyros priskyrimą",
+      lt: "Remove your in-game account association",
       en: "Remove your in-game account association",
     },
     usage: "/account del",
@@ -135,25 +135,25 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/sitter set",
     description: {
-      lt: "Pažymėti save kaip siterį vienam ar keliems žaidėjams",
+      lt: "Mark yourself as a sitter for one or more players",
       en: "Mark yourself as a sitter for one or more players",
     },
-    usage: "/sitter set <vardai, atskirti kableliais>",
+    usage: "/sitter set <names, separated by commas>",
     example: "!sitter set Player1, Player2",
   },
   {
     name: "/sitter del",
     description: {
-      lt: "Pašalinti save kaip siterį vienam ar keliems žaidėjams",
+      lt: "Remove yourself as a sitter for one or more players",
       en: "Remove yourself as a sitter for one or more players",
     },
-    usage: "/sitter del <vardai, atskirti kableliais>",
+    usage: "/sitter del <names, separated by commas>",
     example: "!sitter del Player1",
   },
   {
     name: "/players",
     description: {
-      lt: "Rodyti visus žaidėjus su jų Discord vartotojais ir siteriais",
+      lt: "List all players with their Discord users and sitters",
       en: "List all players with their Discord users and sitters",
     },
     usage: "/players",
@@ -164,7 +164,7 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/stats leaderboard",
     description: {
-      lt: "Rodyti vartotojų reitingą pagal išsiųstus karius",
+      lt: "Show users ranked by total troops sent",
       en: "Show users ranked by total troops sent",
     },
     usage: "/stats leaderboard",
@@ -174,37 +174,37 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/stats user",
     description: {
-      lt: "Rodyti konkretaus vartotojo statistiką",
+      lt: "Show stats for a specific user",
       en: "Show stats for a specific user",
     },
-    usage: "/stats user @vartotojas",
+    usage: "/stats user @user",
     example: "!stats user @Jonas",
     adminOnly: true,
   },
   {
     name: "/stats player",
     description: {
-      lt: "Rodyti Travian žaidėjo kaimų statistiką",
+      lt: "Show stats for villages owned by a Travian player",
       en: "Show stats for villages owned by a Travian player",
     },
-    usage: "/stats player <vardas>",
+    usage: "/stats player <name>",
     example: "!stats player PlayerName",
     adminOnly: true,
   },
   {
     name: "/stats village",
     description: {
-      lt: "Rodyti konkretaus kaimo statistiką",
+      lt: "Show stats for a specific village",
       en: "Show stats for a specific village",
     },
-    usage: "/stats village <koordinatės>",
+    usage: "/stats village <coordinates>",
     example: "!stats village 123|456",
     adminOnly: true,
   },
   {
     name: "/stats stacks",
     description: {
-      lt: "Rodyti kaimus pagal surinktą gynybą",
+      lt: "Show villages ranked by total defense collected",
       en: "Show villages ranked by total defense collected",
     },
     usage: "/stats stacks",
@@ -216,31 +216,31 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/configure server",
     description: {
-      lt: "Nustatyti Travian serverį žemėlapio paieškai",
+      lt: "Configure the Travian gameworld for map lookups",
       en: "Configure the Travian gameworld for map lookups",
     },
-    usage: "/configure server value:<serverio raktas>",
+    usage: "/configure server value:<server key>",
     example: "/configure server value:ts31.x3.europe",
     adminOnly: true,
   },
   {
     name: "/configure channel",
     description: {
-      lt: "Nustatyti gynybos arba žvalgybos kanalą",
+      lt: "Configure defense or scout request channels",
       en: "Configure defense or scout request channels",
     },
-    usage: "/configure channel type:<Defense|Scout> value:<kanalas>",
-    example: "/configure channel type:Defense value:#gynybos-kanalas",
+    usage: "/configure channel type:<Defense|Scout> value:<channel>",
+    example: "/configure channel type:Defense value:#defense-channel",
     adminOnly: true,
   },
   {
     name: "/configure scoutrole",
     description: {
-      lt: "Nustatyti arba išvalyti rolę, kuri bus paminėta žvalgybos prašymuose",
+      lt: "Set or clear the role to mention for scout requests",
       en: "Set or clear the role to mention for scout requests",
     },
-    usage: "/configure scoutrole [role:<rolė>]",
-    example: "/configure scoutrole role:@Žvalgai",
+    usage: "/configure scoutrole [role:<role>]",
+    example: "/configure scoutrole role:@Scouts",
     adminOnly: true,
   },
 ];
@@ -249,11 +249,11 @@ export function buildDramaEmbed(lang: "lt" | "en"): EmbedBuilder {
   const isLt = lang === "lt";
 
   const embed = new EmbedBuilder()
-    .setTitle(isLt ? "Drama Bot Komandos" : "Drama Bot Commands")
+    .setTitle("Drama Bot Commands")
     .setColor(Colors.Blue)
     .setDescription(
       isLt
-        ? "Drama: Travian gynybos ir žvalgybos koordinavimo botas\n\n**Visos komandos veikia su `/` arba `!`** (pvz., `/def` = `!def`)"
+        ? "Drama: Travian defense and scout coordination bot\n\n**All commands work with `/` or `!`** (e.g., `/def` = `!def`)"
         : "Drama: Travian defense and scout coordination bot\n\n**All commands work with `/` or `!`** (e.g., `/def` = `!def`)"
     );
 
@@ -277,46 +277,39 @@ export function buildDramaEmbed(lang: "lt" | "en"): EmbedBuilder {
 
   // Defense section
   embed.addFields({
-    name: isLt ? "Gynybos komandos" : "Defense Commands",
+    name: "Defense Commands",
     value: defenseCommands.map(formatCmd).join("\n\n"),
   });
 
   // Scout section
   embed.addFields({
-    name: isLt ? "Žvalgybos komandos" : "Scout Commands",
+    name: "Scout Commands",
     value: scoutCommands.map(formatCmd).join("\n\n"),
   });
 
   // Utility section
   embed.addFields({
-    name: isLt ? "Pagalbinės komandos" : "Utility Commands",
+    name: "Utility Commands",
     value: utilityCommands.map(formatCmd).join("\n\n"),
   });
 
   // Player/Account section
   embed.addFields({
-    name: isLt ? "Žaidėjų komandos" : "Player Commands",
+    name: "Player Commands",
     value: playerCommands.map(formatCmd).join("\n\n"),
   });
 
   // Stats section
   embed.addFields({
-    name: isLt ? "Statistikos komandos" : "Stats Commands",
+    name: "Stats Commands",
     value: statsCommands.map(formatCmd).join("\n\n"),
   });
 
   // Configuration section
   embed.addFields({
-    name: isLt ? "Konfigūracijos komandos" : "Configuration Commands",
+    name: "Configuration Commands",
     value: configCommands.map(formatCmd).join("\n\n"),
   });
-
-  // Footer with language hint
-  if (isLt) {
-    embed.setFooter({
-      text: "For English version: /drama en"
-    });
-  }
 
   return embed;
 }
@@ -328,17 +321,17 @@ export const dramaCommand: Command = {
     .addStringOption((option) =>
       option
         .setName("lang")
-        .setDescription("Language (default: Lithuanian)")
+        .setDescription("Language (default: English)")
         .setRequired(false)
         .addChoices(
-          { name: "Lietuvių", value: "lt" },
+          { name: "English (legacy)", value: "lt" },
           { name: "English", value: "en" }
         )
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const langOption = interaction.options.getString("lang");
-    const lang: "lt" | "en" = langOption === "en" ? "en" : "lt";
+    const lang: "lt" | "en" = langOption === "lt" ? "lt" : "en";
 
     const embed = buildDramaEmbed(lang);
 

@@ -17,7 +17,7 @@ export async function handleLookupCommand(
   queryInput: string
 ): Promise<void> {
   if (!ctx.config.serverKey) {
-    await ctx.message.reply("Travian serveris nesukonfigūruotas.");
+    await ctx.message.reply("Travian server is not configured.");
     return;
   }
 
@@ -38,13 +38,13 @@ async function handleCoordinateLookup(
 ): Promise<void> {
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
-    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
+    await message.reply("Failed to load map data.");
     return;
   }
 
   const village = await getVillageAt(serverKey, coords.x, coords.y);
   if (!village) {
-    await message.reply(`Kaimas koordinatėse (${coords.x}|${coords.y}) nerastas.`);
+    await message.reply(`Village at coordinates (${coords.x}|${coords.y}) was not found.`);
     return;
   }
 
@@ -62,14 +62,14 @@ async function handlePlayerLookup(
 ): Promise<void> {
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
-    await message.reply("Nepavyko užkrauti žemėlapio duomenų.");
+    await message.reply("Failed to load map data.");
     return;
   }
 
   const matchingPlayers = await searchPlayersByName(serverKey, playerName, 25);
 
   if (matchingPlayers.length === 0) {
-    await message.reply(`Žaidėjas "${playerName}" nerastas.`);
+    await message.reply(`Player "${playerName}" was not found.`);
     return;
   }
 
@@ -80,15 +80,15 @@ async function handlePlayerLookup(
 
   // Multiple matches - show list (no interactive menu for text commands)
   const playerList = matchingPlayers.slice(0, 10).map((p, i) =>
-    `${i + 1}. **${p.playerName}** - ${p.totalPopulation.toLocaleString()} pop, ${p.villageCount} kaimai`
+    `${i + 1}. **${p.playerName}** - ${p.totalPopulation.toLocaleString()} pop, ${p.villageCount} villages`
   ).join("\n");
 
   const moreText = matchingPlayers.length > 10
-    ? `\n... ir dar ${matchingPlayers.length - 10} žaidėjų`
+    ? `\n... and ${matchingPlayers.length - 10} more players`
     : "";
 
   await message.reply(
-    `Rasta ${matchingPlayers.length} žaidėjų su vardu "${playerName}":\n\n${playerList}${moreText}\n\nPatikslinkite paiešką, kad gautumėte tikslų rezultatą.`
+    `Found ${matchingPlayers.length} players named "${playerName}":\n\n${playerList}${moreText}\n\nRefine the search to get an exact result.`
   );
 }
 
@@ -100,7 +100,7 @@ async function showPlayerDetailsMessage(
   const villages = await getVillagesByPlayerName(serverKey, player.playerName);
 
   if (villages.length === 0) {
-    await message.reply("Žaidėjo kaimų nerasta.");
+    await message.reply("No villages found for this player.");
     return;
   }
 

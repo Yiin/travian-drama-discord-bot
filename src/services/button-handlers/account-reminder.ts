@@ -24,7 +24,7 @@ export async function handleAccountReminderAddButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -34,12 +34,12 @@ export async function handleAccountReminderAddButton(
 
   const modal = new ModalBuilder()
     .setCustomId(ACCOUNT_REMINDER_MODAL_ID)
-    .setTitle("Pridėti žaidimo paskyrą");
+    .setTitle("Add In-Game Account");
 
   const nameInput = new TextInputBuilder()
     .setCustomId(ACCOUNT_REMINDER_NAME_INPUT_ID)
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder("Žaidėjo vardas")
+    .setPlaceholder("Player name")
     .setRequired(true)
     .setMaxLength(50);
 
@@ -48,7 +48,7 @@ export async function handleAccountReminderAddButton(
   }
 
   const nameLabel = new LabelBuilder()
-    .setLabel("Žaidimo paskyros vardas")
+    .setLabel("In-game account name")
     .setTextInputComponent(nameInput);
 
   modal.addLabelComponents(nameLabel);
@@ -62,7 +62,7 @@ export async function handleAccountReminderModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -74,7 +74,7 @@ export async function handleAccountReminderModal(
 
   if (!inGameName) {
     await interaction.reply({
-      content: "Įvesk teisingą žaidėjo vardą.",
+      content: "Enter a valid player name.",
       ephemeral: true,
     });
     return;
@@ -85,10 +85,10 @@ export async function handleAccountReminderModal(
 
   const message =
     previous && previous !== inGameName
-      ? `Atnaujinta paskyra: **${previous}** → **${inGameName}**.`
+      ? `Updated account: **${previous}** → **${inGameName}**.`
       : previous === inGameName
-        ? `Tu jau esi susietas su **${inGameName}**.`
-        : `Esi susietas su žaidimo paskyra **${inGameName}**.`;
+        ? `You are already linked to **${inGameName}**.`
+        : `You are linked to in-game account **${inGameName}**.`;
 
   await interaction.reply({ content: message, ephemeral: true });
 }
@@ -99,7 +99,7 @@ export async function handleAccountReminderSkipButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -108,7 +108,7 @@ export async function handleAccountReminderSkipButton(
   if (isNotPlaying(guildId, interaction.user.id)) {
     await interaction.reply({
       content:
-        "Jau esi pažymėtas kaip nežaidžiantis. Jei žaidi — paspausk **Pridėti** arba naudok `/account set`.",
+        "You are already marked as not playing. If you are playing, press **Add** or use `/account set`.",
       ephemeral: true,
     });
     return;
@@ -118,7 +118,7 @@ export async function handleAccountReminderSkipButton(
 
   await interaction.reply({
     content:
-      "Pažymėta, kad nežaidi. Jei apsigalvosi — paspausk **Pridėti** arba naudok `/account set`.",
+      "Marked as not playing. If you change your mind, press **Add** or use `/account set`.",
     ephemeral: true,
   });
 }

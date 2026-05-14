@@ -38,7 +38,7 @@ export async function handleScoutCommand(
   });
 
   if (!sent) {
-    await ctx.message.reply("Sukonfigūruotas žvalgybos kanalas nerastas.");
+    await ctx.message.reply("Configured scout channel was not found.");
     return;
   }
 

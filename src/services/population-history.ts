@@ -185,7 +185,7 @@ export function getPlayerHistoryByName(serverKey: string, playerName: string): P
  */
 export function formatPopulationTrend(trends: PlayerPopulationTrend[]): TrendDisplay {
   if (trends.length === 0) {
-    return { lines: ["Nėra istorinių duomenų"], totalChange: 0, changeDirection: "stable" };
+    return { lines: ["No historical data"], totalChange: 0, changeDirection: "stable" };
   }
 
   const lines: string[] = [];

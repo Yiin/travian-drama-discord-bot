@@ -34,7 +34,7 @@ export async function executeStackAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      error: "Failed to load map data. Try again later.",
     };
   }
 
@@ -76,7 +76,7 @@ export async function executeStackAction(
   const allianceInfo = village?.allianceName
     ? ` [${village.allianceName}]`
     : "";
-  const actionText = `<@${userId}> sukūrė užklausą #${result.requestId}: ${villageDisplay}${allianceInfo} - reikia ${troopsNeeded} karių. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> created request #${result.requestId}: ${villageDisplay}${allianceInfo} - needs ${troopsNeeded} troops. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,

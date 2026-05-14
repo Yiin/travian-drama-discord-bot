@@ -6,7 +6,7 @@ import {
   ModalSubmitInteraction,
 } from "discord.js";
 
-export const ADMIN_ONLY_MESSAGE = "Tik administratoriai gali naudoti šią komandą.";
+export const ADMIN_ONLY_MESSAGE = "Only administrators can use this command.";
 
 /**
  * Check if a member has admin permissions (Administrator or ManageChannels).

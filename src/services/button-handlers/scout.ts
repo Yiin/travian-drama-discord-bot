@@ -32,7 +32,7 @@ export async function handleScoutGoingButton(
   // Show modal to ask for landing time
   const modal = new ModalBuilder()
     .setCustomId(`${SCOUT_GOING_MODAL_ID}:${interaction.message.id}`)
-    .setTitle("Žvalgyba");
+    .setTitle("Scouting");
 
   const timeInput = new TextInputBuilder()
     .setCustomId(SCOUT_TIME_INPUT_ID)
@@ -42,7 +42,7 @@ export async function handleScoutGoingButton(
     .setMaxLength(10);
 
   const timeLabel = new LabelBuilder()
-    .setLabel("Kada leidžiasi?")
+    .setLabel("When does it land?")
     .setTextInputComponent(timeInput);
 
   modal.addLabelComponents(timeLabel);
@@ -57,7 +57,7 @@ export async function handleScoutGoingModal(
   const [, messageId] = interaction.customId.split(":");
   if (!messageId) {
     await interaction.reply({
-      content: "Nepavyko atnaujinti žinutės.",
+      content: "Failed to update the message.",
       ephemeral: true,
     });
     return;
@@ -69,7 +69,7 @@ export async function handleScoutGoingModal(
   const channel = interaction.channel;
   if (!channel) {
     await interaction.reply({
-      content: "Nepavyko rasti kanalo.",
+      content: "Failed to find the channel.",
       ephemeral: true,
     });
     return;
@@ -80,7 +80,7 @@ export async function handleScoutGoingModal(
     message = await channel.messages.fetch(messageId);
   } catch {
     await interaction.reply({
-      content: "Nepavyko rasti žinutės.",
+      content: "Failed to find the message.",
       ephemeral: true,
     });
     return;
@@ -90,7 +90,7 @@ export async function handleScoutGoingModal(
   const existingComponents = message.components;
   if (existingComponents.length < 2) {
     await interaction.reply({
-      content: "Nepavyko atnaujinti žinutės.",
+      content: "Failed to update the message.",
       ephemeral: true,
     });
     return;
@@ -101,7 +101,7 @@ export async function handleScoutGoingModal(
 
   if (!("components" in containerData) || !Array.isArray(containerData.components)) {
     await interaction.reply({
-      content: "Nepavyko atnaujinti žinutės.",
+      content: "Failed to update the message.",
       ephemeral: true,
     });
     return;
@@ -134,15 +134,15 @@ export async function handleScoutGoingModal(
         if (coordsMatch) {
           coords = { x: parseInt(coordsMatch[1], 10), y: parseInt(coordsMatch[2], 10) };
         }
-        // Extract requester ID from footer line (> -# Paprašė <@userId>)
+        // Extract requester ID from footer line (> -# Requested by <@userId>)
         // This is in the same content block, not a separate component
-        const requesterMatch = content.match(/Paprašė <@(\d+)>/);
+        const requesterMatch = content.match(/Requested by <@(\d+)>/);
         if (requesterMatch) {
           requesterId = requesterMatch[1];
         }
-      } else if (content.startsWith("**Eina:**")) {
+      } else if (content.startsWith("**Going:**")) {
         // Extract existing entries (user + time pairs)
-        const entriesMatch = content.match(/\*\*Eina:\*\* (.+)/);
+        const entriesMatch = content.match(/\*\*Going:\*\* (.+)/);
         if (entriesMatch) {
           goingEntries = entriesMatch[1].split(", ").filter((e: string) => e.trim());
         }
@@ -173,10 +173,10 @@ export async function handleScoutGoingModal(
     );
   }
 
-  // Add "Eina:" section
+  // Add "Going:" section
   if (goingEntries.length > 0) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`**Eina:** ${goingEntries.join(", ")}`)
+      new TextDisplayBuilder().setContent(`**Going:** ${goingEntries.join(", ")}`)
     );
   }
 
@@ -184,11 +184,11 @@ export async function handleScoutGoingModal(
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(SCOUT_GOING_BUTTON_ID)
-      .setLabel("Eina")
+      .setLabel("Going")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(SCOUT_DONE_BUTTON_ID)
-      .setLabel("Atlikta")
+      .setLabel("Done")
       .setStyle(ButtonStyle.Success)
   );
 
@@ -220,7 +220,7 @@ export async function handleScoutGoingModal(
 }
 
 /**
- * Handle "Atlikta" (Done) button click - marks scout request as complete.
+ * Handle "Done" button click - marks scout request as complete.
  */
 export async function handleScoutDoneButton(
   interaction: ButtonInteraction
@@ -229,7 +229,7 @@ export async function handleScoutDoneButton(
 
   if (!success) {
     await interaction.reply({
-      content: "Nepavyko atnaujinti žinutės.",
+      content: "Failed to update the message.",
       ephemeral: true,
     });
     return;
@@ -259,7 +259,7 @@ async function markScoutMessageAsDone(message: { components: readonly any[]; edi
   // Check if already done
   for (const comp of containerData.components) {
     if ("content" in comp && typeof comp.content === "string") {
-      if (comp.content.includes("**Atlikta**")) {
+      if (comp.content.includes("**Done**")) {
         return false; // Already marked as done
       }
     }
@@ -274,8 +274,8 @@ async function markScoutMessageAsDone(message: { components: readonly any[]; edi
       const content = comp.content;
       if (content.startsWith("##") || content.startsWith("#")) {
         mainText = content;
-      } else if (content.startsWith("**Eina:**")) {
-        const entriesMatch = content.match(/\*\*Eina:\*\* (.+)/);
+      } else if (content.startsWith("**Going:**")) {
+        const entriesMatch = content.match(/\*\*Going:\*\* (.+)/);
         if (entriesMatch) {
           goingEntries = entriesMatch[1].split(", ").filter((e: string) => e.trim());
         }
@@ -297,13 +297,13 @@ async function markScoutMessageAsDone(message: { components: readonly any[]; edi
 
   // Add completion marker
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("**Atlikta**")
+    new TextDisplayBuilder().setContent("**Done**")
   );
 
   // Optionally show who went
   if (goingEntries.length > 0) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`-# Ėjo: ${goingEntries.join(", ")}`)
+      new TextDisplayBuilder().setContent(`-# Went: ${goingEntries.join(", ")}`)
     );
   }
 
@@ -324,8 +324,8 @@ function applyDoneFormatting(content: string): string {
   const result: string[] = [];
 
   for (const line of lines) {
-    // Skip SIUSTI link line
-    if (line.includes("[**SIŲSTI**]") || line.includes("[SIUSTI]")) {
+    // Skip SEND link line
+    if (line.includes("[**SEND**]") || line.includes("[SEND]")) {
       continue;
     }
     // Skip role mention line (standalone role mention)

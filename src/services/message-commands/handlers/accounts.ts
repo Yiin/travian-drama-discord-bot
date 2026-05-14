@@ -12,26 +12,33 @@ import {
 
 export async function handleAccountSetCommand(
   ctx: CommandContext,
-  inGameName: string
+  inGameName: string,
+  forUserId?: string
 ): Promise<void> {
-  const userId = ctx.message.author.id;
+  const targetUserId = forUserId || ctx.message.author.id;
+  const isSelf = targetUserId === ctx.message.author.id;
   const trimmedName = inGameName.trim();
 
   if (!trimmedName) {
-    await ctx.message.reply("Nurodyk savo žaidimo vardą.");
+    await ctx.message.reply("Provide a valid in-game name.");
     return;
   }
 
-  const previousName = getAccountForUser(ctx.guildId, userId);
-  setAccount(ctx.guildId, userId, trimmedName);
+  const previousName = getAccountForUser(ctx.guildId, targetUserId);
+  setAccount(ctx.guildId, targetUserId, trimmedName);
 
   await ctx.message.react("✅");
+  const who = isSelf ? "You are" : `<@${targetUserId}> is`;
   if (previousName && previousName !== trimmedName) {
-    await ctx.message.reply(`Atnaujinta: **${previousName}** → **${trimmedName}**`);
+    await ctx.message.reply(
+      isSelf
+        ? `Updated: **${previousName}** → **${trimmedName}**`
+        : `Updated <@${targetUserId}>: **${previousName}** → **${trimmedName}**`
+    );
   } else if (previousName === trimmedName) {
-    await ctx.message.reply(`Jau esi priskirtas prie **${trimmedName}**.`);
+    await ctx.message.reply(`${who} already associated with **${trimmedName}**.`);
   } else {
-    await ctx.message.reply(`Dabar esi priskirtas prie žaidimo paskyros **${trimmedName}**.`);
+    await ctx.message.reply(`${who} now associated with in-game account **${trimmedName}**.`);
   }
 }
 
@@ -41,13 +48,13 @@ export async function handleAccountDelCommand(ctx: CommandContext): Promise<void
   const previousName = getAccountForUser(ctx.guildId, userId);
 
   if (!previousName) {
-    await ctx.message.reply("Neturi priskirtos žaidimo paskyros.");
+    await ctx.message.reply("You do not have an in-game account associated.");
     return;
   }
 
   deleteAccount(ctx.guildId, userId);
   await ctx.message.react("✅");
-  await ctx.message.reply(`Pašalinta priskyrimas prie **${previousName}**.`);
+  await ctx.message.reply(`Removed association with **${previousName}**.`);
 }
 
 export async function handleSitterSetCommand(
@@ -58,7 +65,7 @@ export async function handleSitterSetCommand(
   const names = parseNames(namesInput);
 
   if (names.length === 0) {
-    await ctx.message.reply("Nurodyk bent vieną žaidėjo vardą.");
+    await ctx.message.reply("Provide at least one player name.");
     return;
   }
 
@@ -66,13 +73,13 @@ export async function handleSitterSetCommand(
 
   await ctx.message.react("✅");
   if (added.length === 0) {
-    await ctx.message.reply(`Jau esi siteris: **${names.join("**, **")}**`);
+    await ctx.message.reply(`You are already a sitter for: **${names.join("**, **")}**`);
   } else if (added.length === names.length) {
-    await ctx.message.reply(`Dabar esi siteris: **${added.join("**, **")}**`);
+    await ctx.message.reply(`You are now a sitter for: **${added.join("**, **")}**`);
   } else {
     const alreadySitting = names.filter((n) => !added.includes(n));
     await ctx.message.reply(
-      `Pridėta kaip siteris: **${added.join("**, **")}**\nJau buvai: **${alreadySitting.join("**, **")}**`
+      `Added as sitter: **${added.join("**, **")}**\nAlready sitting: **${alreadySitting.join("**, **")}**`
     );
   }
 }
@@ -85,7 +92,7 @@ export async function handleSitterDelCommand(
   const names = parseNames(namesInput);
 
   if (names.length === 0) {
-    await ctx.message.reply("Nurodyk bent vieną žaidėjo vardą.");
+    await ctx.message.reply("Provide at least one player name.");
     return;
   }
 
@@ -93,13 +100,13 @@ export async function handleSitterDelCommand(
 
   await ctx.message.react("✅");
   if (removed.length === 0) {
-    await ctx.message.reply(`Nebuvai siteris: **${names.join("**, **")}**`);
+    await ctx.message.reply(`Not sitting: **${names.join("**, **")}**`);
   } else if (removed.length === names.length) {
-    await ctx.message.reply(`Pašalinta kaip siteris: **${removed.join("**, **")}**`);
+    await ctx.message.reply(`Removed as sitter: **${removed.join("**, **")}**`);
   } else {
     const notSitting = names.filter((n) => !removed.includes(n));
     await ctx.message.reply(
-      `Pašalinta: **${removed.join("**, **")}**\nNebuvai siteris: **${notSitting.join("**, **")}**`
+      `Removed: **${removed.join("**, **")}**\nNot sitting: **${notSitting.join("**, **")}**`
     );
   }
 }
@@ -109,7 +116,7 @@ export async function handlePlayersCommand(ctx: CommandContext): Promise<void> {
 
   if (players.length === 0) {
     await ctx.message.reply(
-      "Nėra užregistruotų žaidėjų. Naudok `/account set` priskirti save prie žaidimo paskyros."
+      "No registered players. Use `/account set` to associate yourself with an in-game account."
     );
     return;
   }
@@ -125,7 +132,7 @@ export async function handlePlayersCommand(ctx: CommandContext): Promise<void> {
     if (player.owners.length > 0) {
       line += ownerMentions;
     } else {
-      line += "_nėra savininko_";
+      line += "_no owner_";
     }
 
     if (player.sitters.length > 0) {

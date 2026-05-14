@@ -219,11 +219,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
   const action = getAction(guildId, actionId);
 
   if (!action) {
-    return { success: false, message: `Veiksmas #${actionId} nerastas.` };
+    return { success: false, message: `Action #${actionId} was not found.` };
   }
 
   if (action.undone) {
-    return { success: false, message: `Veiksmas #${actionId} jau atšauktas.` };
+    return { success: false, message: `Action #${actionId} has already been undone.` };
   }
 
   const { x, y } = action.coords;
@@ -239,13 +239,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: gynybos užklausa ${coordsStr} pašalinta.`,
+          message: `Undone: defense request ${coordsStr} removed.`,
         };
       }
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Atšaukta: užklausa ${coordsStr} jau buvo pašalinta arba užbaigta.`,
+        message: `Undone: request ${coordsStr} had already been removed or completed.`,
       };
     }
 
@@ -255,7 +255,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
 
@@ -264,11 +264,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (result.success) {
         return {
           success: true,
-          message: `Atšaukta: užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+          message: `Undone: request ${coordsStr} restored as #${result.requestId}.`,
           requestId: result.requestId,
         };
       }
-      return { success: false, message: result.error || "Nepavyko atstatyti." };
+      return { success: false, message: result.error || "Failed to restore." };
     }
 
     case "TROOPS_SENT": {
@@ -278,7 +278,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi reikiamų duomenų.`,
+          message: `Action #${actionId} is missing required data.`,
         };
       }
 
@@ -288,7 +288,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
           markUndone(guildId, actionId);
           return {
             success: false,
-            message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+            message: `Action #${actionId} has no previous state.`,
           };
         }
 
@@ -300,13 +300,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
         const result = restoreRequest(guildId, restoredRequest);
         if (!result.success) {
-          return { success: false, message: result.error || "Nepavyko atstatyti." };
+          return { success: false, message: result.error || "Failed to restore." };
         }
 
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: užklausa ${coordsStr} atstatyta kaip #${result.requestId} (${restoredRequest.troopsSent}/${restoredRequest.troopsNeeded}).`,
+          message: `Undone: request ${coordsStr} restored as #${result.requestId} (${restoredRequest.troopsSent}/${restoredRequest.troopsNeeded}).`,
           requestId: result.requestId,
         };
       }
@@ -318,7 +318,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: užklausa ${coordsStr} jau nebeegzistuoja.`,
+          message: `Undone: request ${coordsStr} no longer exists.`,
         };
       }
 
@@ -327,7 +327,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: užklausos pozicija pasikeitė, kariai neatimti.`,
+          message: `Undone: request position changed, troops were not subtracted.`,
         };
       }
 
@@ -337,14 +337,14 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (subtractResult.success && subtractResult.request) {
         return {
           success: true,
-          message: `Atšaukta: ${troops} karių atimta iš ${coordsStr}. Progresas: ${subtractResult.request.troopsSent}/${subtractResult.request.troopsNeeded}.`,
+          message: `Undone: ${troops} troops subtracted from ${coordsStr}. Progress: ${subtractResult.request.troopsSent}/${subtractResult.request.troopsNeeded}.`,
           requestId: action.requestId,
         };
       }
 
       return {
         success: true,
-        message: `Atšaukta: ${troops} karių atšaukimas.`,
+        message: `Undone: ${troops} troops cancellation.`,
       };
     }
 
@@ -354,7 +354,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
 
@@ -364,11 +364,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (result.success) {
         return {
           success: true,
-          message: `Atšaukta: užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+          message: `Undone: request ${coordsStr} restored as #${result.requestId}.`,
           requestId: result.requestId,
         };
       }
-      return { success: false, message: result.error || "Nepavyko atstatyti." };
+      return { success: false, message: result.error || "Failed to restore." };
     }
 
     case "ADMIN_UPDATE": {
@@ -377,7 +377,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
 
@@ -391,11 +391,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         if (result.success) {
           return {
             success: true,
-            message: `Atšaukta: užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+            message: `Undone: request ${coordsStr} restored as #${result.requestId}.`,
             requestId: result.requestId,
           };
         }
-        return { success: false, message: result.error || "Nepavyko atstatyti." };
+        return { success: false, message: result.error || "Failed to restore." };
       }
 
       // Not completed - check if request still exists at stored position
@@ -407,11 +407,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         if (result.success) {
           return {
             success: true,
-            message: `Atšaukta: užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+            message: `Undone: request ${coordsStr} restored as #${result.requestId}.`,
             requestId: result.requestId,
           };
         }
-        return { success: false, message: result.error || "Nepavyko atstatyti." };
+        return { success: false, message: result.error || "Failed to restore." };
       }
 
       // Request still at same position - restore previous state
@@ -422,11 +422,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (result.success) {
         return {
           success: true,
-          message: `Atšaukta: užklausa ${coordsStr} atstatyta į ankstesnę būseną.`,
+          message: `Undone: request ${coordsStr} restored to the previous state.`,
           requestId: result.requestId,
         };
       }
-      return { success: false, message: result.error || "Nepavyko atstatyti." };
+      return { success: false, message: result.error || "Failed to restore." };
     }
 
     // --- Push action undo cases ---
@@ -439,13 +439,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: push užklausa ${coordsStr} pašalinta.`,
+          message: `Undone: push request ${coordsStr} removed.`,
         };
       }
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Atšaukta: push užklausa ${coordsStr} jau buvo pašalinta.`,
+        message: `Undone: push request ${coordsStr} had already been removed.`,
       };
     }
 
@@ -456,7 +456,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi reikiamų duomenų.`,
+          message: `Action #${actionId} is missing required data.`,
         };
       }
 
@@ -466,7 +466,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
           markUndone(guildId, actionId);
           return {
             success: false,
-            message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+            message: `Action #${actionId} has no previous state.`,
           };
         }
 
@@ -478,13 +478,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
         const result = restorePushRequest(guildId, restoredRequest);
         if (!result.success) {
-          return { success: false, message: result.error || "Nepavyko atstatyti." };
+          return { success: false, message: result.error || "Failed to restore." };
         }
 
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: push užklausa ${coordsStr} atstatyta kaip #${result.requestId} (${restoredRequest.resourcesSent}/${restoredRequest.resourcesNeeded}).`,
+          message: `Undone: push request ${coordsStr} restored as #${result.requestId} (${restoredRequest.resourcesSent}/${restoredRequest.resourcesNeeded}).`,
           requestId: result.requestId,
         };
       }
@@ -495,7 +495,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: push užklausa ${coordsStr} jau nebeegzistuoja.`,
+          message: `Undone: push request ${coordsStr} no longer exists.`,
         };
       }
 
@@ -503,7 +503,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: push užklausos pozicija pasikeitė, resursai neatimti.`,
+          message: `Undone: push request position changed, resources were not subtracted.`,
         };
       }
 
@@ -513,14 +513,14 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (subtractResult.success && subtractResult.request) {
         return {
           success: true,
-          message: `Atšaukta: ${formatNumber(resources)} resursų atimta iš ${coordsStr}. Progresas: ${subtractResult.request.resourcesSent}/${subtractResult.request.resourcesNeeded}.`,
+          message: `Undone: ${formatNumber(resources)} resources subtracted from ${coordsStr}. Progress: ${subtractResult.request.resourcesSent}/${subtractResult.request.resourcesNeeded}.`,
           requestId: action.requestId,
         };
       }
 
       return {
         success: true,
-        message: `Atšaukta: ${formatNumber(resources)} resursų atšaukimas.`,
+        message: `Undone: ${formatNumber(resources)} resources cancellation.`,
       };
     }
 
@@ -530,7 +530,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
 
@@ -540,11 +540,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (result.success) {
         return {
           success: true,
-          message: `Atšaukta: push užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+          message: `Undone: push request ${coordsStr} restored as #${result.requestId}.`,
           requestId: result.requestId,
         };
       }
-      return { success: false, message: result.error || "Nepavyko atstatyti." };
+      return { success: false, message: result.error || "Failed to restore." };
     }
 
     case "PUSH_REQUEST_EDIT": {
@@ -553,7 +553,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
 
@@ -565,11 +565,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         if (result.success) {
           return {
             success: true,
-            message: `Atšaukta: push užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+            message: `Undone: push request ${coordsStr} restored as #${result.requestId}.`,
             requestId: result.requestId,
           };
         }
-        return { success: false, message: result.error || "Nepavyko atstatyti." };
+        return { success: false, message: result.error || "Failed to restore." };
       }
 
       // Request still at same position - restore previous state
@@ -579,11 +579,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (result.success) {
         return {
           success: true,
-          message: `Atšaukta: push užklausa ${coordsStr} atstatyta į ankstesnę būseną.`,
+          message: `Undone: push request ${coordsStr} restored to the previous state.`,
           requestId: result.requestId,
         };
       }
-      return { success: false, message: result.error || "Nepavyko atstatyti." };
+      return { success: false, message: result.error || "Failed to restore." };
     }
 
     case "PUSH_CONTRIBUTION_EDIT":
@@ -593,7 +593,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
 
@@ -605,11 +605,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         if (result.success) {
           return {
             success: true,
-            message: `Atšaukta: push užklausa ${coordsStr} atstatyta kaip #${result.requestId}.`,
+            message: `Undone: push request ${coordsStr} restored as #${result.requestId}.`,
             requestId: result.requestId,
           };
         }
-        return { success: false, message: result.error || "Nepavyko atstatyti." };
+        return { success: false, message: result.error || "Failed to restore." };
       }
 
       // Request still at same position - restore previous state
@@ -619,11 +619,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (resultRestore.success) {
         return {
           success: true,
-          message: `Atšaukta: push užklausa ${coordsStr} atstatyta į ankstesnę būseną.`,
+          message: `Undone: push request ${coordsStr} restored to the previous state.`,
           requestId: resultRestore.requestId,
         };
       }
-      return { success: false, message: resultRestore.error || "Nepavyko atstatyti." };
+      return { success: false, message: resultRestore.error || "Failed to restore." };
     }
 
     // --- Def call action undo cases ---
@@ -635,13 +635,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: gynybos prašymas ${coordsStr} uždarytas.`,
+          message: `Undone: defense request ${coordsStr} closed.`,
         };
       }
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Atšaukta: gynybos prašymas ${coordsStr} jau uždarytas.`,
+        message: `Undone: defense request ${coordsStr} is already closed.`,
       };
     }
 
@@ -651,7 +651,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi reikiamų duomenų.`,
+          message: `Action #${actionId} is missing required data.`,
         };
       }
 
@@ -660,7 +660,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: true,
-          message: `Atšaukta: prašymas ${coordsStr} jau nebeegzistuoja.`,
+          message: `Undone: request ${coordsStr} no longer exists.`,
         };
       }
 
@@ -672,7 +672,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Atšaukta: ${formatNumber(troops)} karių atimta iš ${coordsStr}.`,
+        message: `Undone: ${formatNumber(troops)} troops subtracted from ${coordsStr}.`,
         requestId: action.requestId,
       };
     }
@@ -682,7 +682,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         markUndone(guildId, actionId);
         return {
           success: false,
-          message: `Veiksmas #${actionId} neturi ankstesnės būsenos.`,
+          message: `Action #${actionId} has no previous state.`,
         };
       }
       const reopened: DefCallRequest = {
@@ -694,13 +694,13 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Atšaukta: prašymas ${coordsStr} atnaujintas, bet kanalas nebepristatomas — sukurk naują, jei reikia.`,
+        message: `Undone: request ${coordsStr} was updated, but the channel can no longer be restored - create a new one if needed.`,
         requestId: action.requestId,
       };
     }
 
     default:
-      return { success: false, message: `Nežinomas veiksmo tipas: ${action.type}` };
+      return { success: false, message: `Unknown veiksmo tipas: ${action.type}` };
   }
 }
 
@@ -724,36 +724,36 @@ export function getActionDescription(action: Action): string {
 
   switch (action.type) {
     case "DEF_ADD":
-      return `Sukurta užklausa ${coordsStr} (${action.data.troopsNeeded} karių)`;
+      return `Created request ${coordsStr} (${action.data.troopsNeeded} troops)`;
     case "DEF_UPDATE":
-      return `Atnaujinta užklausa ${coordsStr} (${action.data.troopsNeeded} karių)`;
+      return `Updated request ${coordsStr} (${action.data.troopsNeeded} troops)`;
     case "TROOPS_SENT":
-      return `Išsiųsta ${action.data.troops} karių į ${coordsStr}${action.data.didComplete ? " (užbaigta)" : ""}`;
+      return `Sent ${action.data.troops} troops to ${coordsStr}${action.data.didComplete ? " (completed)" : ""}`;
     case "REQUEST_DELETED":
-      return `Ištrinta užklausa ${coordsStr}`;
+      return `Deleted request ${coordsStr}`;
     case "ADMIN_UPDATE":
       return `Admin atnaujino ${coordsStr}`;
     // Push actions
     case "PUSH_REQUEST_ADD":
-      return `Sukurta push užklausa ${coordsStr} (${formatNumber(action.data.resourcesNeeded || 0)} resursų)`;
+      return `Created push request ${coordsStr} (${formatNumber(action.data.resourcesNeeded || 0)} resources)`;
     case "PUSH_RESOURCES_SENT":
-      return `Išsiųsta ${formatNumber(action.data.resources || 0)} resursų į ${coordsStr}${action.data.pushDidComplete ? " (užbaigta)" : ""}`;
+      return `Sent ${formatNumber(action.data.resources || 0)} resources to ${coordsStr}${action.data.pushDidComplete ? " (completed)" : ""}`;
     case "PUSH_REQUEST_DELETED":
-      return `Ištrinta push užklausa ${coordsStr}`;
+      return `Deleted push request ${coordsStr}`;
     case "PUSH_REQUEST_EDIT":
-      return `Pakeista push užklausa ${coordsStr} (${formatNumber(action.data.previousResourcesNeeded || 0)} → ${formatNumber(action.data.resourcesNeeded || 0)})`;
+      return `Changed push request ${coordsStr} (${formatNumber(action.data.previousResourcesNeeded || 0)} → ${formatNumber(action.data.resourcesNeeded || 0)})`;
     case "PUSH_CONTRIBUTION_EDIT":
-      return `Pakeistas ${action.data.accountName} įnašas ${coordsStr} (${formatNumber(action.data.oldAmount || 0)} → ${formatNumber(action.data.newAmount || 0)})`;
+      return `Changed ${action.data.accountName} contribution ${coordsStr} (${formatNumber(action.data.oldAmount || 0)} → ${formatNumber(action.data.newAmount || 0)})`;
     case "PUSH_CONTRIBUTION_TRANSFER":
-      return `Perkeltas įnašas ${coordsStr}: ${action.data.fromAccount} → ${action.data.toAccount} (${formatNumber(action.data.transferredAmount || 0)})`;
+      return `Transferred contribution ${coordsStr}: ${action.data.fromAccount} → ${action.data.toAccount} (${formatNumber(action.data.transferredAmount || 0)})`;
     case "DEF_CALL_REQUEST_ADD":
-      return `Sukurtas gynybos prašymas ${coordsStr}`;
+      return `Createds defense request ${coordsStr}`;
     case "DEF_CALL_TROOPS_SENT":
-      return `Atsiųsta ${formatNumber(action.data.troops || 0)} karių į ${coordsStr}`;
+      return `Sent ${formatNumber(action.data.troops || 0)} troops to ${coordsStr}`;
     case "DEF_CALL_CLOSED":
-      return `Uždarytas gynybos prašymas ${coordsStr}`;
+      return `Closed defense request ${coordsStr}`;
     default:
-      return `Veiksmas ${coordsStr}`;
+      return `Action ${coordsStr}`;
   }
 }
 

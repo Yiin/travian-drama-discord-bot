@@ -24,7 +24,7 @@ export async function executeDeleteDefAction(
   // 1. Check if request exists and get info before deletion
   const existingRequest = getRequestById(guildId, requestId);
   if (!existingRequest) {
-    return { success: false, error: `Užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Request #${requestId} not found.` };
   }
 
   // 2. Snapshot the request before deletion for undo support
@@ -39,8 +39,8 @@ export async function executeDeleteDefAction(
     existingRequest.x,
     existingRequest.y
   );
-  const villageName = village?.villageName || "Nežinomas";
-  const playerName = village?.playerName || "Nežinomas";
+  const villageName = village?.villageName || "Unknown";
+  const playerName = village?.playerName || "Unknown";
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `[(${existingRequest.x}|${existingRequest.y})](${getMapLink(config.serverKey!, existingRequest)})`;
@@ -48,7 +48,7 @@ export async function executeDeleteDefAction(
   // 4. Delete the request
   const success = removeRequest(guildId, requestId);
   if (!success) {
-    return { success: false, error: `Nepavyko ištrinti užklausos #${requestId}.` };
+    return { success: false, error: `Failed to delete request #${requestId}.` };
   }
 
   // 5. Record the action for undo support
@@ -65,7 +65,7 @@ export async function executeDeleteDefAction(
   await updateGlobalMessage(client, guildId);
 
   // 7. Build action text
-  const actionText = `<@${userId}> ištrynė užklausą #${requestId}: ${villageDisplay}. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> deleted request #${requestId}: ${villageDisplay}. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,

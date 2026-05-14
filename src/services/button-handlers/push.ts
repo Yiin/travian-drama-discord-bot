@@ -39,7 +39,7 @@ export async function handlePushSentButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -58,7 +58,7 @@ export async function handlePushSentButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: "Travian serveris nesukonfigūruotas.",
+      content: "Travian server is not configured.",
       ephemeral: true,
     });
     return;
@@ -69,7 +69,7 @@ export async function handlePushSentButton(
   const requestInfo = getPushRequestByChannelId(guildId, channelId);
   if (!requestInfo) {
     await interaction.reply({
-      content: "Šiame kanale nerasta aktyvi push užklausa.",
+      content: "No active push request was found in this channel.",
       ephemeral: true,
     });
     return;
@@ -78,7 +78,7 @@ export async function handlePushSentButton(
   // Build simplified modal with just resources input
   const modal = new ModalBuilder()
     .setCustomId(PUSH_SENT_MODAL_ID)
-    .setTitle("Išsiunčiau resursus");
+    .setTitle("Sent Resources");
 
   const resourcesInput = new TextInputBuilder()
     .setCustomId(PUSH_RESOURCES_INPUT_ID)
@@ -88,7 +88,7 @@ export async function handlePushSentButton(
     .setMaxLength(15);
 
   const resourcesLabel = new LabelBuilder()
-    .setLabel("Kiek resursų išsiunčiau?")
+    .setLabel("How many resources did you send?")
     .setDescription(`Tikslas: ${formatNumber(requestInfo.request.resourcesNeeded)}`)
     .setTextInputComponent(resourcesInput);
 
@@ -111,7 +111,7 @@ export async function handlePushSentModal(
   const channelId = interaction.channelId;
   if (!channelId) {
     await interaction.reply({
-      content: "Nepavyko nustatyti kanalo.",
+      content: "Failed to identify the channel.",
       ephemeral: true,
     });
     return;
@@ -120,7 +120,7 @@ export async function handlePushSentModal(
   const requestInfo = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestInfo) {
     await interaction.reply({
-      content: "Šiame kanale nerasta aktyvi push užklausa.",
+      content: "No active push request was found in this channel.",
       ephemeral: true,
     });
     return;
@@ -131,7 +131,7 @@ export async function handlePushSentModal(
   const resources = parseInt(resourcesInput.replace(/[,.\s]/g, ""), 10);
   if (isNaN(resources) || resources < 1) {
     await interaction.reply({
-      content: "Neteisingas resursų skaičius. Įvesk teigiamą skaičių.",
+      content: "Invalid resource count. Enter a positive number.",
       ephemeral: true,
     });
     return;
@@ -170,7 +170,7 @@ export async function handlePushDeleteButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -184,7 +184,7 @@ export async function handlePushDeleteButton(
   const requestInfo = getPushRequestByChannelId(guildId, channelId);
   if (!requestInfo) {
     await interaction.reply({
-      content: "Šiame kanale nerasta aktyvi push užklausa.",
+      content: "No active push request was found in this channel.",
       ephemeral: true,
     });
     return;
@@ -205,7 +205,7 @@ export async function handlePushDeleteButton(
     console.error("[PushButton] Error deleting push channel:", error);
     try {
       await interaction.editReply({
-        content: "Nepavyko ištrinti kanalo.",
+        content: "Failed to delete the channel.",
       });
     } catch {
       // Channel might already be deleted, ignore

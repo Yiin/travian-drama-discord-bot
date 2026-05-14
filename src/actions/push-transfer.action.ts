@@ -18,7 +18,7 @@ export async function executePushTransferAction(
   // 1. Get request before transfer (deep copy for undo)
   const request = getPushRequestById(guildId, requestId);
   if (!request) {
-    return { success: false, error: `Push užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Push request #${requestId} not found.` };
   }
   const previousState: PushRequest = {
     ...request,
@@ -57,13 +57,13 @@ export async function executePushTransferAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> perkėlė **${formatNumber(transferredAmount)}** iš **${fromAccount}** į **${toAccount}** (${villageDisplay})`;
+  const actionText = `<@${userId}> transferred **${formatNumber(transferredAmount)}** from **${fromAccount}** to **${toAccount}** (${villageDisplay})`;
 
   // 7. Post transfer notification in the channel and update embed
   await postContributionMessage(
     client,
     result.request!,
-    `🔄 Perkeltas įnašas: **${fromAccount}** -> **${toAccount}** (**${formatNumber(transferredAmount)}**)`
+    `🔄 Transferred contribution: **${fromAccount}** -> **${toAccount}** (**${formatNumber(transferredAmount)}**)`
   );
   await updatePushChannelEmbed(client, guildId, result.request!);
 

@@ -24,14 +24,14 @@ export async function executeUpdateDefAction(
   if (troopsSent === undefined && troopsNeeded === undefined && message === undefined) {
     return {
       success: false,
-      error: "Nurodyk bent vieną lauką atnaujinti (troops_sent, troops_needed arba message).",
+      error: "Provide at least one field to update (troops_sent, troops_needed, or message).",
     };
   }
 
   // 2. Check if request exists
   const existingRequest = getRequestById(guildId, requestId);
   if (!existingRequest) {
-    return { success: false, error: `Užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Request #${requestId} not found.` };
   }
 
   // 3. Snapshot the request before update for undo support
@@ -77,12 +77,12 @@ export async function executeUpdateDefAction(
 
   // 9. Build updated fields list
   const updatedFields: string[] = [];
-  if (troopsSent !== undefined) updatedFields.push(`išsiųsta karių: ${troopsSent}`);
-  if (troopsNeeded !== undefined) updatedFields.push(`reikia karių: ${troopsNeeded}`);
-  if (message !== undefined) updatedFields.push(`žinutė: "${message}"`);
+  if (troopsSent !== undefined) updatedFields.push(`troops sent: ${troopsSent}`);
+  if (troopsNeeded !== undefined) updatedFields.push(`needs troops: ${troopsNeeded}`);
+  if (message !== undefined) updatedFields.push(`message: "${message}"`);
 
   // 10. Build action text
-  const actionText = `<@${userId}> atnaujino užklausą #${requestId}: ${updatedFields.join(", ")}. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> updated request #${requestId}: ${updatedFields.join(", ")}. (\`/undo ${actionId}\`)`;
 
   return {
     success: true,

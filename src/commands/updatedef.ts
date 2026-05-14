@@ -55,7 +55,7 @@ export const updatedefCommand: Command = {
     // 3. Check if at least one update parameter is provided (before deferring)
     if (troopsSent === null && troopsNeeded === null && message === null) {
       await interaction.reply({
-        content: "Nurodyk bent vieną lauką atnaujinti (troops_sent, troops_needed arba message).",
+        content: "Provide at least one field to update (troops_sent, troops_needed, or message).",
         ephemeral: true,
       });
       return;

@@ -9,7 +9,7 @@ import { withRetry } from "../utils/retry";
 export const stackCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("stack")
-    .setDescription("Sukurti stacko prašymą")
+    .setDescription("Create a stack request")
     .addStringOption((option) =>
       option
         .setName("coords")

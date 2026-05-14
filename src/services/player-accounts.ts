@@ -9,7 +9,7 @@ export interface GuildPlayerData {
   accounts: Record<string, string[]>;
   // Map InGameName -> array of user IDs who are sitters
   sitters: Record<string, string[]>;
-  // Discord user IDs who opted out via "Nežaidžiu"
+  // Discord user IDs who opted out via "Not playing"
   notPlaying: string[];
 }
 

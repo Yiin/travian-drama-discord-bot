@@ -24,7 +24,7 @@ async function handleStatsLeaderboardCommandInner(ctx: CommandContext): Promise<
   const leaderboard = getLeaderboard(ctx.guildId);
 
   if (leaderboard.length === 0) {
-    await ctx.message.reply("Statistika dar neužfiksuota.");
+    await ctx.message.reply("No stats have been recorded yet.");
     return;
   }
 
@@ -65,7 +65,7 @@ async function handleStatsUserCommandInner(
   const userStats = getUserStats(ctx.guildId, userId);
 
   if (!userStats) {
-    await ctx.message.reply(`<@${userId}> neturi užfiksuotų įnašų.`);
+    await ctx.message.reply(`<@${userId}> has no recorded contributions.`);
     return;
   }
 
@@ -97,13 +97,13 @@ async function handleStatsUserCommandInner(
   }
 
   if (userStats.villages.length > 15) {
-    lines.push(`*...ir dar ${userStats.villages.length - 15} kaimų*`);
+    lines.push(`*...and ${userStats.villages.length - 15} more villages*`);
   }
 
   const embed = new EmbedBuilder()
     .setTitle(`Statistika: ${userName}`)
     .setDescription(
-      `**Viso:** ${formatNumber(userStats.totalTroops)} karių į ${userStats.villages.length} kaimus\n\n${lines.join("\n")}`
+      `**Total:** ${formatNumber(userStats.totalTroops)} troops to ${userStats.villages.length} kaimus\n\n${lines.join("\n")}`
     )
     .setColor(0x5865f2);
 
@@ -122,14 +122,14 @@ async function handleStatsPlayerCommandInner(
   const serverKey = config.serverKey;
 
   if (!serverKey) {
-    await ctx.message.reply("Serveris nesukonfigūruotas. Naudok `/configure server` pirma.");
+    await ctx.message.reply("Server is not configured. Use `/configure server` first.");
     return;
   }
 
   const playerData = await getPlayerByExactName(serverKey, playerName);
 
   if (!playerData) {
-    await ctx.message.reply(`Žaidėjas "${playerName}" nerastas.`);
+    await ctx.message.reply(`Player "${playerName}" was not found.`);
     return;
   }
 
@@ -152,9 +152,9 @@ async function handleStatsPlayerCommandInner(
   const embed = new EmbedBuilder()
     .setTitle(`Kaimai: ${player.playerName}${allianceStr}`)
     .setDescription(
-      `**Viso surinkta:** ${formatNumber(totalCollected)} karių\n\n${lines.join("\n")}`
+      `**Total collected:** ${formatNumber(totalCollected)} troops\n\n${lines.join("\n")}`
     )
-    .setFooter({ text: `${villages.length} kaimai • ${formatNumber(player.totalPopulation)} populiacija` })
+    .setFooter({ text: `${villages.length} villages • ${formatNumber(player.totalPopulation)} populiacija` })
     .setColor(0x5865f2);
 
   await ctx.message.reply({ embeds: [embed] });
@@ -166,7 +166,7 @@ async function handleStatsVillageCommandInner(
 ): Promise<void> {
   const coords = parseCoords(coordsInput);
   if (!coords) {
-    await ctx.message.reply("Neteisingos koordinatės. Naudok formatą `123|456` arba `-45|89`.");
+    await ctx.message.reply("Invalid coordinates. Use `123|456` or `-45|89`.");
     return;
   }
 
@@ -176,7 +176,7 @@ async function handleStatsVillageCommandInner(
   const villageStats = getVillageStats(ctx.guildId, coords.x, coords.y);
 
   if (!villageStats) {
-    await ctx.message.reply(`Statistika koordinatėse (${coords.x}|${coords.y}) neužfiksuota.`);
+    await ctx.message.reply(`No stats recorded at coordinates (${coords.x}|${coords.y}).`);
     return;
   }
 
@@ -198,13 +198,13 @@ async function handleStatsVillageCommandInner(
   }
 
   if (villageStats.contributors.length > 15) {
-    lines.push(`*...ir dar ${villageStats.contributors.length - 15} siuntėjų*`);
+    lines.push(`*...and ${villageStats.contributors.length - 15} more senders*`);
   }
 
   const embed = new EmbedBuilder()
     .setTitle(`Gynyba: ${villageName}${playerInfo}`)
     .setDescription(
-      `**Viso:** ${formatNumber(villageStats.totalTroops)} karių nuo ${villageStats.contributors.length} gynėjų\n\n${lines.join("\n")}`
+      `**Total:** ${formatNumber(villageStats.totalTroops)} troops from ${villageStats.contributors.length} defenders\n\n${lines.join("\n")}`
     )
     .setColor(0x5865f2);
 
@@ -215,7 +215,7 @@ async function handleStatsStacksCommandInner(ctx: CommandContext): Promise<void>
   const allVillages = getAllVillageStats(ctx.guildId);
 
   if (allVillages.length === 0) {
-    await ctx.message.reply("Statistika dar neužfiksuota.");
+    await ctx.message.reply("No stats have been recorded yet.");
     return;
   }
 
@@ -239,20 +239,20 @@ async function handleStatsStacksCommandInner(ctx: CommandContext): Promise<void>
 
     const rank = i + 1;
     lines.push(
-      `${rank}. ${villageName} │ **${formatNumber(v.totalTroops)}** (${v.contributorCount} siuntėjų)`
+      `${rank}. ${villageName} │ **${formatNumber(v.totalTroops)}** (${v.contributorCount} senders)`
     );
   }
 
   if (allVillages.length > 15) {
-    lines.push(`\n*...ir dar ${allVillages.length - 15} kaimų*`);
+    lines.push(`\n*...and ${allVillages.length - 15} more villages*`);
   }
 
   const totalTroops = allVillages.reduce((sum, v) => sum + v.totalTroops, 0);
 
   const embed = new EmbedBuilder()
-    .setTitle("Daugiausiai apginti kaimai")
+    .setTitle("Daugiausiai apginti villages")
     .setDescription(lines.join("\n"))
-    .setFooter({ text: `${allVillages.length} kaimai • ${formatNumber(totalTroops)} viso karių` })
+    .setFooter({ text: `${allVillages.length} villages • ${formatNumber(totalTroops)} total troops` })
     .setColor(0x5865f2);
 
   await ctx.message.reply({ embeds: [embed] });
@@ -261,12 +261,12 @@ async function handleStatsStacksCommandInner(ctx: CommandContext): Promise<void>
 async function handleStatsResetCommandInner(ctx: CommandContext): Promise<void> {
   const confirmButton = new ButtonBuilder()
     .setCustomId("stats_reset_confirm_msg")
-    .setLabel("Taip, išvalyti statistiką")
+    .setLabel("Yes, clear stats")
     .setStyle(ButtonStyle.Danger);
 
   const cancelButton = new ButtonBuilder()
     .setCustomId("stats_reset_cancel_msg")
-    .setLabel("Atšaukti")
+    .setLabel("Cancel")
     .setStyle(ButtonStyle.Secondary);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -275,7 +275,7 @@ async function handleStatsResetCommandInner(ctx: CommandContext): Promise<void> 
   );
 
   const response = await ctx.message.reply({
-    content: "Ar tikrai nori išvalyti visą statistiką? Šio veiksmo negalima atšaukti.",
+    content: "Are you sure you want to clear all stats? This action cannot be undone.",
     components: [row],
   });
 
@@ -289,19 +289,19 @@ async function handleStatsResetCommandInner(ctx: CommandContext): Promise<void> 
     if (buttonInteraction.customId === "stats_reset_confirm_msg") {
       resetStats(ctx.guildId);
       await buttonInteraction.update({
-        content: "Visa statistika išvalyta.",
+        content: "All stats have been cleared.",
         components: [],
       });
     } else {
       await buttonInteraction.update({
-        content: "Išvalymas atšauktas.",
+        content: "Clear cancelled.",
         components: [],
       });
     }
   } catch {
     // Timeout - remove buttons
     await response.edit({
-      content: "Laikas baigėsi.",
+      content: "Timed out.",
       components: [],
     });
   }

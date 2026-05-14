@@ -28,7 +28,7 @@ export const scoutCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;
@@ -38,7 +38,7 @@ export const scoutCommand: Command = {
     if (!config.serverKey) {
       await interaction.reply({
         content:
-          "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/setserver`.",
+          "Travian server is not configured. An admin must use `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -47,7 +47,7 @@ export const scoutCommand: Command = {
     if (!config.scoutChannelId) {
       await interaction.reply({
         content:
-          "Žvalgybos kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel type:Scout`.",
+          "Scout channel is not configured. An admin must use `/setchannel type:Scout`.",
         ephemeral: true,
       });
       return;
@@ -87,7 +87,7 @@ export const scoutCommand: Command = {
 
     if (!sent) {
       await interaction.editReply({
-        content: "Sukonfigūruotas žvalgybos kanalas nerastas.",
+        content: "Configured scout channel was not found.",
       });
       return;
     }

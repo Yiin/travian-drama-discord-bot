@@ -35,7 +35,7 @@ export async function handleSentButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -44,7 +44,7 @@ export async function handleSentButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: "Travian serveris nesukonfigūruotas.",
+      content: "Travian server is not configured.",
       ephemeral: true,
     });
     return;
@@ -53,7 +53,7 @@ export async function handleSentButton(
   const data = getGuildDefenseData(guildId);
   if (data.requests.length === 0) {
     await interaction.reply({
-      content: "Nėra aktyvių gynybos užklausų.",
+      content: "There are no active defense requests.",
       ephemeral: true,
     });
     return;
@@ -65,8 +65,8 @@ export async function handleSentButton(
     const prefix = i === 0 ? "➡️ " : "";
     const request = data.requests[i];
     const village = await getVillageAt(config.serverKey, request.x, request.y);
-    const villageName = village?.villageName || "Nežinomas";
-    const playerName = village?.playerName || "Nežinomas";
+    const villageName = village?.villageName || "Unknown";
+    const playerName = village?.playerName || "Unknown";
 
     // Build description: progress + message (truncated if needed)
     let description = `${request.troopsSent}/${request.troopsNeeded}`;
@@ -90,11 +90,11 @@ export async function handleSentButton(
   // Build modal with target dropdown and troop input
   const modal = new ModalBuilder()
     .setCustomId(SENT_MODAL_ID)
-    .setTitle("Išsiunčiau karius");
+    .setTitle("Sent karius");
 
   const targetSelect = new StringSelectMenuBuilder()
     .setCustomId(TARGET_SELECT_ID)
-    .setPlaceholder("Pasirink tikslą...")
+    .setPlaceholder("Select a target...")
     .setRequired(true)
     .addOptions(options);
 
@@ -110,8 +110,8 @@ export async function handleSentButton(
     .setMaxLength(10);
 
   const troopsLabel = new LabelBuilder()
-    .setLabel("Kiek karių išsiunčiau?")
-    .setDescription("Karių skaičius")
+    .setLabel("How many troops did you send?")
+    .setDescription("Troop count")
     .setTextInputComponent(troopsInput);
 
   modal.addLabelComponents(targetLabel, troopsLabel);
@@ -133,7 +133,7 @@ export async function handleSentModal(
   const selectedValues = interaction.fields.getStringSelectValues(TARGET_SELECT_ID);
   if (!selectedValues || selectedValues.length === 0) {
     await interaction.reply({
-      content: "Klaida: nepavyko nustatyti tikslo.",
+      content: "Error: failed to identify the target.",
       ephemeral: true,
     });
     return;
@@ -142,7 +142,7 @@ export async function handleSentModal(
   const requestId = parseInt(selectedValues[0], 10);
   if (isNaN(requestId) || requestId < 1) {
     await interaction.reply({
-      content: "Klaida: neteisingas tikslo ID.",
+      content: "Error: invalid target ID.",
       ephemeral: true,
     });
     return;
@@ -153,7 +153,7 @@ export async function handleSentModal(
   const troops = parseInt(troopsInput, 10);
   if (isNaN(troops) || troops < 1) {
     await interaction.reply({
-      content: "Neteisingas karių skaičius. Įvesk teigiamą skaičių.",
+      content: "Invalid troop count. Enter a positive number.",
       ephemeral: true,
     });
     return;
@@ -193,7 +193,7 @@ export async function handleRequestDefButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -202,7 +202,7 @@ export async function handleRequestDefButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: "Travian serveris nesukonfigūruotas.",
+      content: "Travian server is not configured.",
       ephemeral: true,
     });
     return;
@@ -211,7 +211,7 @@ export async function handleRequestDefButton(
   // Build modal with text inputs using LabelBuilder
   const modal = new ModalBuilder()
     .setCustomId(REQUEST_DEF_MODAL_ID)
-    .setTitle("Naujas gynybos prašymas");
+    .setTitle("New defense request");
 
   const coordsInput = new TextInputBuilder()
     .setCustomId(COORDS_INPUT_ID)
@@ -221,7 +221,7 @@ export async function handleRequestDefButton(
     .setMaxLength(20);
 
   const coordsLabel = new LabelBuilder()
-    .setLabel("Koordinatės")
+    .setLabel("Coordinates")
     .setTextInputComponent(coordsInput);
 
   const troopsInput = new TextInputBuilder()
@@ -232,7 +232,7 @@ export async function handleRequestDefButton(
     .setMaxLength(10);
 
   const troopsLabel = new LabelBuilder()
-    .setLabel("Kiek karių reikia?")
+    .setLabel("How many troops are needed?")
     .setTextInputComponent(troopsInput);
 
   const messageInput = new TextInputBuilder()
@@ -243,7 +243,7 @@ export async function handleRequestDefButton(
     .setMaxLength(100);
 
   const messageLabel = new LabelBuilder()
-    .setLabel("Papildoma informacija (nebūtina)")
+    .setLabel("Additional information (optional)")
     .setTextInputComponent(messageInput);
 
   modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel);
@@ -270,7 +270,7 @@ export async function handleRequestDefModal(
   const troopsNeeded = parseInt(troopsInput, 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
     await interaction.reply({
-      content: "Neteisingas karių skaičius. Įvesk teigiamą skaičių.",
+      content: "Invalid troop count. Enter a positive number.",
       ephemeral: true,
     });
     return;

@@ -43,7 +43,7 @@ export async function handleDefCallRequestButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -51,7 +51,7 @@ export async function handleDefCallRequestButton(
 
   const modal = new ModalBuilder()
     .setCustomId(DEFCALL_REQUEST_MODAL_ID)
-    .setTitle("Naujas gynybos prašymas");
+    .setTitle("New defense request");
 
   const coordsInput = new TextInputBuilder()
     .setCustomId(DEFCALL_COORDS_INPUT_ID)
@@ -60,7 +60,7 @@ export async function handleDefCallRequestButton(
     .setRequired(true)
     .setMaxLength(20);
   const coordsLabel = new LabelBuilder()
-    .setLabel("Koordinatės")
+    .setLabel("Coordinates")
     .setTextInputComponent(coordsInput);
 
   const landingInput = new TextInputBuilder()
@@ -70,17 +70,17 @@ export async function handleDefCallRequestButton(
     .setRequired(true)
     .setMaxLength(60);
   const landingLabel = new LabelBuilder()
-    .setLabel("Atakos kritimo laikas")
+    .setLabel("Attack landing time")
     .setTextInputComponent(landingInput);
 
   const commentInput = new TextInputBuilder()
     .setCustomId(DEFCALL_COMMENT_INPUT_ID)
     .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder("WW iš šiaurės")
+    .setPlaceholder("WW from the north")
     .setRequired(false)
     .setMaxLength(200);
   const commentLabel = new LabelBuilder()
-    .setLabel("Komentaras (nebūtina)")
+    .setLabel("Comment (optional)")
     .setTextInputComponent(commentInput);
 
   modal.addLabelComponents(coordsLabel, landingLabel, commentLabel);
@@ -94,7 +94,7 @@ export async function handleDefCallRequestModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -131,7 +131,7 @@ export async function handleDefCallSentButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -141,7 +141,7 @@ export async function handleDefCallSentButton(
   const requestData = getRequestByChannelId(guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Šis kanalas nėra gynybos prašymo kanalas.",
+      content: "This channel is not a defense request channel.",
       ephemeral: true,
     });
     return;
@@ -149,7 +149,7 @@ export async function handleDefCallSentButton(
 
   const modal = new ModalBuilder()
     .setCustomId(DEFCALL_SENT_MODAL_ID)
-    .setTitle("Atsiųsti kariai");
+    .setTitle("Sent Troops");
 
   const troopsInput = new TextInputBuilder()
     .setCustomId(DEFCALL_TROOPS_INPUT_ID)
@@ -158,7 +158,7 @@ export async function handleDefCallSentButton(
     .setRequired(true)
     .setMaxLength(10);
   const troopsLabel = new LabelBuilder()
-    .setLabel("Kiek karių išsiuntei?")
+    .setLabel("How many troops did you send?")
     .setTextInputComponent(troopsInput);
 
   modal.addLabelComponents(troopsLabel);
@@ -171,7 +171,7 @@ export async function handleDefCallSentModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -180,7 +180,7 @@ export async function handleDefCallSentModal(
   const channelId = interaction.channelId;
   if (!channelId) {
     await interaction.reply({
-      content: "Nepavyko nustatyti kanalo.",
+      content: "Failed to identify the channel.",
       ephemeral: true,
     });
     return;
@@ -189,7 +189,7 @@ export async function handleDefCallSentModal(
   const requestData = getRequestByChannelId(guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Šis kanalas nėra gynybos prašymo kanalas.",
+      content: "This channel is not a defense request channel.",
       ephemeral: true,
     });
     return;
@@ -199,7 +199,7 @@ export async function handleDefCallSentModal(
   const troops = parseInt(troopsInput.replace(/[,.\s]/g, ""), 10);
   if (isNaN(troops) || troops < 1) {
     await interaction.reply({
-      content: "Neteisingas karių skaičius. Įvesk teigiamą skaičių.",
+      content: "Invalid troop count. Enter a positive number.",
       ephemeral: true,
     });
     return;
@@ -232,7 +232,7 @@ export async function handleDefCallCloseButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -242,7 +242,7 @@ export async function handleDefCallCloseButton(
   const requestData = getRequestByChannelId(guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Šis kanalas nėra gynybos prašymo kanalas.",
+      content: "This channel is not a defense request channel.",
       ephemeral: true,
     });
     return;
@@ -274,7 +274,7 @@ export async function handleDefCallCloseButton(
   }
 
   try {
-    await interaction.editReply({ content: "Prašymas uždarytas, kanalas šalinamas." });
+    await interaction.editReply({ content: "Request closed, deleting channel." });
   } catch {
     // channel deleted before reply lands; that's fine
   }

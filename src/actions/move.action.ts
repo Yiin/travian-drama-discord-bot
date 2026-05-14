@@ -22,7 +22,7 @@ export async function executeMoveAction(
   await updateGlobalMessage(client, guildId);
 
   // 3. Build action text
-  const actionText = `<@${userId}> perkėlė užklausą #${fromPosition} į poziciją #${toPosition}.`;
+  const actionText = `<@${userId}> transferred request #${fromPosition} to position #${toPosition}.`;
 
   return {
     success: true,

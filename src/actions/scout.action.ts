@@ -43,7 +43,7 @@ export async function executeScoutAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      error: "Failed to load map data. Try again later.",
     };
   }
 
@@ -86,27 +86,27 @@ export async function sendScoutMessage(
 
   const roleMention = data.scoutRoleId ? `<@&${data.scoutRoleId}>` : "";
   const sendLink = data.rallyLink
-    ? `## [**SIŲSTI**](${data.rallyLink})\n`
+    ? `## [**SEND**](${data.rallyLink})\n`
     : "";
   const content = new TextDisplayBuilder().setContent(
     `## ${data.villageDisplay} · ${data.population} pop\n` +
       `# ${data.message}\n` +
       sendLink +
       (roleMention ? `${roleMention}\n` : "") +
-      `> -# Paprašė <@${data.requesterId}>`
+      `> -# Requested by <@${data.requesterId}>`
   );
 
   container.addTextDisplayComponents(content);
 
-  // Add "Eina" and "Atlikta" buttons
+  // Add "Going" and "Done" buttons
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(SCOUT_GOING_BUTTON_ID)
-      .setLabel("Eina")
+      .setLabel("Going")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(SCOUT_DONE_BUTTON_ID)
-      .setLabel("Atlikta")
+      .setLabel("Done")
       .setStyle(ButtonStyle.Success)
   );
 

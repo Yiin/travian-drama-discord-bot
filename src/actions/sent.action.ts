@@ -33,7 +33,7 @@ export async function executeSentAction(
   // 2. Snapshot request before modification (for undo)
   const requestBefore = getRequestById(guildId, requestId);
   if (!requestBefore) {
-    return { success: false, error: `Užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Request #${requestId} not found.` };
   }
   const snapshot: DefenseRequest = {
     ...requestBefore,
@@ -69,7 +69,7 @@ export async function executeSentAction(
     result.request.x,
     result.request.y
   );
-  const villageName = village?.villageName || "Nežinomas";
+  const villageName = village?.villageName || "Unknown";
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `[(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)})`;
@@ -78,9 +78,9 @@ export async function executeSentAction(
   const creditUser = `<@${creditUserId}>`;
   let actionText: string;
   if (result.isComplete) {
-    actionText = `${creditUser} užbaigė ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} completed ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   } else {
-    actionText = `${creditUser} išsiuntė **${troops}** į ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} sent **${troops}** to ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
   }
 
   // 8. Update global message

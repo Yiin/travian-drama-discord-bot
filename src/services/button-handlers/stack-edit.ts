@@ -85,7 +85,7 @@ function buildConfirmDeleteButtons(
 
   const cancelButton = new ButtonBuilder()
     .setCustomId(`${STACK_CANCEL_DELETE_PREFIX}:${requestId}`)
-    .setLabel("Atšaukti")
+    .setLabel("Cancel")
     .setStyle(ButtonStyle.Secondary);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -110,8 +110,8 @@ async function buildStackInfoContent(
     ? await getVillageAt(config.serverKey, request.x, request.y)
     : null;
 
-  const villageName = village?.villageName || "Nežinomas";
-  const playerName = village?.playerName || "Nežinomas";
+  const villageName = village?.villageName || "Unknown";
+  const playerName = village?.playerName || "Unknown";
   const villageDisplay = village && config.serverKey
     ? formatVillageDisplay(config.serverKey, village)
     : `(${request.x}|${request.y})`;
@@ -122,13 +122,13 @@ async function buildStackInfoContent(
 
   const lines = [
     `**#${requestId}/${totalRequests}** ${villageDisplay}`,
-    `**Kaimas:** ${villageName}`,
-    `**Žaidėjas:** ${playerName}`,
+    `**Village:** ${villageName}`,
+    `**Player:** ${playerName}`,
     `**Kariai:** ${request.troopsSent}/${request.troopsNeeded} (${progress}%)`,
   ];
 
   if (request.message) {
-    lines.push(`**Žinutė:** ${request.message}`);
+    lines.push(`**Message:** ${request.message}`);
   }
 
   return lines.join("\n");
@@ -140,7 +140,7 @@ export async function handleStackUpButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -149,7 +149,7 @@ export async function handleStackUpButton(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -157,7 +157,7 @@ export async function handleStackUpButton(
 
   if (requestId === 1) {
     await interaction.reply({
-      content: "Užklausa jau yra viršuje.",
+      content: "The request is already at the top.",
       ephemeral: true,
     });
     return;
@@ -169,7 +169,7 @@ export async function handleStackUpButton(
   const result = moveRequest(guildId, requestId, requestId - 1);
   if (!result.success) {
     await interaction.followUp({
-      content: result.error || "Nepavyko perkelti užklausos.",
+      content: result.error || "Failed to move the request.",
       ephemeral: true,
     });
     return;
@@ -185,7 +185,7 @@ export async function handleStackUpButton(
 
   if (!content) {
     await interaction.editReply({
-      content: "Užklausa nerasta.",
+      content: "Request not found.",
       components: [],
     });
     return;
@@ -203,7 +203,7 @@ export async function handleStackDownButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -212,7 +212,7 @@ export async function handleStackDownButton(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -222,7 +222,7 @@ export async function handleStackDownButton(
 
   if (requestId === totalRequests) {
     await interaction.reply({
-      content: "Užklausa jau yra apačioje.",
+      content: "The request is already at the bottom.",
       ephemeral: true,
     });
     return;
@@ -234,7 +234,7 @@ export async function handleStackDownButton(
   const result = moveRequest(guildId, requestId, requestId + 1);
   if (!result.success) {
     await interaction.followUp({
-      content: result.error || "Nepavyko perkelti užklausos.",
+      content: result.error || "Failed to move the request.",
       ephemeral: true,
     });
     return;
@@ -250,7 +250,7 @@ export async function handleStackDownButton(
 
   if (!content) {
     await interaction.editReply({
-      content: "Užklausa nerasta.",
+      content: "Request not found.",
       components: [],
     });
     return;
@@ -268,7 +268,7 @@ export async function handleStackEditButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -277,7 +277,7 @@ export async function handleStackEditButton(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -286,7 +286,7 @@ export async function handleStackEditButton(
   const request = getRequestById(guildId, requestId);
   if (!request) {
     await interaction.reply({
-      content: `Užklausa #${requestId} nerasta.`,
+      content: `Request #${requestId} not found.`,
       ephemeral: true,
     });
     return;
@@ -306,7 +306,7 @@ export async function handleStackEditButton(
     .setMaxLength(10);
 
   const troopsLabel = new LabelBuilder()
-    .setLabel("Kiek karių reikia?")
+    .setLabel("How many troops are needed?")
     .setTextInputComponent(troopsInput);
 
   const messageInput = new TextInputBuilder()
@@ -318,7 +318,7 @@ export async function handleStackEditButton(
     .setMaxLength(100);
 
   const messageLabel = new LabelBuilder()
-    .setLabel("Žinutė (nebūtina)")
+    .setLabel("Message (optional)")
     .setTextInputComponent(messageInput);
 
   modal.addLabelComponents(troopsLabel, messageLabel);
@@ -332,7 +332,7 @@ export async function handleStackEditModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -341,7 +341,7 @@ export async function handleStackEditModal(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -350,7 +350,7 @@ export async function handleStackEditModal(
   const request = getRequestById(guildId, requestId);
   if (!request) {
     await interaction.reply({
-      content: `Užklausa #${requestId} nerasta.`,
+      content: `Request #${requestId} not found.`,
       ephemeral: true,
     });
     return;
@@ -363,7 +363,7 @@ export async function handleStackEditModal(
   const troopsNeeded = parseInt(troopsInput, 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
     await interaction.reply({
-      content: "Neteisingas karių skaičius. Įvesk teigiamą skaičių.",
+      content: "Invalid troop count. Enter a positive number.",
       ephemeral: true,
     });
     return;
@@ -415,7 +415,7 @@ export async function handleStackEditModal(
   const updatedRequest = getRequestById(guildId, requestId);
   if (!updatedRequest) {
     await interaction.editReply({
-      content: `Užklausa #${requestId} baigta (kariai: ${result.troopsSent}/${troopsNeeded}).`,
+      content: `Request #${requestId} completed (troops: ${result.troopsSent}/${troopsNeeded}).`,
       components: [],
     });
     return;
@@ -427,14 +427,14 @@ export async function handleStackEditModal(
 
   if (!content) {
     await interaction.editReply({
-      content: "Užklausa nerasta.",
+      content: "Request not found.",
       components: [],
     });
     return;
   }
 
   await interaction.editReply({
-    content: content + "\n\n*Atnaujinta*",
+    content: content + "\n\n*Updated*",
     components: [buildStackEditButtons(requestId, totalRequests)],
   });
 }
@@ -445,7 +445,7 @@ export async function handleStackDeleteButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -454,7 +454,7 @@ export async function handleStackDeleteButton(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -463,7 +463,7 @@ export async function handleStackDeleteButton(
   const request = getRequestById(guildId, requestId);
   if (!request) {
     await interaction.reply({
-      content: `Užklausa #${requestId} nerasta.`,
+      content: `Request #${requestId} not found.`,
       ephemeral: true,
     });
     return;
@@ -475,7 +475,7 @@ export async function handleStackDeleteButton(
   const content = await buildStackInfoContent(guildId, requestId);
 
   await interaction.editReply({
-    content: content + "\n\n**Ar tikrai nori ištrinti?**",
+    content: content + "\n\n**Are you sure you want to delete this?**",
     components: [buildConfirmDeleteButtons(requestId)],
   });
 }
@@ -486,7 +486,7 @@ export async function handleStackConfirmDelete(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -495,7 +495,7 @@ export async function handleStackConfirmDelete(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -504,7 +504,7 @@ export async function handleStackConfirmDelete(
   const request = getRequestById(guildId, requestId);
   if (!request) {
     await interaction.reply({
-      content: `Užklausa #${requestId} jau ištrinta.`,
+      content: `Request #${requestId} has already been deleted.`,
       ephemeral: true,
     });
     return;
@@ -519,7 +519,7 @@ export async function handleStackConfirmDelete(
   const success = removeRequest(guildId, requestId);
   if (!success) {
     await interaction.followUp({
-      content: "Nepavyko ištrinti užklausos.",
+      content: "Failed to delete the request.",
       ephemeral: true,
     });
     return;
@@ -548,7 +548,7 @@ export async function handleStackConfirmDelete(
     : `(${request.x}|${request.y})`;
 
   await interaction.editReply({
-    content: `Ištrinta: ${villageDisplay}\n\nAtšaukti: \`/undo ${actionId}\``,
+    content: `Deleted: ${villageDisplay}\n\nCancel: \`/undo ${actionId}\``,
     components: [],
   });
 }
@@ -559,7 +559,7 @@ export async function handleStackCancelDelete(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "Ši komanda veikia tik serveryje.",
+      content: "This command can only be used in a server.",
       ephemeral: true,
     });
     return;
@@ -568,7 +568,7 @@ export async function handleStackCancelDelete(
   const requestId = parseRequestId(interaction.customId);
   if (!requestId) {
     await interaction.reply({
-      content: "Klaida: neteisingas užklausos ID.",
+      content: "Error: invalid request ID.",
       ephemeral: true,
     });
     return;
@@ -579,7 +579,7 @@ export async function handleStackCancelDelete(
   const request = getRequestById(guildId, requestId);
   if (!request) {
     await interaction.editReply({
-      content: `Užklausa #${requestId} nerasta.`,
+      content: `Request #${requestId} not found.`,
       components: [],
     });
     return;
@@ -591,7 +591,7 @@ export async function handleStackCancelDelete(
 
   if (!content) {
     await interaction.editReply({
-      content: "Užklausa nerasta.",
+      content: "Request not found.",
       components: [],
     });
     return;

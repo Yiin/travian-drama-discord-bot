@@ -17,7 +17,7 @@ export async function executePushEditAction(
   // 1. Get request before edit (deep copy for undo)
   const request = getPushRequestById(guildId, requestId);
   if (!request) {
-    return { success: false, error: `Push užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Push request #${requestId} not found.` };
   }
   const previousState: PushRequest = {
     ...request,
@@ -52,10 +52,10 @@ export async function executePushEditAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> pakeitė push užklausą (${villageDisplay}): ${formatNumber(oldAmount)} → ${formatNumber(resourcesNeeded)}`;
+  const actionText = `<@${userId}> changed push request (${villageDisplay}): ${formatNumber(oldAmount)} → ${formatNumber(resourcesNeeded)}`;
 
   // 6. Post edit notification in the channel and update embed
-  await postContributionMessage(client, result, `📝 Pakeistas tikslas: **${formatNumber(oldAmount)}** → **${formatNumber(resourcesNeeded)}**`);
+  await postContributionMessage(client, result, `📝 Changed tikslas: **${formatNumber(oldAmount)}** → **${formatNumber(resourcesNeeded)}**`);
   await updatePushChannelEmbed(client, guildId, result);
 
   return {

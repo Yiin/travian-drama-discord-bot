@@ -13,13 +13,13 @@ import { withRetry } from "../utils/retry";
 export const closeCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("close")
-    .setDescription("Uždaryti gynybos prašymą (naudok prašymo kanale)"),
+    .setDescription("Close a defense request (use in the request channel)"),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const guildId = interaction.guildId;
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;
@@ -29,7 +29,7 @@ export const closeCommand: Command = {
     const requestData = getRequestByChannelId(guildId, channelId);
     if (!requestData) {
       await interaction.reply({
-        content: "Šis kanalas nėra gynybos prašymo kanalas.",
+        content: "This channel is not a defense request channel.",
         ephemeral: true,
       });
       return;
@@ -61,7 +61,7 @@ export const closeCommand: Command = {
     }
 
     try {
-      await interaction.editReply({ content: "Prašymas uždarytas, kanalas šalinamas." });
+      await interaction.editReply({ content: "Request closed, deleting channel." });
     } catch {
       // channel might be gone already
     }

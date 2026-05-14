@@ -326,7 +326,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Ši komanda veikia tik push kanale.",
+      content: "This command can only be used in a push channel.",
       ephemeral: true,
     });
     return;
@@ -375,7 +375,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Ši komanda veikia tik push kanale.",
+      content: "This command can only be used in a push channel.",
       ephemeral: true,
     });
     return;
@@ -419,7 +419,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Ši komanda veikia tik push kanale.",
+      content: "This command can only be used in a push channel.",
       ephemeral: true,
     });
     return;
@@ -467,7 +467,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Ši komanda veikia tik push kanale.",
+      content: "This command can only be used in a push channel.",
       ephemeral: true,
     });
     return;
@@ -517,7 +517,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "Ši komanda veikia tik push kanale.",
+      content: "This command can only be used in a push channel.",
       ephemeral: true,
     });
     return;
@@ -557,7 +557,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
 async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "Ši komanda veikia tik serveryje.", ephemeral: true });
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
     return;
   }
 
@@ -566,12 +566,12 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
   const leaderboard = getPushLeaderboard(guildId);
 
   if (leaderboard.length === 0) {
-    await interaction.editReply({ content: "Nėra push statistikos." });
+    await interaction.editReply({ content: "No push stats." });
     return;
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("Push Lyderių Lentelė")
+    .setTitle("Push Leaderboard")
     .setColor(Colors.Gold)
     .setTimestamp();
 
@@ -580,7 +580,7 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
     const entry = leaderboard[i];
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
     lines.push(
-      `${medal} **${entry.accountName}** - ${formatNumber(entry.totalResources)} (${entry.villageCount} kaimai)`
+      `${medal} **${entry.accountName}** - ${formatNumber(entry.totalResources)} (${entry.villageCount} villages)`
     );
   }
 
@@ -592,7 +592,7 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
 async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "Ši komanda veikia tik serveryje.", ephemeral: true });
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
     return;
   }
 
@@ -603,19 +603,19 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
   const stats = getPlayerPushStats(guildId, playerName);
 
   if (!stats) {
-    await interaction.editReply({ content: `Nėra push statistikos žaidėjui **${playerName}**.` });
+    await interaction.editReply({ content: `No push stats for player **${playerName}**.` });
     return;
   }
 
   const config = getGuildConfig(guildId);
 
   const embed = new EmbedBuilder()
-    .setTitle(`Push statistika: ${stats.accountName}`)
+    .setTitle(`Push stats: ${stats.accountName}`)
     .setColor(Colors.Gold)
     .setTimestamp();
 
   const lines: string[] = [];
-  lines.push(`**Iš viso išsiųsta:** ${formatNumber(stats.totalResources)}`);
+  lines.push(`**Total sent:** ${formatNumber(stats.totalResources)}`);
   lines.push("");
   lines.push("**Kaimai:**");
 
@@ -631,7 +631,7 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
   }
 
   if (stats.villages.length > 10) {
-    lines.push(`... ir dar ${stats.villages.length - 10} kaimai`);
+    lines.push(`... and ${stats.villages.length - 10} villages`);
   }
 
   embed.setDescription(lines.join("\n"));
@@ -642,7 +642,7 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
 async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "Ši komanda veikia tik serveryje.", ephemeral: true });
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
     return;
   }
 
@@ -660,14 +660,14 @@ async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promis
 
   const oldAmount = result.previousAmount!;
   await interaction.editReply({
-    content: `<@${interaction.user.id}> pakeitė **${playerName}** globalią statistiką: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`,
+    content: `<@${interaction.user.id}> changed **${playerName}** global stats: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`,
   });
 }
 
 async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "Ši komanda veikia tik serveryje.", ephemeral: true });
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
     return;
   }
 
@@ -684,7 +684,7 @@ async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Pr
   }
 
   await interaction.editReply({
-    content: `<@${interaction.user.id}> perkėlė **${fromAccount}** statistiką į **${toAccount}** (**${formatNumber(result.transferredAmount!)}**)`,
+    content: `<@${interaction.user.id}> transferred **${fromAccount}** stats to **${toAccount}** (**${formatNumber(result.transferredAmount!)}**)`,
   });
 }
 

@@ -57,7 +57,7 @@ export const accountCommand: Command = {
       subcommand
         .setName("reminder")
         .setDescription(
-          "Post a singleton message with Pridėti / Nežaidžiu buttons (admin)"
+          "Post a singleton message with Add / Not playing buttons (admin)"
         )
     )
     .addSubcommand((subcommand) =>
@@ -128,7 +128,7 @@ async function handlePostReminder(
   const channel = interaction.channel;
   if (!channel || !(channel instanceof TextChannel)) {
     await interaction.reply({
-      content: "Šią komandą reikia naudoti tekstiniame kanale.",
+      content: "Use this command in a text channel.",
       ephemeral: true,
     });
     return;
@@ -136,12 +136,12 @@ async function handlePostReminder(
 
   const addButton = new ButtonBuilder()
     .setCustomId(ACCOUNT_REMINDER_ADD_BUTTON_ID)
-    .setLabel("Pridėti")
+    .setLabel("Add")
     .setStyle(ButtonStyle.Primary);
 
   const skipButton = new ButtonBuilder()
     .setCustomId(ACCOUNT_REMINDER_SKIP_BUTTON_ID)
-    .setLabel("Nežaidžiu")
+    .setLabel("Not playing")
     .setStyle(ButtonStyle.Secondary);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -150,9 +150,9 @@ async function handlePostReminder(
   );
 
   const content =
-    "**Susiek savo Discord paskyrą su žaidimo paskyra**\n" +
-    "Paspausk **Pridėti**, kad įvestum savo žaidėjo vardą.\n" +
-    "Paspausk **Nežaidžiu**, jei nežaidi šio serverio.";
+    "**Link your Discord account to your in-game account**\n" +
+    "Press **Add** to enter your player name.\n" +
+    "Press **Not playing** if you are not playing this server.";
 
   // Delete previous singleton message if it exists
   const config = getGuildConfig(guildId);
@@ -176,7 +176,7 @@ async function handlePostReminder(
   setAccountReminderMessage(guildId, channel.id, message.id);
 
   await interaction.reply({
-    content: "Reminder paskelbtas.",
+    content: "Reminder posted.",
     ephemeral: true,
   });
 }

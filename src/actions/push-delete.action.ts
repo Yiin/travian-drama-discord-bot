@@ -17,7 +17,7 @@ export async function executePushDeleteAction(
   // 1. Get request before deletion (deep copy for undo)
   const request = getPushRequestById(guildId, requestId);
   if (!request) {
-    return { success: false, error: `Push užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Push request #${requestId} not found.` };
   }
   const previousState: PushRequest = {
     ...request,
@@ -33,7 +33,7 @@ export async function executePushDeleteAction(
   // 4. Remove the request from data
   const removed = removePushRequest(guildId, requestId);
   if (!removed) {
-    return { success: false, error: `Nepavyko ištrinti push užklausos #${requestId}.` };
+    return { success: false, error: `Failed to delete push request #${requestId}.` };
   }
 
   // 5. Record action for undo
@@ -52,7 +52,7 @@ export async function executePushDeleteAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> ištrynė push užklausą: ${villageDisplay}`;
+  const actionText = `<@${userId}> deleted push request: ${villageDisplay}`;
 
   return {
     success: true,

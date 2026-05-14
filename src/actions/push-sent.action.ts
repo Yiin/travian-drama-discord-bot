@@ -40,7 +40,7 @@ export async function executePushSentAction(
   // 3. Get request before modification (deep copy for undo)
   const requestBefore = getPushRequestById(guildId, requestId);
   if (!requestBefore) {
-    return { success: false, error: `Push užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Push request #${requestId} not found.` };
   }
   const previousState: PushRequest = {
     ...requestBefore,
@@ -62,7 +62,7 @@ export async function executePushSentAction(
     result.request.x,
     result.request.y
   );
-  const villageName = village?.villageName || "Nežinomas";
+  const villageName = village?.villageName || "Unknown";
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `[(${result.request.x}|${result.request.y})](${getMapLink(config.serverKey!, result.request)})`;
@@ -70,9 +70,9 @@ export async function executePushSentAction(
   // 7. Build action text
   let actionText: string;
   if (result.isComplete && !result.wasAlreadyComplete) {
-    actionText = `**${accountName}** užbaigė push į ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
+    actionText = `**${accountName}** completed push to ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
   } else {
-    actionText = `**${accountName}** išsiuntė **${formatNumber(resources)}** į ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
+    actionText = `**${accountName}** sent **${formatNumber(resources)}** to ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
   }
 
   // 8. Record action for undo
@@ -90,7 +90,7 @@ export async function executePushSentAction(
   });
 
   // 9. Post contribution message in the push channel
-  const contributionText = `**${accountName}** išsiuntė **${formatNumber(resources)}** resursų`;
+  const contributionText = `**${accountName}** sent **${formatNumber(resources)}** resources`;
   await postContributionMessage(client, result.request, contributionText);
 
   // 10. Update the channel embed or mark complete

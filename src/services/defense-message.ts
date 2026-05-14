@@ -36,7 +36,7 @@ export async function buildGlobalEmbed(
   const config = getGuildConfig(guildId);
 
   const embed = new EmbedBuilder()
-    .setTitle("Aktyvūs stacko prašymai")
+    .setTitle("Active stack requests")
     .setColor(Colors.Red)
     .setTimestamp();
 
@@ -45,7 +45,7 @@ export async function buildGlobalEmbed(
   }
 
   if (data.requests.length === 0) {
-    embed.setDescription("Visi saugūs.");
+    embed.setDescription("Everyone is safe.");
     return embed;
   }
 
@@ -65,7 +65,7 @@ export async function buildGlobalEmbed(
         village.targetMapId,
         1,
       );
-      line += ` ${formatVillageDisplay(config.serverKey, village)} [**[ SIŲSTI ]**](${rallyLink})`;
+      line += ` ${formatVillageDisplay(config.serverKey, village)} [**[ SEND ]**](${rallyLink})`;
     } else {
       line += ` [(${request.x}|${request.y})](${getMapLink(config.serverKey, request)})`;
     }
@@ -94,7 +94,7 @@ export async function buildGlobalEmbed(
 
   if (data.requests.length > 0) {
     lines.push(
-      "\n*Išsiuntus spausk žemiau esantį mygtuką arba `/stack eilesnr kariai`*",
+      "\n*After sending, press the button below or use `/stack queue-number troops`*",
     );
   }
 
@@ -105,7 +105,7 @@ export async function buildGlobalEmbed(
   if (completed.length > 0) {
     const completedText = completed.map((c) => `(${c.x}|${c.y})`).join(", ");
     embed.setFooter({
-      text: `Pabaigtas: ${completedText}`,
+      text: `Completed: ${completedText}`,
     });
   }
 
@@ -117,12 +117,12 @@ export function buildActionButtons(
 ): ActionRowBuilder<ButtonBuilder> {
   const defButton = new ButtonBuilder()
     .setCustomId(REQUEST_DEF_BUTTON_ID)
-    .setLabel("Reikia stack")
+    .setLabel("Need stack")
     .setStyle(ButtonStyle.Danger);
 
   const sentButton = new ButtonBuilder()
     .setCustomId(SENT_BUTTON_ID)
-    .setLabel("Išsiunčiau")
+    .setLabel("Sent")
     .setStyle(ButtonStyle.Success)
     .setDisabled(!hasRequests);
 

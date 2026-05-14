@@ -151,7 +151,7 @@ async function fireNotification(
     // Send notification (don't tag going user to avoid unnecessary pings)
     const goingName = notification.goingUserName || `<@${goingUserId}>`;
     await channel.send({
-      content: `<@${requesterId}> žvalgai nuo ${goingName} į ${targetDisplay} turėtų būti jau vietoje!`,
+      content: `<@${requesterId}> scouts from ${goingName} to ${targetDisplay} should have arrived!`,
     });
 
     // Mark as done

@@ -25,7 +25,7 @@ export async function handleSentCommand(
 
   // 2. Validate troops
   if (troops < 1) {
-    await ctx.message.reply("Karių skaičius turi būti bent 1.");
+    await ctx.message.reply("Troop count must be at least 1.");
     return;
   }
 
@@ -70,7 +70,7 @@ export async function handleStackCommand(
 
   // 2. Validate troops
   if (troops < 1) {
-    await ctx.message.reply("Karių skaičius turi būti bent 1.");
+    await ctx.message.reply("Troop count must be at least 1.");
     return;
   }
 
@@ -166,7 +166,7 @@ async function handleUpdateDefCommandInner(
   }
 
   if (troopsSent === undefined && troopsNeeded === undefined && updateMessage === undefined) {
-    await ctx.message.reply("Nurodyk bent vieną lauką atnaujinti (troops_sent: X, troops_needed: X arba message: tekstas).");
+    await ctx.message.reply("Provide at least one field to update (troops_sent: X, troops_needed: X, or message: text).");
     return;
   }
 

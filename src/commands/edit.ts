@@ -51,7 +51,7 @@ async function handleStackEdit(
   const request = getRequestById(validation.guildId, requestId);
   if (!request) {
     await interaction.reply({
-      content: `Užklausa #${requestId} nerasta.`,
+      content: `Request #${requestId} not found.`,
       ephemeral: true,
     });
     return;
@@ -62,8 +62,8 @@ async function handleStackEdit(
     ? await getVillageAt(validation.config.serverKey, request.x, request.y)
     : null;
 
-  const villageName = village?.villageName || "Nežinomas";
-  const playerName = village?.playerName || "Nežinomas";
+  const villageName = village?.villageName || "Unknown";
+  const playerName = village?.playerName || "Unknown";
   const villageDisplay = village && validation.config.serverKey
     ? formatVillageDisplay(validation.config.serverKey, village)
     : `(${request.x}|${request.y})`;
@@ -76,13 +76,13 @@ async function handleStackEdit(
 
   const lines = [
     `**#${requestId}/${totalRequests}** ${villageDisplay}`,
-    `**Kaimas:** ${villageName}`,
-    `**Žaidėjas:** ${playerName}`,
+    `**Village:** ${villageName}`,
+    `**Player:** ${playerName}`,
     `**Kariai:** ${request.troopsSent}/${request.troopsNeeded} (${progress}%)`,
   ];
 
   if (request.message) {
-    lines.push(`**Žinutė:** ${request.message}`);
+    lines.push(`**Message:** ${request.message}`);
   }
 
   // 6. Reply with buttons

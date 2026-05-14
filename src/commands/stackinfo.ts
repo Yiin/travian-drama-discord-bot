@@ -17,7 +17,7 @@ export const stackinfoCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;
@@ -26,7 +26,7 @@ export const stackinfoCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/setserver`.",
+        content: "Travian server is not configured. An admin must use `/setserver`.",
         ephemeral: true,
       });
       return;
@@ -34,7 +34,7 @@ export const stackinfoCommand: Command = {
 
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Gynybos kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel type:Defense`.",
+        content: "Defense channel is not configured. An admin must use `/setchannel type:Defense`.",
         ephemeral: true,
       });
       return;
@@ -45,7 +45,7 @@ export const stackinfoCommand: Command = {
     await updateGlobalMessage(interaction.client, guildId);
 
     await interaction.editReply({
-      content: "Gynybos sąrašas atnaujintas.",
+      content: "Defense list updated.",
     });
   },
 };

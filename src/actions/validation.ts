@@ -9,7 +9,7 @@ import { ConfigValidation } from "./types";
  */
 export function validateDefenseConfig(guildId: string | null): ConfigValidation {
   if (!guildId) {
-    return { valid: false, error: "Ši komanda veikia tik serveryje." };
+    return { valid: false, error: "This command can only be used in a server." };
   }
 
   const config = getGuildConfig(guildId);
@@ -17,14 +17,14 @@ export function validateDefenseConfig(guildId: string | null): ConfigValidation 
   if (!config.serverKey) {
     return {
       valid: false,
-      error: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/setserver`.",
+      error: "Travian server is not configured. An admin must use `/setserver`.",
     };
   }
 
   if (!config.defenseChannelId) {
     return {
       valid: false,
-      error: "Gynybos kanalas nesukonfigūruotas. Adminas turi panaudoti `/setchannel type:Defense`.",
+      error: "Defense channel is not configured. An admin must use `/setchannel type:Defense`.",
     };
   }
 
@@ -49,7 +49,7 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
     if (matches.length === 0) {
       return {
         success: false,
-        error: `Nerasta aktyvi užklausa koordinatėse (${coords.x}|${coords.y}).`,
+        error: `No active request found at coordinates (${coords.x}|${coords.y}).`,
       };
     }
     if (matches.length > 1) {
@@ -57,7 +57,7 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
       const ids = matches.map((m) => m.requestId).join(", ");
       return {
         success: false,
-        error: `Yra ${matches.length} užklausos šiose koordinatėse. Naudok eilės numerį (${ids}).`,
+        error: `There are ${matches.length} requests at these coordinates. Use the queue number (${ids}).`,
       };
     }
     return { success: true, requestId: matches[0].requestId };
@@ -68,13 +68,13 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
   if (isNaN(parsed) || parsed < 1) {
     return {
       success: false,
-      error: "Neteisingas įvedimas. Nurodyk užklausos ID (pvz., 1) arba koordinates (pvz., 123|456).",
+      error: "Invalid input. Provide a request ID (for example, 1) or coordinates (for example, 123|456).",
     };
   }
 
   const existingRequest = getRequestById(guildId, parsed);
   if (!existingRequest) {
-    return { success: false, error: `Užklausa #${parsed} nerasta.` };
+    return { success: false, error: `Request #${parsed} not found.` };
   }
 
   return { success: true, requestId: parsed };
@@ -95,7 +95,7 @@ export function parseAndValidateCoords(coordsInput: string): CoordsValidation {
   if (!coords) {
     return {
       success: false,
-      error: "Neteisingos koordinatės. Naudok formatą 123|456.",
+      error: "Invalid coordinates. Use 123|456.",
     };
   }
   return { success: true, x: coords.x, y: coords.y };

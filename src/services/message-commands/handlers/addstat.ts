@@ -10,12 +10,12 @@ export async function handleAddstatCommand(
 ): Promise<void> {
   const coords = parseCoords(coordsInput);
   if (!coords) {
-    await ctx.message.reply("Neteisingos koordinatės. Naudok formatą `123|456` arba `-45|89`.");
+    await ctx.message.reply("Invalid coordinates. Use `123|456` or `-45|89`.");
     return;
   }
 
   if (troops === 0) {
-    await ctx.message.reply("Karių skaičius negali būti 0.");
+    await ctx.message.reply("Troop count cannot be 0.");
     return;
   }
 
@@ -25,6 +25,6 @@ export async function handleAddstatCommand(
 
   await ctx.message.react("✅");
   const userMention = forUserId ? ` (<@${forUserId}>)` : "";
-  const action = troops > 0 ? "Pridėta" : "Atimta";
-  await ctx.message.reply(`${action}: **${Math.abs(troops).toLocaleString()}** karių ${troops > 0 ? "į" : "iš"} (${coords.x}|${coords.y}) statistikos${userMention}.`);
+  const action = troops > 0 ? "Added" : "Subtracted";
+  await ctx.message.reply(`${action}: **${Math.abs(troops).toLocaleString()}** troops ${troops > 0 ? "to" : "from"} (${coords.x}|${coords.y}) stats${userMention}.`);
 }

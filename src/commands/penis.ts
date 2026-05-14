@@ -19,51 +19,51 @@ export const penisCommand: Command = {
     }
 
     const sizeStr = size < 1 ? size.toFixed(1) : size.toString();
-    const prefix = `${interaction.user.displayName} penio dydis:`;
+    const prefix = `${interaction.user.displayName}'s penis size:`;
 
     const comments: Record<string, string[]> = {
       tiny: [
-        "Paslėptas talentas. Labai paslėptas.",
-        "Svarbu ne dydis, o... ne, iš tikrųjų svarbu dydis.",
-        "Na, bent šildymas pigiau kainuos.",
-        "Mikroskopas pridedamas nemokamai.",
-        "Statistiškai egzistuoja.",
-        "Jei mirktelėsi - praleisi.",
-        "Labiau idėja nei objektas.",
-        "Simbolinis.",
-        "Pagarba už pastangas, ne už rezultatą.",
+        "Hidden talent. Very hidden.",
+        "It is not about size... actually, it is about size.",
+        "Well, at least heating will be cheaper.",
+        "Microscope included for free.",
+        "Statistically exists.",
+        "Blink and you will miss it.",
+        "More of an idea than an object.",
+        "Symbolic.",
+        "Respect for the effort, not the result.",
       ],
       small: [
-        "Vidutiniškai... žemiau vidurkio.",
-        "Kompensuoji su BMW.",
-        "Kompaktiška versija.",
-        "Ekonominė klasė.",
-        "Nedidelis, bet su charakteriu.",
-        "Diskretiškas.",
-        "Žiūrint iš kokio kampo..."
+        "Average-ish... below average.",
+        "Compensating with a BMW.",
+        "Compact version.",
+        "Economy class.",
+        "Small, but with character.",
+        "Discreet.",
+        "Depends on the angle..."
       ],
       medium: [
-        "Nieko ypatingo, bet ir nesiskundžiam.",
-        "Standartinė komplektacija.",
-        "Pakankama.",
-        "Beveik virš normos.",
-        "Vokiškas standartas."
+        "Nothing special, but no complaints.",
+        "Standard package.",
+        "Adequate.",
+        "Almost above average.",
+        "German standard."
       ],
       large: [
-        "Sunku nuslėpti.",
-        "Rekomenduojama įspėti iš anksto.",
-        "Pagarba.",
-        "Premium paketas.",
-        "Išliekantis atmintyje.",
-        "Užtrikrintas dėmesys."
+        "Hard to hide.",
+        "Advance warning recommended.",
+        "Respect.",
+        "Premium package.",
+        "Memorable.",
+        "Guaranteed attention."
       ],
       huge: [
-        "Ryanair skaičiuoja prie rankinio bagažo.",
-        "Svorio centras žemiau negu įprasta.",
-        "Reikės leidimo nešiotis.",
-        "Reikia dviejų rankų.",
-        "Nėra aišku ar tai legalu.",
-        "Į kambarį užeina pirmas."
+        "Ryanair counts it as carry-on luggage.",
+        "Center of gravity lower than usual.",
+        "A carry permit will be needed.",
+        "Requires two hands.",
+        "It is unclear whether this is legal.",
+        "It enters the room first."
       ],
     };
 

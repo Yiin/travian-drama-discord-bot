@@ -18,7 +18,7 @@ export async function executePushEditContributionAction(
   // 1. Get request before edit (deep copy for undo)
   const request = getPushRequestById(guildId, requestId);
   if (!request) {
-    return { success: false, error: `Push užklausa #${requestId} nerasta.` };
+    return { success: false, error: `Push request #${requestId} not found.` };
   }
   const previousState: PushRequest = {
     ...request,
@@ -58,13 +58,13 @@ export async function executePushEditContributionAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> pakeitė **${accountName}** įnašą (${villageDisplay}): ${formatNumber(oldAmount)} -> ${formatNumber(newAmount)}`;
+  const actionText = `<@${userId}> changed **${accountName}** contribution (${villageDisplay}): ${formatNumber(oldAmount)} -> ${formatNumber(newAmount)}`;
 
   // 7. Post edit notification in the channel and update embed
   await postContributionMessage(
     client,
     result.request!,
-    `📝 Pakeistas **${accountName}** įnašas: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`
+    `📝 Changed **${accountName}** contribution: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`
   );
   await updatePushChannelEmbed(client, guildId, result.request!);
 

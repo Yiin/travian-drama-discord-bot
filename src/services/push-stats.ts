@@ -394,12 +394,12 @@ export function transferGlobalStats(
   toAccount: string
 ): TransferGlobalStatsResult {
   if (fromAccount === toAccount) {
-    return { success: false, error: "Negalima perkelti sau pačiam." };
+    return { success: false, error: "Cannot transfer to the same player." };
   }
 
   const fromStats = getPlayerPushStats(guildId, fromAccount);
   if (!fromStats || fromStats.totalResources === 0) {
-    return { success: false, error: `Žaidėjas "${fromAccount}" neturi statistikos.` };
+    return { success: false, error: `Player "${fromAccount}" has no stats.` };
   }
 
   const stats = getGuildPushStats(guildId);

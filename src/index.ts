@@ -145,7 +145,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
-            content: "Įvyko klaida!",
+            content: "An error occurred!",
             ephemeral: true,
           });
         }
@@ -181,7 +181,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
-            content: "Įvyko klaida!",
+            content: "An error occurred!",
             ephemeral: true,
           });
         }

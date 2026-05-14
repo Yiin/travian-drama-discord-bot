@@ -10,23 +10,23 @@ import { withRetry } from "../utils/retry";
 export const defCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("def")
-    .setDescription("Sukurti gynybos prašymą")
+    .setDescription("Create a defense request")
     .addStringOption((option) =>
       option
         .setName("coords")
-        .setDescription("Koordinatės (pvz. 123|456)")
+        .setDescription("Coordinates (for example, 123|456)")
         .setRequired(true)
     )
     .addStringOption((option) =>
       option
         .setName("landing")
-        .setDescription("Atakos kritimo laikas (HH:MM, HH:MM:SS arba Travian formatas)")
+        .setDescription("Attack landing time (HH:MM, HH:MM:SS, or Travian format)")
         .setRequired(true)
     )
     .addStringOption((option) =>
       option
         .setName("comment")
-        .setDescription("Komentaras (nebūtina)")
+        .setDescription("Comment (optional)")
         .setRequired(false)
     ),
 
@@ -34,7 +34,7 @@ export const defCommand: Command = {
     const guildId = interaction.guildId;
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;

@@ -9,23 +9,23 @@ import { recordContribution } from "../services/stats";
 export const addstatCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("addstat")
-    .setDescription("Pridėti/atimti karių siuntimą į/iš statistikos (be gynybos prašymo)")
+    .setDescription("Add/subtract sent troops to/from stats (without a defense request)")
     .addStringOption((option) =>
       option
         .setName("coords")
-        .setDescription("Kaimo koordinatės (pvz., 123|456 arba -45|89)")
+        .setDescription("Village coordinates (for example, 123|456 or -45|89)")
         .setRequired(true)
     )
     .addIntegerOption((option) =>
       option
         .setName("troops")
-        .setDescription("Karių skaičius (neigiamas skaičius = atimti)")
+        .setDescription("Troop count (negative number = subtract)")
         .setRequired(true)
     )
     .addUserOption((option) =>
       option
         .setName("user")
-        .setDescription("Vartotojas, kuriam priskirti statistiką (numatyta: tu)")
+        .setDescription("User to assign stats to (default: you)")
         .setRequired(false)
     ),
 
@@ -34,7 +34,7 @@ export const addstatCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;
@@ -47,7 +47,7 @@ export const addstatCommand: Command = {
     const coords = parseCoords(coordsInput);
     if (!coords) {
       await interaction.reply({
-        content: "Neteisingos koordinatės. Naudok formatą `123|456` arba `-45|89`.",
+        content: "Invalid coordinates. Use `123|456` or `-45|89`.",
         ephemeral: true,
       });
       return;
@@ -55,7 +55,7 @@ export const addstatCommand: Command = {
 
     if (troops === 0) {
       await interaction.reply({
-        content: "Karių skaičius negali būti 0.",
+        content: "Troop count cannot be 0.",
         ephemeral: true,
       });
       return;
@@ -66,10 +66,10 @@ export const addstatCommand: Command = {
     recordContribution(guildId, targetUserId, coords.x, coords.y, troops);
 
     const userMention = targetUser ? ` (<@${targetUser.id}>)` : "";
-    const action = troops > 0 ? "Pridėta" : "Atimta";
+    const action = troops > 0 ? "Added" : "Subtracted";
 
     await interaction.reply({
-      content: `${action}: **${Math.abs(troops).toLocaleString()}** karių ${troops > 0 ? "į" : "iš"} (${coords.x}|${coords.y}) statistikos${userMention}.`,
+      content: `${action}: **${Math.abs(troops).toLocaleString()}** troops ${troops > 0 ? "to" : "from"} (${coords.x}|${coords.y}) stats${userMention}.`,
       ephemeral: true,
     });
   },

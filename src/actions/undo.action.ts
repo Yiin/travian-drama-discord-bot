@@ -33,7 +33,7 @@ export async function executeUndoAction(
   // 1. Get the action to show what we're undoing
   const action = getAction(guildId, actionId);
   if (!action) {
-    return { success: false, error: `Veiksmas #${actionId} nerastas.` };
+    return { success: false, error: `Action #${actionId} was not found.` };
   }
 
   // 2. Perform the undo
@@ -105,7 +105,7 @@ export async function executeUndoAction(
   const description = getActionDescription(action);
 
   // 6. Build action text
-  const actionText = `<@${userId}> atšaukė veiksmą #${actionId}: ${description}`;
+  const actionText = `<@${userId}> undid action #${actionId}: ${description}`;
 
   return {
     success: true,

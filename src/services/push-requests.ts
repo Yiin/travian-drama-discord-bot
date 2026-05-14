@@ -113,7 +113,7 @@ export function addPushRequest(
 
   // Check max requests limit
   if (data.requests.length >= MAX_PUSH_REQUESTS) {
-    return { error: `Pasiektas maksimalus užklausų limitas (${MAX_PUSH_REQUESTS}).` };
+    return { error: `Maximum request limit reached (${MAX_PUSH_REQUESTS}).` };
   }
 
   // Create new request
@@ -177,7 +177,7 @@ export function reportResourcesSent(
   const request = data.requests[index];
 
   if (!request) {
-    return { error: `Užklausa #${requestId} nerasta.` };
+    return { error: `Request #${requestId} not found.` };
   }
 
   const wasAlreadyComplete = request.completed;
@@ -221,7 +221,7 @@ export function updatePushRequest(
   const request = data.requests[index];
 
   if (!request) {
-    return { error: `Užklausa #${requestId} nerasta.` };
+    return { error: `Request #${requestId} not found.` };
   }
 
   if (updates.resourcesNeeded !== undefined) {
@@ -277,7 +277,7 @@ export function subtractResources(
   const index = requestId - 1; // Convert 1-based to 0-based
 
   if (index < 0 || index >= data.requests.length) {
-    return { success: false, error: "Užklausa nerasta." };
+    return { success: false, error: "Request not found." };
   }
 
   const request = data.requests[index];
@@ -324,7 +324,7 @@ export function restorePushRequest(
   if (data.requests.length >= MAX_PUSH_REQUESTS) {
     return {
       success: false,
-      error: `Pasiektas maksimalus užklausų limitas (${MAX_PUSH_REQUESTS}).`,
+      error: `Maximum request limit reached (${MAX_PUSH_REQUESTS}).`,
     };
   }
 
@@ -366,14 +366,14 @@ export function updateContributorResources(
   const index = requestId - 1;
 
   if (index < 0 || index >= data.requests.length) {
-    return { success: false, error: "Užklausa nerasta." };
+    return { success: false, error: "Request not found." };
   }
 
   const request = data.requests[index];
   const contributor = request.contributors.find((c) => c.accountName === accountName);
 
   if (!contributor) {
-    return { success: false, error: `Dalyvis "${accountName}" nerastas.` };
+    return { success: false, error: `Dalyvis "${accountName}" was not found.` };
   }
 
   const previousAmount = contributor.resources;
@@ -454,18 +454,18 @@ export function transferContribution(
   const index = requestId - 1;
 
   if (index < 0 || index >= data.requests.length) {
-    return { success: false, error: "Užklausa nerasta." };
+    return { success: false, error: "Request not found." };
   }
 
   const request = data.requests[index];
   const fromContributor = request.contributors.find((c) => c.accountName === fromAccount);
 
   if (!fromContributor) {
-    return { success: false, error: `Dalyvis "${fromAccount}" nerastas.` };
+    return { success: false, error: `Dalyvis "${fromAccount}" was not found.` };
   }
 
   if (fromAccount === toAccount) {
-    return { success: false, error: "Negalima perkelti sau pačiam." };
+    return { success: false, error: "Cannot transfer to the same player." };
   }
 
   const transferredAmount = fromContributor.resources;
