@@ -1,6 +1,7 @@
 import { CommandContext } from "./types";
 import * as patterns from "./patterns";
 import * as handlers from "./handlers";
+import { getRequestByChannelId } from "../def-calls";
 
 /**
  * Process a single command line
@@ -36,25 +37,13 @@ export async function processSingleCommand(
 
   match = content.match(patterns.CONFIGURE_CHANNEL_PATTERN);
   if (match) {
-    await handlers.handleConfigureChannelCommand(ctx, match[1] as "defense" | "scout" | "defcalls", match[2]);
+    await handlers.handleConfigureChannelCommand(ctx, match[1] as "defense" | "scout" | "defcalls" | "push", match[2]);
     return;
   }
 
   match = content.match(patterns.CONFIGURE_SCOUTROLE_PATTERN);
   if (match) {
     await handlers.handleConfigureScoutRoleCommand(ctx, match[1], match[2]);
-    return;
-  }
-
-  match = content.match(patterns.CONFIGURE_DEFCALLSCATEGORY_PATTERN);
-  if (match) {
-    await handlers.handleConfigureDefCallsCategoryCommand(ctx, match[1]);
-    return;
-  }
-
-  match = content.match(patterns.CONFIGURE_PUSHCATEGORY_PATTERN);
-  if (match) {
-    await handlers.handleConfigurePushCategoryCommand(ctx, match[1]);
     return;
   }
 
@@ -75,6 +64,26 @@ export async function processSingleCommand(
   if (match) {
     await handlers.handleCloseCommand(ctx);
     return;
+  }
+
+  // Def-call thread /sent — only inside a def-call request channel
+  match = content.match(patterns.DEFCALL_SENT_PATTERN);
+  if (match) {
+    const defCallRequestData = getRequestByChannelId(
+      ctx.guildId,
+      ctx.channelId
+    );
+    if (defCallRequestData) {
+      const troops = parseInt(match[1], 10);
+      const forUserId = match[2];
+      await handlers.handleDefCallSentCommand(
+        ctx,
+        defCallRequestData.requestId,
+        troops,
+        forUserId
+      );
+      return;
+    }
   }
 
   // Stats commands
@@ -123,6 +132,12 @@ export async function processSingleCommand(
   }
 
   // Account commands
+  match = content.match(patterns.ACCOUNT_SET_USER_PATTERN);
+  if (match) {
+    await handlers.handleAccountSetCommand(ctx, match[1], match[2]);
+    return;
+  }
+
   match = content.match(patterns.ACCOUNT_SET_PATTERN);
   if (match) {
     await handlers.handleAccountSetCommand(ctx, match[1]);

@@ -137,7 +137,7 @@ export function reportTroopsSent(
   const index = requestId - 1;
   const request = data.requests[index];
   if (!request) {
-    return { error: `Užklausa #${requestId} nerasta.` };
+    return { error: `Request #${requestId} not found.` };
   }
 
   const existing = request.contributors.find((c) => c.accountName === accountName);
@@ -169,7 +169,7 @@ export function subtractTroops(
   const data = getGuildDefCalls(guildId);
   const index = requestId - 1;
   if (index < 0 || index >= data.requests.length) {
-    return { success: false, error: "Užklausa nerasta." };
+    return { success: false, error: "Request not found." };
   }
   const request = data.requests[index];
   request.troopsSent = Math.max(0, request.troopsSent - troops);
@@ -194,7 +194,7 @@ export function closeRequest(
   const index = requestId - 1;
   const request = data.requests[index];
   if (!request) {
-    return { error: `Užklausa #${requestId} nerasta.` };
+    return { error: `Request #${requestId} not found.` };
   }
   request.closed = true;
   saveGuildData(guildId, data);
@@ -209,7 +209,7 @@ export function restoreRequest(
   const data = getGuildDefCalls(guildId);
   const index = requestId - 1;
   if (index < 0 || index >= data.requests.length) {
-    return { error: `Užklausa #${requestId} nerasta.` };
+    return { error: `Request #${requestId} not found.` };
   }
   data.requests[index] = {
     ...state,
@@ -267,6 +267,11 @@ export function setHubButtonMessageId(
   const data = getGuildDefCalls(guildId);
   data.hubButtonMessageId = messageId;
   saveGuildData(guildId, data);
+}
+
+export function getHubButtonMessageId(guildId: string): string | undefined {
+  const data = getGuildDefCalls(guildId);
+  return data.hubButtonMessageId;
 }
 
 export function getActiveRequests(

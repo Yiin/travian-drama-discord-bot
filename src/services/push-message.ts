@@ -6,7 +6,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
 } from "discord.js";
 import {
   PushRequest,
@@ -71,7 +70,7 @@ export async function buildSinglePushEmbed(
   const village = await getVillageAt(serverKey, request.x, request.y);
   const mapLink = getMapLink(serverKey, request);
   if (village) {
-    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SIŲSTI ]**](${mapLink})`);
+    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SEND ]**](${mapLink})`);
   } else {
     lines.push(`📍 [(${request.x}|${request.y})](${mapLink})`);
   }
@@ -106,18 +105,18 @@ export async function buildSinglePushEmbed(
 export function buildPushChannelButtons(): ActionRowBuilder<ButtonBuilder> {
   const sentButton = new ButtonBuilder()
     .setCustomId(PUSH_SENT_BUTTON_ID)
-    .setLabel("Išsiunčiau")
+    .setLabel("Sent")
     .setStyle(ButtonStyle.Success);
 
   const deleteButton = new ButtonBuilder()
     .setCustomId(PUSH_DELETE_BUTTON_ID)
-    .setLabel("Ištrinti kanalą")
+    .setLabel("Delete channel")
     .setStyle(ButtonStyle.Danger);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(sentButton, deleteButton);
 }
 
-export async function createPushChannel(
+export async function createPushThread(
   client: Client,
   guildId: string,
   request: PushRequest,
@@ -125,49 +124,55 @@ export async function createPushChannel(
 ): Promise<CreatePushChannelResult> {
   const config = getGuildConfig(guildId);
 
-  if (!config.pushCategoryId) {
-    throw new Error("Push category is not configured. Use /configure push-category first.");
+  if (!config.pushChannelId) {
+    throw new Error("Push channel is not configured. Use /configure channel type:Push first.");
   }
 
   if (!config.serverKey) {
     throw new Error("Server key is not configured.");
   }
 
-  const guild = await client.guilds.fetch(guildId);
-  if (!guild) {
-    throw new Error(`Could not fetch guild ${guildId}`);
+  const parent = (await client.channels.fetch(config.pushChannelId)) as TextChannel;
+  if (!parent) {
+    throw new Error(`Could not fetch push channel ${config.pushChannelId}`);
   }
 
-  // Get player name for channel name
+  // Get player name for thread name
   const village = await getVillageAt(config.serverKey, request.x, request.y);
   const playerName = village?.playerName || "unknown";
   const sanitizedPlayerName = sanitizeChannelName(playerName);
 
-  // Create channel name: push-{id}-{playername}
-  const channelName = `push-${requestId}-${sanitizedPlayerName}`;
+  // Build starter message visible in the parent channel feed
+  const villageDisplay = village
+    ? formatVillageDisplay(config.serverKey, village)
+    : `(${request.x}|${request.y})`;
+  const starterContent = `**${request.requesterAccount}** push: ${villageDisplay} — needs ${formatNumber(request.resourcesNeeded)}`;
+  const starter = await parent.send({
+    content: starterContent,
+    allowedMentions: { parse: [] },
+  });
 
-  // Create the channel
-  const channel = await guild.channels.create({
-    name: channelName,
-    type: ChannelType.GuildText,
-    parent: config.pushCategoryId,
+  // Create thread from the starter message
+  const thread = await starter.startThread({
+    name: `push-${requestId}-${sanitizedPlayerName}`,
+    autoArchiveDuration: 10080,
     reason: `Push request #${requestId} by ${request.requesterAccount}`,
   });
 
-  // Build and send embed with buttons
+  // Build and send embed with buttons inside the thread
   const embed = await buildSinglePushEmbed(request, config.serverKey);
   const buttons = buildPushChannelButtons();
 
-  const message = await channel.send({
+  const message = await thread.send({
     embeds: [embed],
     components: [buttons],
   });
 
-  // Save channel and message IDs to the request
-  updatePushRequestChannelInfo(guildId, requestId, channel.id, message.id);
+  // Save thread ID (treated as channelId) and message ID to the request
+  updatePushRequestChannelInfo(guildId, requestId, thread.id, message.id);
 
   return {
-    channelId: channel.id,
+    channelId: thread.id,
     messageId: message.id,
   };
 }
@@ -272,7 +277,7 @@ export async function markPushComplete(
   await postContributionMessage(
     client,
     request,
-    "✅ **Push užbaigtas!** Dėkojame visiems prisidėjusiems."
+    "✅ **Push complete!** Thanks to everyone who contributed."
   );
 }
 

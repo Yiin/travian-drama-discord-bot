@@ -5,7 +5,7 @@ import {
   ChannelType,
 } from "discord.js";
 import { Command } from "../types";
-import { setServerKey, setDefenseChannel, setScoutChannel, setPushCategory, setScoutRole, setDefCallsChannelId, setDefCallsCategoryId, setServerTimezone, getGuildConfig } from "../config/guild-config";
+import { setServerKey, setDefenseChannel, setScoutChannel, setPushChannelId, setScoutRole, setDefCallsChannelId, setServerTimezone, getGuildConfig } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 import { isValidTimezone } from "../utils/time";
@@ -58,7 +58,8 @@ export const configureCommand: Command = {
             .addChoices(
               { name: "Defense", value: "defense" },
               { name: "Scout", value: "scout" },
-              { name: "DefCalls", value: "defcalls" }
+              { name: "DefCalls", value: "defcalls" },
+              { name: "Push", value: "push" }
             )
         )
         .addChannelOption((option) =>
@@ -67,30 +68,6 @@ export const configureCommand: Command = {
             .setDescription("The channel to send requests to")
             .setRequired(true)
             .addChannelTypes(ChannelType.GuildText)
-        )
-    )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("push-category")
-        .setDescription("Configure the category for push request channels")
-        .addChannelOption((option) =>
-          option
-            .setName("category")
-            .setDescription("The category where push channels will be created")
-            .setRequired(true)
-            .addChannelTypes(ChannelType.GuildCategory)
-        )
-    )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("def-calls-category")
-        .setDescription("Configure the category for def-call channels")
-        .addChannelOption((option) =>
-          option
-            .setName("category")
-            .setDescription("The category where def-call channels will be created")
-            .setRequired(true)
-            .addChannelTypes(ChannelType.GuildCategory)
         )
     )
     .addSubcommand((subcommand) =>
@@ -134,10 +111,6 @@ export const configureCommand: Command = {
       await handleServerConfig(interaction, guildId);
     } else if (subcommand === "channel") {
       await handleChannelConfig(interaction, guildId);
-    } else if (subcommand === "push-category") {
-      await handlePushCategoryConfig(interaction, guildId);
-    } else if (subcommand === "def-calls-category") {
-      await handleDefCallsCategoryConfig(interaction, guildId);
     } else if (subcommand === "scoutrole") {
       await handleScoutRoleConfig(interaction, guildId);
     } else if (subcommand === "timezone") {
@@ -156,7 +129,7 @@ async function handleTimezoneConfig(
   if (trimmed.toLowerCase() === "clear") {
     setServerTimezone(guildId, null);
     await interaction.reply({
-      content: "Serverio laiko juosta išvalyta. Įvedami laikai bus traktuojami kaip UTC.",
+      content: "Server timezone cleared. Entered times will be treated as UTC.",
       ephemeral: true,
     });
     return;
@@ -164,7 +137,7 @@ async function handleTimezoneConfig(
 
   if (!isValidTimezone(trimmed)) {
     await interaction.reply({
-      content: `Neatpažinta laiko juosta: \`${value}\`. Naudok IANA pavadinimą, pvz. \`Europe/Vilnius\`.`,
+      content: `Unrecognized timezone: \`${value}\`. Use an IANA name, for example \`Europe/Vilnius\`.`,
       ephemeral: true,
     });
     return;
@@ -172,7 +145,7 @@ async function handleTimezoneConfig(
 
   setServerTimezone(guildId, trimmed);
   await interaction.reply({
-    content: `Serverio laiko juosta nustatyta: \`${trimmed}\`. Įvedami laikai bus traktuojami šios juostos vietine reikšme.`,
+    content: `Server timezone set: \`${trimmed}\`. Entered times will be treated as local time in this timezone.`,
     ephemeral: true,
   });
 }
@@ -239,33 +212,13 @@ async function handleChannelConfig(
       content: `Def-call hub set to <#${channel.id}>`,
       ephemeral: true,
     });
+  } else if (type === "push") {
+    setPushChannelId(guildId, channel.id);
+    await interaction.reply({
+      content: `Push request threads will be created in <#${channel.id}>`,
+      ephemeral: true,
+    });
   }
-}
-
-async function handleDefCallsCategoryConfig(
-  interaction: ChatInputCommandInteraction,
-  guildId: string
-): Promise<void> {
-  const category = interaction.options.getChannel("category", true);
-  setDefCallsCategoryId(guildId, category.id);
-  await interaction.reply({
-    content: `Def-call channels will now be created in <#${category.id}>`,
-    ephemeral: true,
-  });
-}
-
-async function handlePushCategoryConfig(
-  interaction: ChatInputCommandInteraction,
-  guildId: string
-): Promise<void> {
-  const category = interaction.options.getChannel("category", true);
-
-  console.log(`[Configure] Setting push category for guild ${guildId} to ${category.id}`);
-  setPushCategory(guildId, category.id);
-  await interaction.reply({
-    content: `Push request channels will now be created in <#${category.id}>`,
-    ephemeral: true,
-  });
 }
 
 async function handleScoutRoleConfig(

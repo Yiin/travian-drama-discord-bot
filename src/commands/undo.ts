@@ -25,16 +25,16 @@ export const undoCommand: Command = {
     // 1. Basic validation (undo only needs defenseChannelId)
     if (!guildId) {
       await interaction.reply({
-        content: "Ši komanda veikia tik serveryje.",
+        content: "This command can only be used in a server.",
         ephemeral: true,
       });
       return;
     }
 
     const config = getGuildConfig(guildId);
-    if (!config.defenseChannelId && !config.pushCategoryId) {
+    if (!config.defenseChannelId && !config.pushChannelId) {
       await interaction.reply({
-        content: "Nei gynybos kanalas, nei push kategorija nesukonfigūruota. Adminas turi panaudoti `/configure`.",
+        content: "Neither a defense channel nor a push channel is configured. An admin must use `/configure`.",
         ephemeral: true,
       });
       return;

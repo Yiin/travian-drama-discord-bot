@@ -1,6 +1,6 @@
 import { addPushRequest } from "../services/push-requests";
 import { getVillageAt, ensureMapData, formatVillageDisplay } from "../services/map-data";
-import { createPushChannel } from "../services/push-message";
+import { createPushThread } from "../services/push-message";
 import { parseAndValidateCoords } from "./validation";
 import { validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushRequestActionInput, PushRequestActionResult } from "./types";
@@ -38,7 +38,7 @@ export async function executePushRequestAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      error: "Failed to load map data. Try again later.",
     };
   }
 
@@ -52,7 +52,7 @@ export async function executePushRequestAction(
   }
 
   // 6. Create the push channel
-  const channelResult = await createPushChannel(client, guildId, result.request, result.requestId);
+  const channelResult = await createPushThread(client, guildId, result.request, result.requestId);
 
   // 7. Record the action for undo
   const actionId = recordAction(guildId, {
@@ -72,7 +72,7 @@ export async function executePushRequestAction(
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${x}|${y}) Unknown/new village`;
   const allianceInfo = village?.allianceName ? ` [${village.allianceName}]` : "";
-  const actionText = `**${accountName}** sukūrė push užklausą: ${villageDisplay}${allianceInfo} - reikia ${formatNumber(resourcesNeeded)} resursų. <#${channelResult.channelId}>`;
+  const actionText = `**${accountName}** created a push request: ${villageDisplay}${allianceInfo} - needs ${formatNumber(resourcesNeeded)} resources. <#${channelResult.channelId}>`;
 
   return {
     success: true,

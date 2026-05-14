@@ -18,6 +18,10 @@ export const STACK_PATTERN = /^[\/!]stack\s+(.+?)\s+(\d+)(?:\s+(.+))?\s*$/i;
 // Examples: !def 123|456 12:30:45  /  /def 51 -32 12:30 my comment
 export const DEF_PATTERN = /^[\/!]def\s+(\S+(?:\s+-?\d+)?)\s+(\S+)(?:\s+(.+))?\s*$/i;
 
+// Pattern: /sent or !sent for def-call threads — troops only, optional trailing user mention
+// Used inside def-call request channels (no target needed; the channel identifies the request)
+export const DEFCALL_SENT_PATTERN = /^[\/!]sent\s+(\d+)(?:\s+<@!?(\d+)>)?\s*$/i;
+
 // Pattern: /close or !close (no args)
 export const CLOSE_PATTERN = /^[\/!]close\s*$/i;
 
@@ -46,9 +50,7 @@ export const DRAMA_PATTERN = /^[\/!]drama(?:\s+(en|lt))?\s*$/i;
 // !configure channel scout #channel
 // !configure scoutrole @role (or role ID, or "clear")
 export const CONFIGURE_SERVER_PATTERN = /^[\/!]configure\s+server\s+(\S+)\s*$/i;
-export const CONFIGURE_CHANNEL_PATTERN = /^[\/!]configure\s+channel\s+(defense|scout|defcalls)\s+(?:<#)?(\d+)>?\s*$/i;
-export const CONFIGURE_DEFCALLSCATEGORY_PATTERN = /^[\/!]configure\s+def-calls-category\s+(?:<#)?(\d+)>?\s*$/i;
-export const CONFIGURE_PUSHCATEGORY_PATTERN = /^[\/!]configure\s+push-category\s+(?:<#)?(\d+)>?\s*$/i;
+export const CONFIGURE_CHANNEL_PATTERN = /^[\/!]configure\s+channel\s+(defense|scout|defcalls|push)\s+(?:<#)?(\d+)>?\s*$/i;
 export const CONFIGURE_SCOUTROLE_PATTERN = /^[\/!]configure\s+scoutrole(?:\s+(?:(?:<@&)?(\d+)>?|(clear)))?\s*$/i;
 export const CONFIGURE_TIMEZONE_PATTERN = /^[\/!]configure\s+timezone\s+(.+?)\s*$/i;
 
@@ -72,7 +74,9 @@ export const ADDSTAT_PATTERN = /^[\/!]addstat\s+(.+?)\s+(-?\d+)(?:\s+<@!?(\d+)>)
 
 // Pattern: /account or !account with subcommands
 // !account set PlayerName
+// !account set PlayerName @user
 // !account del
+export const ACCOUNT_SET_USER_PATTERN = /^[\/!]account\s+set\s+(.+?)\s+<@!?(\d+)>\s*$/i;
 export const ACCOUNT_SET_PATTERN = /^[\/!]account\s+set\s+(.+?)\s*$/i;
 export const ACCOUNT_DEL_PATTERN = /^[\/!]account\s+del\s*$/i;
 

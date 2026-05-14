@@ -22,8 +22,6 @@ export {
   handleConfigureServerCommand,
   handleConfigureChannelCommand,
   handleConfigureScoutRoleCommand,
-  handleConfigureDefCallsCategoryCommand,
-  handleConfigurePushCategoryCommand,
   handleConfigureTimezoneCommand,
 } from "./configure";
 
@@ -50,4 +48,8 @@ export {
 } from "./accounts";
 
 // Def call handlers
-export { handleDefCommand, handleCloseCommand } from "./def-call";
+export {
+  handleDefCommand,
+  handleDefCallSentCommand,
+  handleCloseCommand,
+} from "./def-call";

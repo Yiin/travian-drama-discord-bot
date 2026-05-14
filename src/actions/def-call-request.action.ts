@@ -6,7 +6,7 @@ import {
 } from "../services/map-data";
 import { recordAction } from "../services/action-history";
 import {
-  createDefCallChannel,
+  createDefCallThread,
   refreshHubChannel,
 } from "../services/def-calls-message";
 import { parseAndValidateCoords } from "./validation";
@@ -29,15 +29,15 @@ export async function executeDefCallRequestAction(
     return {
       success: false,
       error:
-        "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/configure server`.",
+        "Travian server is not configured. An admin must use `/configure server`.",
     };
   }
 
-  if (!config.defCallsChannelId || !config.defCallsCategoryId) {
+  if (!config.defCallsChannelId) {
     return {
       success: false,
       error:
-        "Gynybos kanalai nesukonfigūruoti. Administratorius turi paleisti `/configure def-calls-channel` ir `/configure def-calls-category`.",
+        "Def-calls channel is not configured. An administrator must run `/configure channel type:DefCalls`.",
     };
   }
 
@@ -57,7 +57,7 @@ export async function executeDefCallRequestAction(
   if (landingAt === null) {
     return {
       success: false,
-      error: `Neatpažintas kritimo laikas: "${landing}". Naudok HH:MM, HH:MM:SS arba Travian formatą "in HH:MM:SS hrs.at HH:MM:SS".`,
+      error: `Unrecognized landing time: "${landing}". Use HH:MM, HH:MM:SS, or Travian format "in HH:MM:SS hrs.at HH:MM:SS".`,
     };
   }
 
@@ -65,7 +65,7 @@ export async function executeDefCallRequestAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Nepavyko užkrauti žemėlapio duomenų. Bandyk vėliau.",
+      error: "Failed to load map data. Try again later.",
     };
   }
 
@@ -83,7 +83,7 @@ export async function executeDefCallRequestAction(
 
   let channelId: string;
   try {
-    const channelResult = await createDefCallChannel(
+    const channelResult = await createDefCallThread(
       client,
       guildId,
       result.request,
@@ -94,7 +94,7 @@ export async function executeDefCallRequestAction(
     console.error("[DefCallRequest] Failed to create channel:", error);
     return {
       success: false,
-      error: "Nepavyko sukurti kanalo. Bandyk dar kartą.",
+      error: "Failed to create the channel. Try again.",
     };
   }
 
@@ -114,7 +114,7 @@ export async function executeDefCallRequestAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey, village)
     : `(${x}|${y})`;
-  const actionText = `**${accountName}** sukūrė gynybos prašymą: ${villageDisplay} — leidžiasi <t:${landingAt}:R>. <#${channelId}>`;
+  const actionText = `**${accountName}** created a defense request: ${villageDisplay} — lands <t:${landingAt}:R>. <#${channelId}>`;
 
   return {
     success: true,

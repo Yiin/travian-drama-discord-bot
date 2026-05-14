@@ -6,16 +6,14 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
-  Message,
 } from "discord.js";
 import {
   DefCallRequest,
-  getActiveRequests,
   getRequestByChannelId,
   updateChannelInfo,
   updateMessageId,
   updateSummaryMessageId,
+  getHubButtonMessageId,
   setHubButtonMessageId,
   closeRequest,
 } from "./def-calls";
@@ -61,9 +59,9 @@ export async function buildPerCallEmbed(
   if (request.closed) {
     embed.setColor(Colors.Green).setTitle("✅ Gynyba pristatyta");
   } else if (overdue) {
-    embed.setColor(Colors.Grey).setTitle("⚠️ Gynybos prašymas (vėluoja)");
+    embed.setColor(Colors.Grey).setTitle("⚠️ Defense Request (overdue)");
   } else {
-    embed.setColor(Colors.Gold).setTitle("⚔️ Gynybos prašymas");
+    embed.setColor(Colors.Gold).setTitle("⚔️ Defense Request");
   }
 
   const village = await getVillageAt(serverKey, request.x, request.y);
@@ -74,18 +72,18 @@ export async function buildPerCallEmbed(
 
   const lines: string[] = [];
   if (village) {
-    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SIŲSTI ]**](${rallyLink})`);
+    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SEND ]**](${rallyLink})`);
   } else {
-    lines.push(`📍 [(${request.x}|${request.y})](${mapLink}) [**[ SIŲSTI ]**](${rallyLink})`);
+    lines.push(`📍 [(${request.x}|${request.y})](${mapLink}) [**[ SEND ]**](${rallyLink})`);
   }
 
-  lines.push(`🕒 Leidžiasi <t:${request.landingAt}:R> (<t:${request.landingAt}:T>)`);
+  lines.push(`🕒 Lands <t:${request.landingAt}:R> (<t:${request.landingAt}:T>)`);
 
   if (request.comment) {
     lines.push(`💬 ${request.comment}`);
   }
 
-  lines.push(`👤 Prašo: <@${request.requesterId}> (${request.requesterAccount})`);
+  lines.push(`👤 Requested by: <@${request.requesterId}> (${request.requesterAccount})`);
 
   embed.setDescription(lines.join("\n"));
 
@@ -95,12 +93,12 @@ export async function buildPerCallEmbed(
       (c) => `• ${c.accountName}: ${formatNumber(c.troops)}`
     );
     embed.addFields({
-      name: `Atsiuntė (${formatNumber(request.troopsSent)})`,
+      name: `Sent (${formatNumber(request.troopsSent)})`,
       value: contribLines.join("\n"),
     });
   } else {
     embed.addFields({
-      name: "Atsiuntė",
+      name: "Sent",
       value: "_dar niekas_",
     });
   }
@@ -111,12 +109,12 @@ export async function buildPerCallEmbed(
 export function buildPerCallButtons(): ActionRowBuilder<ButtonBuilder> {
   const sentButton = new ButtonBuilder()
     .setCustomId(DEFCALL_SENT_BUTTON_ID)
-    .setLabel("Išsiunčiau")
+    .setLabel("Sent")
     .setStyle(ButtonStyle.Success);
 
   const closeButton = new ButtonBuilder()
     .setCustomId(DEFCALL_CLOSE_BUTTON_ID)
-    .setLabel("Uždaryti")
+    .setLabel("Close")
     .setStyle(ButtonStyle.Danger);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(sentButton, closeButton);
@@ -127,38 +125,54 @@ export interface CreateDefCallChannelResult {
   messageId: string;
 }
 
-export async function createDefCallChannel(
+export async function createDefCallThread(
   client: Client,
   guildId: string,
   request: DefCallRequest,
   requestId: number
 ): Promise<CreateDefCallChannelResult> {
   const config = getGuildConfig(guildId);
-  if (!config.defCallsCategoryId) {
-    throw new Error("Def calls category not configured");
+  if (!config.defCallsChannelId) {
+    throw new Error("Def-calls channel not configured");
   }
   if (!config.serverKey) {
     throw new Error("Server key not configured");
   }
 
-  const guild = await client.guilds.fetch(guildId);
-  const channelName = buildChannelName(request);
+  const parent = (await client.channels.fetch(config.defCallsChannelId)) as TextChannel;
+  if (!parent) {
+    throw new Error(`Could not fetch def-calls channel ${config.defCallsChannelId}`);
+  }
 
-  const channel = await guild.channels.create({
-    name: channelName,
-    type: ChannelType.GuildText,
-    parent: config.defCallsCategoryId,
+  // Build the user-visible summary line — this becomes the thread starter message.
+  const village = await getVillageAt(config.serverKey, request.x, request.y);
+  const villageDisplay = village
+    ? `${village.villageName} (${village.playerName})`
+    : "Unknown village";
+  const mapLink = getMapLink(config.serverKey, request);
+  const commentSuffix = request.comment ? ` — _${request.comment}_` : "";
+  const starterContent = `<@${request.requesterId}> requests defense: **[${villageDisplay} (${request.x}|${request.y})](${mapLink})** — lands <t:${request.landingAt}:R>${commentSuffix}`;
+
+  const starter = await parent.send({
+    content: starterContent,
+    allowedMentions: { parse: [] },
+  });
+
+  const thread = await starter.startThread({
+    name: buildChannelName(request),
+    autoArchiveDuration: 10080,
     reason: `Def call by ${request.requesterAccount}`,
   });
 
   const embed = await buildPerCallEmbed(request, config.serverKey);
   const buttons = buildPerCallButtons();
 
-  const message = await channel.send({ embeds: [embed], components: [buttons] });
+  const message = await thread.send({ embeds: [embed], components: [buttons] });
 
-  updateChannelInfo(guildId, requestId, channel.id, message.id);
+  updateChannelInfo(guildId, requestId, thread.id, message.id);
+  updateSummaryMessageId(guildId, requestId, starter.id);
 
-  return { channelId: channel.id, messageId: message.id };
+  return { channelId: thread.id, messageId: message.id };
 }
 
 export async function updateDefCallChannelEmbed(
@@ -250,7 +264,7 @@ export async function deleteDefCallChannel(
 function buildHubButtonRow(): ActionRowBuilder<ButtonBuilder> {
   const button = new ButtonBuilder()
     .setCustomId(DEFCALL_REQUEST_BUTTON_ID)
-    .setLabel("Prašyti gynybos")
+    .setLabel("Request defense")
     .setStyle(ButtonStyle.Primary);
   return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
 }
@@ -270,62 +284,23 @@ export async function refreshHubChannel(
   }
   if (!channel) return;
 
-  try {
-    const messages = await channel.messages.fetch({ limit: 50 });
-    const botId = client.user?.id;
-    const botMessages: Message[] = [];
-    for (const msg of messages.values()) {
-      if (botId && msg.author.id === botId) {
-        botMessages.push(msg);
-      }
-    }
-
-    if (botMessages.length > 0) {
-      try {
-        await channel.bulkDelete(botMessages, true);
-      } catch {
-        for (const msg of botMessages) {
-          try {
-            await msg.delete();
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error("[DefCallsMessage] Error fetching hub messages:", error);
-  }
-
-  const active = getActiveRequests(guildId);
-  active.sort((a, b) => a.request.landingAt - b.request.landingAt);
-
-  const nowSec = Math.floor(Date.now() / 1000);
-
-  for (const { request, requestId } of active) {
-    if (!request.channelId) continue;
-
-    const village = await getVillageAt(config.serverKey, request.x, request.y);
-    const villageDisplay = village
-      ? `${village.villageName} (${village.playerName})`
-      : "Nežinomas kaimas";
-    const mapLink = getMapLink(config.serverKey, request);
-    const overdueMark = request.landingAt < nowSec ? " ⚠️" : "";
-    const commentSuffix = request.comment ? ` — _${request.comment}_` : "";
-
-    const content = `<@${request.requesterId}> prašo gynybos: **[${villageDisplay} (${request.x}|${request.y})](${mapLink})** — leidžiasi <t:${request.landingAt}:R>${overdueMark} — <#${request.channelId}>${commentSuffix}`;
-
+  // Keep the "Request defense" hub button as the most recent message.
+  // Delete the previous button message and repost it at the bottom.
+  const previousButtonId = getHubButtonMessageId(guildId);
+  if (previousButtonId) {
     try {
-      const sent = await channel.send({ content, allowedMentions: { parse: [] } });
-      updateSummaryMessageId(guildId, requestId, sent.id);
-    } catch (error) {
-      console.error("[DefCallsMessage] Error sending summary line:", error);
+      const oldButton = await channel.messages.fetch(previousButtonId);
+      if (oldButton) {
+        await oldButton.delete();
+      }
+    } catch {
+      // already gone — ignore
     }
   }
 
   try {
     const buttonMessage = await channel.send({
-      content: "**Reikia gynybos?** Spausk mygtuką žemiau, kad sukurtum naują prašymą.",
+      content: "**Need defense?** Press the button below to create a new request.",
       components: [buildHubButtonRow()],
     });
     setHubButtonMessageId(guildId, buttonMessage.id);

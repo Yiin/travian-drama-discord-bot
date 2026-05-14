@@ -16,7 +16,7 @@ export type PushConfigValidation =
  */
 export function validatePushConfig(guildId: string | null): PushConfigValidation {
   if (!guildId) {
-    return { valid: false, error: "Ši komanda veikia tik serveryje." };
+    return { valid: false, error: "This command can only be used in a server." };
   }
 
   const config = getGuildConfig(guildId);
@@ -24,14 +24,14 @@ export function validatePushConfig(guildId: string | null): PushConfigValidation
   if (!config.serverKey) {
     return {
       valid: false,
-      error: "Travian serveris nesukonfigūruotas. Adminas turi panaudoti `/configure server`.",
+      error: "Travian server is not configured. An admin must use `/configure server`.",
     };
   }
 
-  if (!config.pushCategoryId) {
+  if (!config.pushChannelId) {
     return {
       valid: false,
-      error: "Push kategorija nesukonfigūruota. Adminas turi panaudoti `/configure push-category`.",
+      error: "Push channel is not configured. An admin must use `/configure channel type:Push`.",
     };
   }
 
@@ -54,7 +54,7 @@ export function validateUserHasAccount(guildId: string, userId: string): Account
   if (!accountName) {
     return {
       valid: false,
-      error: "Turi susisieti savo žaidimo paskyrą prieš naudojant push komandas. Naudok `/account set [vardas]`.",
+      error: "You must link your in-game account before using push commands. Use `/account set [name]`.",
     };
   }
 
@@ -79,7 +79,7 @@ export function resolvePushTarget(guildId: string, targetInput: string): PushTar
     if (matches.length === 0) {
       return {
         success: false,
-        error: `Nerasta aktyvi push užklausa koordinatėse (${coords.x}|${coords.y}).`,
+        error: `No active push request found at coordinates (${coords.x}|${coords.y}).`,
       };
     }
     if (matches.length > 1) {
@@ -87,7 +87,7 @@ export function resolvePushTarget(guildId: string, targetInput: string): PushTar
       const ids = matches.map((m) => m.requestId).join(", ");
       return {
         success: false,
-        error: `Yra ${matches.length} push užklausos šiose koordinatėse. Naudok eilės numerį (${ids}).`,
+        error: `There are ${matches.length} push requests at these coordinates. Use the queue number (${ids}).`,
       };
     }
     return { success: true, requestId: matches[0].requestId };
@@ -98,13 +98,13 @@ export function resolvePushTarget(guildId: string, targetInput: string): PushTar
   if (isNaN(parsed) || parsed < 1) {
     return {
       success: false,
-      error: "Neteisingas įvedimas. Nurodyk užklausos ID (pvz., 1) arba koordinates (pvz., 123|456).",
+      error: "Invalid input. Provide a request ID (for example, 1) or coordinates (for example, 123|456).",
     };
   }
 
   const existingRequest = getPushRequestById(guildId, parsed);
   if (!existingRequest) {
-    return { success: false, error: `Push užklausa #${parsed} nerasta.` };
+    return { success: false, error: `Push request #${parsed} not found.` };
   }
 
   return { success: true, requestId: parsed };
