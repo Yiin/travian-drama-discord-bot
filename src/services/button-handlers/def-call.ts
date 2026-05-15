@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { isAdmin } from "../../utils/permissions";
+import { parseTroopCount } from "../../utils/parse-number";
 import { getRequestByChannelId } from "../def-calls";
 import { executeDefCallRequestAction } from "../../actions/def-call-request.action";
 import { executeDefCallSentAction } from "../../actions/def-call-sent.action";
@@ -22,6 +23,7 @@ import {
   DEFCALL_COORDS_INPUT_ID,
   DEFCALL_LANDING_INPUT_ID,
   DEFCALL_COMMENT_INPUT_ID,
+  DEFCALL_NEEDED_INPUT_ID,
   DEFCALL_TROOPS_INPUT_ID,
 } from "./def-call-ids";
 
@@ -34,6 +36,7 @@ export {
   DEFCALL_COORDS_INPUT_ID,
   DEFCALL_LANDING_INPUT_ID,
   DEFCALL_COMMENT_INPUT_ID,
+  DEFCALL_NEEDED_INPUT_ID,
   DEFCALL_TROOPS_INPUT_ID,
 };
 
@@ -83,7 +86,17 @@ export async function handleDefCallRequestButton(
     .setLabel("Comment (optional)")
     .setTextInputComponent(commentInput);
 
-  modal.addLabelComponents(coordsLabel, landingLabel, commentLabel);
+  const neededInput = new TextInputBuilder()
+    .setCustomId(DEFCALL_NEEDED_INPUT_ID)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("10000")
+    .setRequired(false)
+    .setMaxLength(10);
+  const neededLabel = new LabelBuilder()
+    .setLabel("Troop limit (optional)")
+    .setTextInputComponent(neededInput);
+
+  modal.addLabelComponents(coordsLabel, landingLabel, commentLabel, neededLabel);
 
   await interaction.showModal(modal);
 }
@@ -104,8 +117,17 @@ export async function handleDefCallRequestModal(
   const coords = interaction.fields.getTextInputValue(DEFCALL_COORDS_INPUT_ID);
   const landing = interaction.fields.getTextInputValue(DEFCALL_LANDING_INPUT_ID);
   const comment = interaction.fields.getTextInputValue(DEFCALL_COMMENT_INPUT_ID) || undefined;
+  const neededRaw = interaction.fields.getTextInputValue(DEFCALL_NEEDED_INPUT_ID);
+  const troopsNeeded = parseTroopCount(neededRaw) ?? undefined;
 
   await interaction.deferReply({ ephemeral: true });
+
+  if (neededRaw.trim() && troopsNeeded === undefined) {
+    await interaction.editReply({
+      content: "Troop limit must be a positive number.",
+    });
+    return;
+  }
 
   const result = await executeDefCallRequestAction(
     {
@@ -114,7 +136,7 @@ export async function handleDefCallRequestModal(
       client: interaction.client,
       userId: interaction.user.id,
     },
-    { coords, landing, comment }
+    { coords, landing, comment, troopsNeeded }
   );
 
   if (!result.success) {
@@ -196,8 +218,8 @@ export async function handleDefCallSentModal(
   }
 
   const troopsInput = interaction.fields.getTextInputValue(DEFCALL_TROOPS_INPUT_ID);
-  const troops = parseInt(troopsInput.replace(/[,.\s]/g, ""), 10);
-  if (isNaN(troops) || troops < 1) {
+  const troops = parseTroopCount(troopsInput);
+  if (troops === null) {
     await interaction.reply({
       content: "Invalid troop count. Enter a positive number.",
       ephemeral: true,

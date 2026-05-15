@@ -193,3 +193,30 @@ export function formatTimeDisplay(input: string, timezone?: string): string {
   }
   return `(${input.trim()})`;
 }
+
+/**
+ * Format a Unix timestamp (seconds) as a `HH:MM:SS` wall-clock string in the
+ * given IANA timezone. Falls back to UTC if the timezone is missing or invalid.
+ */
+export function formatRawTime(timestamp: number, timezone?: string): string {
+  const useTz = timezone && isValidTimezone(timezone) ? timezone : "UTC";
+  const dtf = new Intl.DateTimeFormat("en-GB", {
+    timeZone: useTz,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return dtf.format(new Date(timestamp * 1000));
+}
+
+/**
+ * Format a Unix timestamp as `<t:ts:R> (HH:MM:SS)` — Discord relative
+ * timestamp followed by the wall-clock time in the server timezone.
+ */
+export function formatRelativeWithRaw(
+  timestamp: number,
+  timezone?: string
+): string {
+  return `<t:${timestamp}:R> (${formatRawTime(timestamp, timezone)})`;
+}

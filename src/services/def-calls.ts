@@ -14,6 +14,7 @@ export interface DefCallRequest {
   y: number;
   landingAt: number;
   comment?: string;
+  troopsNeeded?: number;
   requesterId: string;
   requesterAccount: string;
   troopsSent: number;
@@ -79,7 +80,8 @@ export function addRequest(
   landingAt: number,
   requesterId: string,
   requesterAccount: string,
-  comment?: string
+  comment?: string,
+  troopsNeeded?: number
 ): AddDefCallResult {
   const data = getGuildDefCalls(guildId);
 
@@ -88,6 +90,7 @@ export function addRequest(
     y,
     landingAt,
     comment: comment || undefined,
+    troopsNeeded,
     requesterId,
     requesterAccount,
     troopsSent: 0,

@@ -28,6 +28,13 @@ export const defCommand: Command = {
         .setName("comment")
         .setDescription("Comment (optional)")
         .setRequired(false)
+    )
+    .addIntegerOption((option) =>
+      option
+        .setName("troops")
+        .setDescription("Troop limit — thread is marked ✅ when reached (optional)")
+        .setMinValue(1)
+        .setRequired(false)
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -43,6 +50,7 @@ export const defCommand: Command = {
     const coords = interaction.options.getString("coords", true);
     const landing = interaction.options.getString("landing", true);
     const comment = interaction.options.getString("comment") || undefined;
+    const troopsNeeded = interaction.options.getInteger("troops") ?? undefined;
 
     await withRetry(() => interaction.deferReply({ ephemeral: true }));
 
@@ -54,7 +62,7 @@ export const defCommand: Command = {
         client: interaction.client,
         userId: interaction.user.id,
       },
-      { coords, landing, comment }
+      { coords, landing, comment, troopsNeeded }
     );
 
     if (!result.success) {

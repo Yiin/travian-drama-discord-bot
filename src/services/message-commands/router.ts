@@ -2,6 +2,7 @@ import { CommandContext } from "./types";
 import * as patterns from "./patterns";
 import * as handlers from "./handlers";
 import { getRequestByChannelId } from "../def-calls";
+import { parseTroopCount } from "../../utils/parse-number";
 
 /**
  * Process a single command line
@@ -56,7 +57,14 @@ export async function processSingleCommand(
   // Def commands - work in any channel
   match = content.match(patterns.DEF_PATTERN);
   if (match) {
-    await handlers.handleDefCommand(ctx, match[1], match[2], match[3] || undefined);
+    const troopsNeeded = parseTroopCount(match[4]) ?? undefined;
+    await handlers.handleDefCommand(
+      ctx,
+      match[1],
+      match[2],
+      match[3] || undefined,
+      troopsNeeded
+    );
     return;
   }
 

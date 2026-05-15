@@ -245,6 +245,7 @@ export interface DefCallRequestActionInput {
   coords: string;
   landing: string;
   comment?: string;
+  troopsNeeded?: number;
 }
 
 export interface DefCallRequestActionSuccess extends ActionSuccess {

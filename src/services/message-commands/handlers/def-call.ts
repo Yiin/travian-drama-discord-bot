@@ -12,7 +12,8 @@ export async function handleDefCommand(
   ctx: CommandContext,
   coords: string,
   landing: string,
-  comment: string | undefined
+  comment: string | undefined,
+  troopsNeeded?: number
 ): Promise<void> {
   const result = await executeDefCallRequestAction(
     {
@@ -21,7 +22,7 @@ export async function handleDefCommand(
       client: ctx.client,
       userId: ctx.message.author.id,
     },
-    { coords, landing, comment }
+    { coords, landing, comment, troopsNeeded }
   );
 
   if (!result.success) {

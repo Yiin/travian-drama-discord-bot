@@ -18,7 +18,8 @@ import {
   closeRequest,
 } from "./def-calls";
 import { getGuildConfig } from "../config/guild-config";
-import { getVillageAt, getMapLink, formatVillageDisplay, getRallyPointLink } from "./map-data";
+import { getVillageAt, getMapLink, formatVillageDisplay, getRallyPointLink, VillageData } from "./map-data";
+import { formatRelativeWithRaw } from "../utils/time";
 import {
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_SENT_BUTTON_ID,
@@ -48,23 +49,50 @@ function buildChannelName(request: DefCallRequest): string {
   return `def-${xPart}-${yPart}-${hh}${mm}`.toLowerCase();
 }
 
+function isDefCallFulfilled(request: DefCallRequest): boolean {
+  return (
+    request.troopsNeeded !== undefined &&
+    request.troopsSent >= request.troopsNeeded
+  );
+}
+
+function buildStarterContent(
+  request: DefCallRequest,
+  serverKey: string,
+  serverTimezone: string | undefined,
+  village: VillageData | null
+): string {
+  const villageDisplay = village
+    ? `${village.villageName} (${village.playerName})`
+    : "Unknown village";
+  const mapLink = getMapLink(serverKey, request);
+  const commentSuffix = request.comment ? ` — _${request.comment}_` : "";
+  const prefix = isDefCallFulfilled(request) && !request.closed ? "✅ " : "";
+  const landsDisplay = formatRelativeWithRaw(request.landingAt, serverTimezone);
+  return `${prefix}<@${request.requesterId}> requests defense: **[${villageDisplay} (${request.x}|${request.y})](${mapLink})** — lands ${landsDisplay}${commentSuffix}`;
+}
+
 export async function buildPerCallEmbed(
   request: DefCallRequest,
-  serverKey: string
+  serverKey: string,
+  serverTimezone: string | undefined,
+  village: VillageData | null
 ): Promise<EmbedBuilder> {
   const nowSec = Math.floor(Date.now() / 1000);
   const overdue = request.landingAt < nowSec && !request.closed;
+  const fulfilled = isDefCallFulfilled(request);
 
   const embed = new EmbedBuilder().setTimestamp();
   if (request.closed) {
-    embed.setColor(Colors.Green).setTitle("✅ Gynyba pristatyta");
+    embed.setColor(Colors.Green).setTitle("✅ Defense delivered");
+  } else if (fulfilled) {
+    embed.setColor(Colors.Green).setTitle("✅ Defense fulfilled");
   } else if (overdue) {
     embed.setColor(Colors.Grey).setTitle("⚠️ Defense Request (overdue)");
   } else {
     embed.setColor(Colors.Gold).setTitle("⚔️ Defense Request");
   }
 
-  const village = await getVillageAt(serverKey, request.x, request.y);
   const mapLink = getMapLink(serverKey, request);
   const rallyLink = village
     ? getRallyPointLink(serverKey, village.targetMapId)
@@ -77,7 +105,11 @@ export async function buildPerCallEmbed(
     lines.push(`📍 [(${request.x}|${request.y})](${mapLink}) [**[ SEND ]**](${rallyLink})`);
   }
 
-  lines.push(`🕒 Lands <t:${request.landingAt}:R> (<t:${request.landingAt}:T>)`);
+  lines.push(`🕒 Lands ${formatRelativeWithRaw(request.landingAt, serverTimezone)}`);
+
+  if (request.troopsNeeded) {
+    lines.push(`🎯 Troop limit: **${formatNumber(request.troopsNeeded)}**`);
+  }
 
   if (request.comment) {
     lines.push(`💬 ${request.comment}`);
@@ -87,19 +119,23 @@ export async function buildPerCallEmbed(
 
   embed.setDescription(lines.join("\n"));
 
+  const sentSuffix = request.troopsNeeded
+    ? ` / ${formatNumber(request.troopsNeeded)}`
+    : "";
+  const sentHeader = `Sent (${formatNumber(request.troopsSent)}${sentSuffix})`;
   if (request.contributors.length > 0) {
     const sorted = [...request.contributors].sort((a, b) => b.troops - a.troops);
     const contribLines = sorted.map(
       (c) => `• ${c.accountName}: ${formatNumber(c.troops)}`
     );
     embed.addFields({
-      name: `Sent (${formatNumber(request.troopsSent)})`,
+      name: sentHeader,
       value: contribLines.join("\n"),
     });
   } else {
     embed.addFields({
-      name: "Sent",
-      value: "_dar niekas_",
+      name: sentHeader,
+      value: "_no one yet_",
     });
   }
 
@@ -144,14 +180,13 @@ export async function createDefCallThread(
     throw new Error(`Could not fetch def-calls channel ${config.defCallsChannelId}`);
   }
 
-  // Build the user-visible summary line — this becomes the thread starter message.
   const village = await getVillageAt(config.serverKey, request.x, request.y);
-  const villageDisplay = village
-    ? `${village.villageName} (${village.playerName})`
-    : "Unknown village";
-  const mapLink = getMapLink(config.serverKey, request);
-  const commentSuffix = request.comment ? ` — _${request.comment}_` : "";
-  const starterContent = `<@${request.requesterId}> requests defense: **[${villageDisplay} (${request.x}|${request.y})](${mapLink})** — lands <t:${request.landingAt}:R>${commentSuffix}`;
+  const starterContent = buildStarterContent(
+    request,
+    config.serverKey,
+    config.serverTimezone,
+    village
+  );
 
   const starter = await parent.send({
     content: starterContent,
@@ -164,7 +199,12 @@ export async function createDefCallThread(
     reason: `Def call by ${request.requesterAccount}`,
   });
 
-  const embed = await buildPerCallEmbed(request, config.serverKey);
+  const embed = await buildPerCallEmbed(
+    request,
+    config.serverKey,
+    config.serverTimezone,
+    village
+  );
   const buttons = buildPerCallButtons();
 
   const message = await thread.send({ embeds: [embed], components: [buttons] });
@@ -173,6 +213,68 @@ export async function createDefCallThread(
   updateSummaryMessageId(guildId, requestId, starter.id);
 
   return { channelId: thread.id, messageId: message.id };
+}
+
+async function syncDefCallStarterMessage(
+  client: Client,
+  guildId: string,
+  request: DefCallRequest,
+  content: string
+): Promise<void> {
+  const config = getGuildConfig(guildId);
+  if (!config.defCallsChannelId || !request.summaryMessageId) return;
+  try {
+    const parent = (await client.channels.fetch(
+      config.defCallsChannelId
+    )) as TextChannel | null;
+    if (!parent) return;
+    const message = await parent.messages.fetch(request.summaryMessageId);
+    if (!message) return;
+    if (message.content !== content) {
+      await message.edit({ content, allowedMentions: { parse: [] } });
+    }
+  } catch (error) {
+    console.error("[DefCallsMessage] Error syncing starter message:", error);
+  }
+}
+
+async function replaceDefCallEmbedMessage(
+  client: Client,
+  guildId: string,
+  request: DefCallRequest,
+  embed: EmbedBuilder
+): Promise<void> {
+  if (!request.channelId) return;
+  const channel = (await client.channels.fetch(request.channelId)) as TextChannel | null;
+  if (!channel) {
+    const requestData = getRequestByChannelId(guildId, request.channelId);
+    if (requestData) {
+      closeRequest(guildId, requestData.requestId);
+    }
+    return;
+  }
+
+  if (request.messageId) {
+    try {
+      const oldMessage = await channel.messages.fetch(request.messageId);
+      if (oldMessage) {
+        await oldMessage.delete();
+      }
+    } catch {
+      // already gone
+    }
+  }
+
+  const buttons = buildPerCallButtons();
+  const newMessage = await channel.send({
+    embeds: [embed],
+    components: [buttons],
+  });
+
+  const requestData = getRequestByChannelId(guildId, request.channelId);
+  if (requestData) {
+    updateMessageId(guildId, requestData.requestId, newMessage.id);
+  }
 }
 
 export async function updateDefCallChannelEmbed(
@@ -189,39 +291,25 @@ export async function updateDefCallChannelEmbed(
     return;
   }
 
+  const village = await getVillageAt(config.serverKey, request.x, request.y);
+  const starterContent = buildStarterContent(
+    request,
+    config.serverKey,
+    config.serverTimezone,
+    village
+  );
+  const embed = await buildPerCallEmbed(
+    request,
+    config.serverKey,
+    config.serverTimezone,
+    village
+  );
+
   try {
-    const channel = (await client.channels.fetch(request.channelId)) as TextChannel | null;
-    if (!channel) {
-      const requestData = getRequestByChannelId(guildId, request.channelId);
-      if (requestData) {
-        closeRequest(guildId, requestData.requestId);
-      }
-      return;
-    }
-
-    if (request.messageId) {
-      try {
-        const oldMessage = await channel.messages.fetch(request.messageId);
-        if (oldMessage) {
-          await oldMessage.delete();
-        }
-      } catch {
-        // already gone
-      }
-    }
-
-    const embed = await buildPerCallEmbed(request, config.serverKey);
-    const buttons = buildPerCallButtons();
-
-    const newMessage = await channel.send({
-      embeds: [embed],
-      components: [buttons],
-    });
-
-    const requestData = getRequestByChannelId(guildId, request.channelId);
-    if (requestData) {
-      updateMessageId(guildId, requestData.requestId, newMessage.id);
-    }
+    await Promise.all([
+      syncDefCallStarterMessage(client, guildId, request, starterContent),
+      replaceDefCallEmbedMessage(client, guildId, request, embed),
+    ]);
   } catch (error) {
     console.error("[DefCallsMessage] Error updating per-call embed:", error);
     const requestData = getRequestByChannelId(guildId, request.channelId);

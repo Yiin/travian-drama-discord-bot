@@ -14,9 +14,14 @@ export const SCOUT_VERBOSE_PATTERN = /^[\/!]scout\s+coords:\s*(\S+)\s+message:\s
 // Coords can be space-separated: !stack 51 -32 5000 or !stack 51|-32 5000 message
 export const STACK_PATTERN = /^[\/!]stack\s+(.+?)\s+(\d+)(?:\s+(.+))?\s*$/i;
 
-// Pattern: /def or !def followed by coords (space-tolerant), landing time, optional comment
-// Examples: !def 123|456 12:30:45  /  /def 51 -32 12:30 my comment
-export const DEF_PATTERN = /^[\/!]def\s+(\S+(?:\s+-?\d+)?)\s+(\S+)(?:\s+(.+))?\s*$/i;
+// Pattern: /def or !def followed by coords (space-tolerant), landing time, optional comment,
+// and optional trailing "troops: N" token (can appear before or after the comment).
+// Examples:
+//   !def 123|456 12:30:45
+//   /def 51 -32 12:30 my comment
+//   /def 51 -32 12:30 troops: 5000
+//   /def 51 -32 12:30 my comment troops: 5000
+export const DEF_PATTERN = /^[\/!]def\s+(\S+(?:\s+-?\d+)?)\s+(\S+?)(?:\s+(?!troops:)(.+?))?(?:\s+troops:\s*([\d,. ]+?))?\s*$/i;
 
 // Pattern: /sent or !sent for def-call threads — troops only, optional trailing user mention
 // Used inside def-call request channels (no target needed; the channel identifies the request)

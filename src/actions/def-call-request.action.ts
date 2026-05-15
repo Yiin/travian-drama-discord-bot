@@ -11,7 +11,7 @@ import {
 } from "../services/def-calls-message";
 import { parseAndValidateCoords } from "./validation";
 import { validateUserHasAccount } from "./push-validation";
-import { parseTimeToTimestamp } from "../utils/time";
+import { parseTimeToTimestamp, formatRelativeWithRaw } from "../utils/time";
 import {
   ActionContext,
   DefCallRequestActionInput,
@@ -23,7 +23,14 @@ export async function executeDefCallRequestAction(
   input: DefCallRequestActionInput
 ): Promise<DefCallRequestActionResult> {
   const { guildId, config, client, userId } = context;
-  const { coords: coordsInput, landing, comment } = input;
+  const { coords: coordsInput, landing, comment, troopsNeeded } = input;
+
+  if (troopsNeeded !== undefined && (!Number.isFinite(troopsNeeded) || troopsNeeded < 1)) {
+    return {
+      success: false,
+      error: "Troop limit must be a positive integer.",
+    };
+  }
 
   if (!config.serverKey) {
     return {
@@ -78,7 +85,8 @@ export async function executeDefCallRequestAction(
     landingAt,
     userId,
     accountName,
-    comment
+    comment,
+    troopsNeeded
   );
 
   let channelId: string;
@@ -114,7 +122,7 @@ export async function executeDefCallRequestAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey, village)
     : `(${x}|${y})`;
-  const actionText = `**${accountName}** created a defense request: ${villageDisplay} — lands <t:${landingAt}:R>. <#${channelId}>`;
+  const actionText = `**${accountName}** created a defense request: ${villageDisplay} — lands ${formatRelativeWithRaw(landingAt, config.serverTimezone)}. <#${channelId}>`;
 
   return {
     success: true,
