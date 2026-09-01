@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  PermissionFlagsBits,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -12,6 +11,7 @@ import {
   parseTime,
 } from "../services/reminder-scheduler";
 import { withRetry } from "../utils/retry";
+import { requireAdmin } from "../utils/permissions";
 
 export const reminderCommand: Command = {
   data: new SlashCommandBuilder()
@@ -64,8 +64,7 @@ export const reminderCommand: Command = {
             .setDescription("Reminder ID to delete")
             .setRequired(true)
         )
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const guildId = interaction.guildId;
@@ -77,6 +76,8 @@ export const reminderCommand: Command = {
       });
       return;
     }
+
+    if (!(await requireAdmin(interaction))) return;
 
     const subcommand = interaction.options.getSubcommand();
 

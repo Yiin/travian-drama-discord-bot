@@ -5,16 +5,19 @@ import {
   ButtonInteraction,
   ModalSubmitInteraction,
 } from "discord.js";
+import { isBotOwner } from "../config/owners";
 
 export const ADMIN_ONLY_MESSAGE = "Only administrators can use this command.";
 
 /**
  * Check if a member has admin permissions (Administrator or ManageChannels).
+ * Bot owners always pass, even without those permissions.
  */
 export function isAdmin(member: GuildMember | null | undefined): boolean {
   if (!member) return false;
 
   return (
+    isBotOwner(member.id) ||
     member.permissions.has(PermissionFlagsBits.Administrator) ||
     member.permissions.has(PermissionFlagsBits.ManageChannels)
   );

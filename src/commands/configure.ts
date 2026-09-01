@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  PermissionFlagsBits,
   ChannelType,
 } from "discord.js";
 import { Command } from "../types";
@@ -9,6 +8,7 @@ import { setServerKey, setDefenseChannel, setScoutChannel, setPushChannelId, set
 import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 import { isValidTimezone } from "../utils/time";
+import { requireAdmin } from "../utils/permissions";
 
 function normalizeServerKey(input: string): string {
   let key = input.trim().toLowerCase();
@@ -91,8 +91,7 @@ export const configureCommand: Command = {
             .setDescription("The role to mention (leave empty to clear)")
             .setRequired(false)
         )
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const guildId = interaction.guildId;
@@ -104,6 +103,8 @@ export const configureCommand: Command = {
       });
       return;
     }
+
+    if (!(await requireAdmin(interaction))) return;
 
     const subcommand = interaction.options.getSubcommand();
 
