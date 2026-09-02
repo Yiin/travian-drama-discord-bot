@@ -9,6 +9,9 @@ import {
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  StringSelectMenuInteraction,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import {
@@ -25,6 +28,7 @@ import { recordAction } from "../action-history";
 import { formatTroops } from "../../utils/format";
 import { errors, confirmationEdit } from "../../actions/messages";
 import { getStackPanelUrl } from "../defense-message";
+import { stackChoiceLabel } from "../../utils/choices";
 
 // Button IDs (prefixes - actual IDs carry the stable request id, like "stack_up:41")
 export const STACK_UP_PREFIX = "stack_up";
@@ -142,7 +146,9 @@ export async function buildStackEditor(
   };
 }
 
-async function guildIdOrReply(interaction: ButtonInteraction | ModalSubmitInteraction): Promise<string | null> {
+async function guildIdOrReply(
+  interaction: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction
+): Promise<string | null> {
   if (interaction.guildId) return interaction.guildId;
   await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
   return null;
@@ -395,4 +401,65 @@ export async function handleStackCancelDelete(
 
   const editor = await buildStackEditor(guildId, requestId);
   await interaction.editReply(editor ?? { content: errors.notFound("request", requestId), components: [] });
+}
+
+// --- Panel "Edit" button: pick a request, then edit it ---
+
+export const STACK_PANEL_EDIT_BUTTON_ID = "stack_panel_edit";
+export const STACK_PICK_SELECT_ID = "stack_pick_edit";
+
+/** Panel Edit button: one request opens the editor; several show a picker first. */
+export async function handleStackPanelEditButton(interaction: ButtonInteraction): Promise<void> {
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+
+  const requests = getAllRequests(guildId);
+  if (requests.length === 0) {
+    await interaction.reply({
+      content: "⚠️ **There are no open stack requests.** Press **Request stack** to add one.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (requests.length === 1) {
+    const editor = await buildStackEditor(guildId, requests[0].id);
+    await interaction.reply({ ...(editor ?? { content: errors.generic(), components: [] }), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.reply({
+    content: "Pick the request to edit:",
+    components: [await buildStackPicker(guildId)],
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function buildStackPicker(guildId: string): Promise<ActionRowBuilder<StringSelectMenuBuilder>> {
+  const config = getGuildConfig(guildId);
+  const options: StringSelectMenuOptionBuilder[] = [];
+  const requests = getAllRequests(guildId).slice(0, 25);
+  for (let i = 0; i < requests.length; i++) {
+    const request = requests[i];
+    const village = config.serverKey ? await getVillageAt(config.serverKey, request.x, request.y) : null;
+    options.push(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(stackChoiceLabel(request, village?.villageName, i === 0))
+        .setDescription((village?.playerName ?? "unknown village").slice(0, 100))
+        .setValue(`${request.id}`),
+    );
+  }
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(STACK_PICK_SELECT_ID)
+    .setPlaceholder("Request to edit")
+    .addOptions(options);
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+}
+
+export async function handleStackPickSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = parseInt(interaction.values[0] ?? "", 10);
+  const editor = Number.isFinite(requestId) ? await buildStackEditor(guildId, requestId) : null;
+  await interaction.update(editor ?? { content: errors.notFound("request", requestId), components: [] });
 }

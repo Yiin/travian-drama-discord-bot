@@ -4,9 +4,11 @@ import {
   DefCallRequest,
 } from "../services/def-calls";
 import {
-  deleteDefCallChannel,
+  archiveDefCallThread,
+  updateDefCallCard,
   refreshHubChannel,
 } from "../services/def-calls-message";
+import { cancelLanding } from "../services/landing-scheduler";
 import { recordAction } from "../services/action-history";
 import {
   ActionContext,
@@ -44,7 +46,9 @@ export async function executeDefCallCloseAction(
     return { success: false, error: closed.error };
   }
 
-  await deleteDefCallChannel(client, request);
+  cancelLanding(guildId, requestId);
+  await updateDefCallCard(client, guildId, closed);
+  await archiveDefCallThread(client, closed);
   await refreshHubChannel(client, guildId);
 
   const actionId = recordAction(guildId, {
@@ -59,7 +63,7 @@ export async function executeDefCallCloseAction(
   });
 
   const actionText = `Request (${request.x}|${request.y}) closed.`;
-  const confirmText = "✅ Request closed. The thread is being deleted.";
+  const confirmText = "✅ Request closed. The thread is archived; undo reopens it.";
 
   return {
     success: true,

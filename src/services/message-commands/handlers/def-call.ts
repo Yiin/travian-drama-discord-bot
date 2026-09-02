@@ -91,5 +91,10 @@ export async function handleCloseCommand(ctx: CommandContext): Promise<void> {
     await replyError(ctx, result.error);
     return;
   }
-  // channel is being deleted; nothing else
+  rememberAction(ctx, result.actionId);
+  try {
+    await ctx.message.react("✅");
+  } catch {
+    // the thread may already be archived
+  }
 }

@@ -6,73 +6,79 @@ import {
   TextInputStyle,
   LabelBuilder,
   MessageFlags,
+  UserSelectMenuBuilder,
+  GuildMember,
 } from "discord.js";
-import { getGuildConfig } from "../../config/guild-config";
-import { requireAdmin } from "../../utils/permissions";
-import { getPushRequestByChannelId, removePushRequest } from "../push-requests";
+import { isAdmin } from "../../utils/permissions";
+import { GuildConfig } from "../../config/guild-config";
+import { getPushRequestByChannelId, PushRequest } from "../push-requests";
 import {
   validatePushConfig,
   validateUserHasAccount,
   executePushSentAction,
+  executePushCloseAction,
+  executePushEditAction,
 } from "../../actions";
-import { deletePushChannel } from "../push-message";
 import { formatResources } from "../../utils/format";
-import { errors } from "../../actions/messages";
-import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
+import { errors, confirmationEdit, asConfirm } from "../../actions/messages";
 
-// Button IDs (defined in push-message.ts)
-export { PUSH_SENT_BUTTON_ID, PUSH_DELETE_BUTTON_ID } from "../push-message";
+export {
+  PUSH_SENT_BUTTON_ID,
+  PUSH_EDIT_BUTTON_ID,
+  PUSH_CLOSE_BUTTON_ID,
+  PUSH_ALL_SENDERS_BUTTON_ID,
+} from "../push-message";
 
-// Push modal IDs
 export const PUSH_SENT_MODAL_ID = "push_sent_modal";
+export const PUSH_EDIT_MODAL_ID = "push_edit_modal";
 export const PUSH_RESOURCES_INPUT_ID = "push_resources_input";
+export const PUSH_AMOUNT_INPUT_ID = "push_amount_input";
+export const PUSH_SENT_FOR_SELECT_ID = "push_sent_for_select";
 
-export async function handlePushSentButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
+type Ctx = { guildId: string; config: GuildConfig; request: PushRequest; requestId: number };
+
+/** Shared pre-flight for every push button and modal: setup, thread, open request. */
+async function pushContext(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  options: { allowClosed?: boolean } = {}
+): Promise<Ctx | null> {
+  const validation = validatePushConfig(interaction.guildId);
+  if (!validation.valid) {
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    return null;
   }
-
-  // Verify user has a linked account
-  const accountResult = validateUserHasAccount(guildId, interaction.user.id);
-  if (!accountResult.valid) {
-    await interaction.reply({
-      content: accountResult.error,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const config = getGuildConfig(guildId);
-  if (!config.serverKey) {
-    await interaction.reply({
-      content: errors.notSetUp(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Get the push request for this channel
   const channelId = interaction.channelId;
-  const requestInfo = getPushRequestByChannelId(guildId, channelId);
-  if (!requestInfo) {
+  const info = channelId ? getPushRequestByChannelId(validation.guildId, channelId) : undefined;
+  if (!info) {
+    await interaction.reply({ content: errors.notInThread("push"), flags: MessageFlags.Ephemeral });
+    return null;
+  }
+  if (info.request.closed && !options.allowClosed) {
     await interaction.reply({
-      content: "No active push request was found in this channel.",
+      content: "⚠️ **This push request is closed.** Undo the close first if it was a mistake.",
       flags: MessageFlags.Ephemeral,
     });
+    return null;
+  }
+  return { guildId: validation.guildId, config: validation.config, request: info.request, requestId: info.requestId };
+}
+
+function parseAmount(raw: string): number | null {
+  const value = parseInt(raw.replace(/[,.\s]/g, ""), 10);
+  return isNaN(value) || value < 1 ? null : value;
+}
+
+export async function handlePushSentButton(interaction: ButtonInteraction): Promise<void> {
+  const ctx = await pushContext(interaction);
+  if (!ctx) return;
+
+  const accountResult = validateUserHasAccount(ctx.guildId, interaction.user.id);
+  if (!accountResult.valid) {
+    await interaction.reply({ content: accountResult.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Build simplified modal with just resources input
-  const modal = new ModalBuilder()
-    .setCustomId(PUSH_SENT_MODAL_ID)
-    .setTitle("Sent Resources");
+  const modal = new ModalBuilder().setCustomId(PUSH_SENT_MODAL_ID).setTitle("Report sent resources");
 
   const resourcesInput = new TextInputBuilder()
     .setCustomId(PUSH_RESOURCES_INPUT_ID)
@@ -80,130 +86,123 @@ export async function handlePushSentButton(
     .setPlaceholder("50000")
     .setRequired(true)
     .setMaxLength(15);
-
   const resourcesLabel = new LabelBuilder()
-    .setLabel("How many resources did you send?")
-    .setDescription(`Target: ${formatResources(requestInfo.request.resourcesNeeded)}`)
+    .setLabel("Resources sent")
+    .setDescription(`Whole number. Current: ${formatResources(ctx.request.resourcesSent)} / ${formatResources(ctx.request.resourcesNeeded)}`)
     .setTextInputComponent(resourcesInput);
 
-  modal.addLabelComponents(resourcesLabel);
+  const forSelect = new UserSelectMenuBuilder()
+    .setCustomId(PUSH_SENT_FOR_SELECT_ID)
+    .setPlaceholder("Pick a member…")
+    .setMinValues(0)
+    .setMaxValues(1)
+    .setRequired(false);
+  const forLabel = new LabelBuilder()
+    .setLabel("Sent by")
+    .setDescription("Leave empty if you sent them yourself")
+    .setUserSelectMenuComponent(forSelect);
 
+  modal.addLabelComponents(resourcesLabel, forLabel);
   await interaction.showModal(modal);
 }
 
-export async function handlePushSentModal(
-  interaction: ModalSubmitInteraction
-): Promise<void> {
-  // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
-  if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+export async function handlePushSentModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const ctx = await pushContext(interaction);
+  if (!ctx) return;
+
+  const resources = parseAmount(interaction.fields.getTextInputValue(PUSH_RESOURCES_INPUT_ID));
+  if (resources === null) {
+    await interaction.reply({ content: errors.invalidCount("resources"), flags: MessageFlags.Ephemeral });
     return;
   }
+  const sentBy = interaction.fields.getSelectedUsers(PUSH_SENT_FOR_SELECT_ID, false)?.first();
 
-  // 2. Get the push request for this channel
-  const channelId = interaction.channelId;
-  if (!channelId) {
-    await interaction.reply({
-      content: "Failed to identify the channel.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const requestInfo = getPushRequestByChannelId(validation.guildId, channelId);
-  if (!requestInfo) {
-    await interaction.reply({
-      content: "No active push request was found in this channel.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // 3. Extract resources from text input
-  const resourcesInput = interaction.fields.getTextInputValue(PUSH_RESOURCES_INPUT_ID);
-  const resources = parseInt(resourcesInput.replace(/[,.\s]/g, ""), 10);
-  if (isNaN(resources) || resources < 1) {
-    await interaction.reply({
-      content: errors.invalidCount("resources"),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // 4. Defer reply
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  // 5. Execute action using the request ID from channel lookup
   const result = await executePushSentAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
-    {
-      target: requestInfo.requestId.toString(),
-      resources,
-    }
+    { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
+    { target: ctx.requestId.toString(), resources, creditUserId: sentBy?.id }
   );
 
-  // 6. Handle response
   if (!result.success) {
     await interaction.editReply({ content: result.error });
     return;
   }
-
   await interaction.editReply(
     confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
   );
 }
 
-export async function handlePushDeleteButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
+export async function handlePushEditButton(interaction: ButtonInteraction): Promise<void> {
+  const ctx = await pushContext(interaction);
+  if (!ctx) return;
+
+  const modal = new ModalBuilder().setCustomId(PUSH_EDIT_MODAL_ID).setTitle("Edit push amount");
+  const amountInput = new TextInputBuilder()
+    .setCustomId(PUSH_AMOUNT_INPUT_ID)
+    .setStyle(TextInputStyle.Short)
+    .setValue(String(ctx.request.resourcesNeeded))
+    .setRequired(true)
+    .setMaxLength(15);
+  const amountLabel = new LabelBuilder()
+    .setLabel("Resources needed")
+    .setDescription(`Total for the whole push. ${formatResources(ctx.request.resourcesSent)} already sent`)
+    .setTextInputComponent(amountInput);
+  modal.addLabelComponents(amountLabel);
+  await interaction.showModal(modal);
+}
+
+export async function handlePushEditModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const ctx = await pushContext(interaction);
+  if (!ctx) return;
+
+  const resourcesNeeded = parseAmount(interaction.fields.getTextInputValue(PUSH_AMOUNT_INPUT_ID));
+  if (resourcesNeeded === null) {
+    await interaction.reply({ content: errors.invalidCount("resources"), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Check if user has admin permissions
-  if (!await requireAdmin(interaction)) return;
-
-  // Get the push request for this channel
-  const channelId = interaction.channelId;
-  const requestInfo = getPushRequestByChannelId(guildId, channelId);
-  if (!requestInfo) {
-    await interaction.reply({
-      content: "No active push request was found in this channel.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Defer reply before deleting
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-  try {
-    // Delete the channel
-    await deletePushChannel(interaction.client, requestInfo.request);
-
-    // Remove from data
-    removePushRequest(guildId, requestInfo.requestId);
-
-    // Note: the reply will be lost when channel is deleted, that's OK
-  } catch (error) {
-    console.error("[PushButton] Error deleting push channel:", error);
-    try {
-      await interaction.editReply({
-        content: "Failed to delete the channel.",
-      });
-    } catch {
-      // Channel might already be deleted, ignore
-    }
+  const result = await executePushEditAction(
+    { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
+    { requestId: ctx.requestId, resourcesNeeded }
+  );
+  if (!result.success) {
+    await interaction.editReply({ content: result.error });
+    return;
   }
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
+}
+
+export async function handlePushCloseButton(interaction: ButtonInteraction): Promise<void> {
+  const ctx = await pushContext(interaction);
+  if (!ctx) return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const result = await executePushCloseAction(
+    { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
+    { requestId: ctx.requestId },
+    { isAdmin: isAdmin(interaction.member as GuildMember | null) }
+  );
+  if (!result.success) {
+    await interaction.editReply({ content: result.error });
+    return;
+  }
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
+}
+
+/** Ephemeral full list of senders when the card only shows the top few. */
+export async function handlePushAllSendersButton(interaction: ButtonInteraction): Promise<void> {
+  const ctx = await pushContext(interaction, { allowClosed: true });
+  if (!ctx) return;
+  const sorted = [...ctx.request.contributors].sort((a, b) => b.resources - a.resources);
+  const lines = sorted.map((c, i) => `${i + 1}. **${c.accountName}** · ${formatResources(c.resources)}`);
+  await interaction.reply({
+    content: lines.length ? `**Senders for #${ctx.requestId}**\n${lines.join("\n")}` : "Nobody has sent resources yet.",
+    flags: MessageFlags.Ephemeral,
+  });
 }

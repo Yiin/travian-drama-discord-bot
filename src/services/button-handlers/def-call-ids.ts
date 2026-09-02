@@ -9,3 +9,5 @@ export const DEFCALL_LANDING_INPUT_ID = "defcall_landing_input";
 export const DEFCALL_COMMENT_INPUT_ID = "defcall_comment_input";
 export const DEFCALL_NEEDED_INPUT_ID = "defcall_needed_input";
 export const DEFCALL_TROOPS_INPUT_ID = "defcall_troops_input";
+export const DEFCALL_SENT_FOR_BUTTON_ID = "defcall_sent_for_button";
+export const DEFCALL_SENT_FOR_SELECT_ID = "defcall_sent_for_select";

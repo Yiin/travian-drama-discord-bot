@@ -23,6 +23,8 @@ export interface PushRequest {
   requesterAccount: string; // In-game account name
   createdAt: number;
   completed: boolean; // true when resourcesSent >= resourcesNeeded
+  /** Closed by the requester or an admin; the thread is archived, the data stays. */
+  closed?: boolean;
   contributors: PushContributor[];
   channelId?: string; // Discord channel ID for this push request
   messageId?: string; // Discord message ID for the embed in the channel
@@ -264,6 +266,19 @@ export function removePushRequest(
   const [removed] = data.requests.splice(index, 1);
   saveGuildData(guildId, data);
   return removed;
+}
+
+export function setPushRequestClosed(
+  guildId: string,
+  requestId: number,
+  closed: boolean
+): PushRequest | null {
+  const data = getGuildPushData(guildId);
+  const request = findById(data, requestId);
+  if (!request) return null;
+  request.closed = closed;
+  saveGuildData(guildId, data);
+  return request;
 }
 
 export function getAllPushRequests(guildId: string): PushRequest[] {

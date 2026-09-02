@@ -54,7 +54,7 @@ export const defCommand: Command = {
           opt.setName("for").setDescription("Credit another member instead of yourself")
         )
     )
-    .addSubcommand((sub) => sub.setName("close").setDescription("Close this defense thread")),
+    .addSubcommand((sub) => sub.setName("close").setDescription("Close this defense call and archive the thread")),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const guildId = await requireGuild(interaction);
@@ -119,15 +119,11 @@ export const defCommand: Command = {
           { requestId: requestData.requestId },
           { isAdmin: isAdmin(interaction.member as GuildMember | null) }
         );
-        try {
-          await interaction.editReply(
-            result.success
-              ? confirmationEdit(result.confirmText ?? asConfirm(result.actionText))
-              : { content: result.error }
-          );
-        } catch {
-          // the thread may already be gone
-        }
+        await interaction.editReply(
+          result.success
+            ? confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+            : { content: result.error }
+        );
         return;
       }
     }

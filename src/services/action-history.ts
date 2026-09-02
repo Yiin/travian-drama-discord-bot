@@ -13,6 +13,7 @@ import {
   removePushRequest,
   subtractResources,
   restorePushRequest,
+  setPushRequestClosed,
 } from "./push-requests";
 import {
   DefCallRequest,
@@ -41,6 +42,7 @@ export type ActionType =
   | "PUSH_REQUEST_EDIT"
   | "PUSH_CONTRIBUTION_EDIT"
   | "PUSH_CONTRIBUTION_TRANSFER"
+  | "PUSH_REQUEST_CLOSED"
   // Def call action types
   | "DEF_CALL_REQUEST_ADD"
   | "DEF_CALL_TROOPS_SENT"
@@ -610,6 +612,22 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       return { success: false, message: result.error || "Failed to restore." };
     }
 
+    case "PUSH_REQUEST_CLOSED": {
+      const reopened = setPushRequestClosed(guildId, action.requestId, false);
+      markUndone(guildId, actionId);
+      if (!reopened) {
+        return {
+          success: true,
+          message: `Undone: push request ${coordsStr} no longer exists.`,
+        };
+      }
+      return {
+        success: true,
+        message: `Undone: push request ${coordsStr} reopened.`,
+        requestId: action.requestId,
+      };
+    }
+
     case "PUSH_REQUEST_EDIT": {
       // Restore previous resource amount
       if (!action.previousPushState) {
@@ -757,7 +775,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Undone: request ${coordsStr} was updated, but the channel can no longer be restored - create a new one if needed.`,
+        message: `Undone: defense request ${coordsStr} reopened.`,
         requestId: action.requestId,
       };
     }
@@ -792,6 +810,8 @@ export function getActionDescription(action: Action): string {
       return `Sent ${formatResources(action.data.resources || 0)} resources to ${coordsStr}${action.data.pushDidComplete ? " (completed)" : ""}`;
     case "PUSH_REQUEST_DELETED":
       return `Deleted push request ${coordsStr}`;
+    case "PUSH_REQUEST_CLOSED":
+      return `Closed push request ${coordsStr}`;
     case "PUSH_REQUEST_EDIT":
       return `Changed push request ${coordsStr} (${formatResources(action.data.previousResourcesNeeded || 0)} → ${formatResources(action.data.resourcesNeeded || 0)})`;
     case "PUSH_CONTRIBUTION_EDIT":

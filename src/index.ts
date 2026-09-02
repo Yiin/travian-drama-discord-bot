@@ -4,6 +4,7 @@ import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
 import { loadAndRescheduleNotifications } from "./services/scout-scheduler";
 import { loadAndRescheduleReminders } from "./services/reminder-scheduler";
+import { loadAndScheduleLandings } from "./services/landing-scheduler";
 import { handleTextCommand } from "./services/message-commands";
 import { markScoutMessageAsDoneById } from "./services/button-handlers/scout";
 import {
@@ -13,10 +14,16 @@ import {
   handleRequestDefModal,
   handleScoutGoingButton,
   handleScoutGoingModal,
-  handleScoutDoneButton,
+  handleScoutResultButton,
+  handleScoutResultModal,
   handlePushSentButton,
   handlePushSentModal,
-  handlePushDeleteButton,
+  handlePushCloseButton,
+  handlePushEditButton,
+  handlePushEditModal,
+  handlePushAllSendersButton,
+  handleStackPanelEditButton,
+  handleStackPickSelect,
   handleStackUpButton,
   handleStackDownButton,
   handleStackEditButton,
@@ -35,6 +42,7 @@ import {
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_REQUEST_MODAL_ID,
   DEFCALL_SENT_BUTTON_ID,
+  DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_SENT_MODAL_ID,
   DEFCALL_CLOSE_BUTTON_ID,
   ACCOUNT_REMINDER_ADD_BUTTON_ID,
@@ -46,10 +54,16 @@ import {
   REQUEST_DEF_MODAL_ID,
   SCOUT_GOING_BUTTON_ID,
   SCOUT_GOING_MODAL_ID,
-  SCOUT_DONE_BUTTON_ID,
+  SCOUT_RESULT_BUTTON_ID,
+  SCOUT_RESULT_MODAL_ID,
   PUSH_SENT_BUTTON_ID,
-  PUSH_DELETE_BUTTON_ID,
+  PUSH_CLOSE_BUTTON_ID,
+  PUSH_EDIT_BUTTON_ID,
+  PUSH_ALL_SENDERS_BUTTON_ID,
   PUSH_SENT_MODAL_ID,
+  PUSH_EDIT_MODAL_ID,
+  STACK_PANEL_EDIT_BUTTON_ID,
+  STACK_PICK_SELECT_ID,
   STACK_UP_PREFIX,
   STACK_DOWN_PREFIX,
   STACK_EDIT_PREFIX,
@@ -89,6 +103,9 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Load and reschedule repeating reminders
   loadAndRescheduleReminders(readyClient);
+
+  // Flip def-call cards to "Landed" at landing time
+  loadAndScheduleLandings(readyClient);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -119,14 +136,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleSentButton(interaction);
       } else if (interaction.customId === REQUEST_DEF_BUTTON_ID) {
         await handleRequestDefButton(interaction);
-      } else if (interaction.customId === SCOUT_GOING_BUTTON_ID) {
+      } else if (interaction.customId.startsWith(SCOUT_GOING_BUTTON_ID)) {
         await handleScoutGoingButton(interaction);
-      } else if (interaction.customId === SCOUT_DONE_BUTTON_ID) {
-        await handleScoutDoneButton(interaction);
+      } else if (interaction.customId.startsWith(SCOUT_RESULT_BUTTON_ID)) {
+        await handleScoutResultButton(interaction);
       } else if (interaction.customId === PUSH_SENT_BUTTON_ID) {
         await handlePushSentButton(interaction);
-      } else if (interaction.customId === PUSH_DELETE_BUTTON_ID) {
-        await handlePushDeleteButton(interaction);
+      } else if (interaction.customId === PUSH_CLOSE_BUTTON_ID) {
+        await handlePushCloseButton(interaction);
+      } else if (interaction.customId === PUSH_EDIT_BUTTON_ID) {
+        await handlePushEditButton(interaction);
+      } else if (interaction.customId === PUSH_ALL_SENDERS_BUTTON_ID) {
+        await handlePushAllSendersButton(interaction);
+      } else if (interaction.customId === STACK_PANEL_EDIT_BUTTON_ID) {
+        await handleStackPanelEditButton(interaction);
       } else if (interaction.customId.startsWith(STACK_UP_PREFIX)) {
         await handleStackUpButton(interaction);
       } else if (interaction.customId.startsWith(STACK_DOWN_PREFIX)) {
@@ -149,7 +172,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleAccountReminderSkipButton(interaction);
       } else if (interaction.customId === DEFCALL_REQUEST_BUTTON_ID) {
         await handleDefCallRequestButton(interaction);
-      } else if (interaction.customId === DEFCALL_SENT_BUTTON_ID) {
+      } else if (interaction.customId === DEFCALL_SENT_BUTTON_ID || interaction.customId === DEFCALL_SENT_FOR_BUTTON_ID) {
         await handleDefCallSentButton(interaction);
       } else if (interaction.customId === DEFCALL_CLOSE_BUTTON_ID) {
         await handleDefCallCloseButton(interaction);
@@ -179,8 +202,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleRequestDefModal(interaction);
       } else if (interaction.customId.startsWith(SCOUT_GOING_MODAL_ID)) {
         await handleScoutGoingModal(interaction);
+      } else if (interaction.customId.startsWith(SCOUT_RESULT_MODAL_ID)) {
+        await handleScoutResultModal(interaction);
       } else if (interaction.customId === PUSH_SENT_MODAL_ID) {
         await handlePushSentModal(interaction);
+      } else if (interaction.customId === PUSH_EDIT_MODAL_ID) {
+        await handlePushEditModal(interaction);
       } else if (interaction.customId.startsWith(STACK_EDIT_MODAL_PREFIX)) {
         await handleStackEditModal(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_MODAL_ID) {
@@ -198,6 +225,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
             content: errors.generic(),
             flags: MessageFlags.Ephemeral,
           });
+        }
+      } catch {
+        // Ignore reply errors
+      }
+    }
+    return;
+  }
+
+  // Handle select menus
+  if (interaction.isStringSelectMenu()) {
+    try {
+      if (interaction.customId === STACK_PICK_SELECT_ID) {
+        await handleStackPickSelect(interaction);
+      }
+    } catch (error) {
+      console.error("Error handling select menu:", error);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
         }
       } catch {
         // Ignore reply errors

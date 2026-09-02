@@ -2,10 +2,10 @@ import { removePushRequest, getPushRequestById, PushRequest } from "../services/
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { deletePushChannel } from "../services/push-message";
 import { ActionContext, PushDeleteActionInput, PushDeleteActionResult } from "./types";
-import { recordAction } from "../services/action-history";
 
 /**
- * Execute the "push delete" action - delete a push request.
+ * Execute the "push delete" action - admin-only hard delete of a push request and its thread.
+ * Not undoable; use "close" for the normal case.
  */
 export async function executePushDeleteAction(
   context: ActionContext,
@@ -36,17 +36,9 @@ export async function executePushDeleteAction(
     return { success: false, error: `Failed to delete push request #${requestId}.` };
   }
 
-  // 5. Record action for undo
-  const actionId = recordAction(guildId, {
-    type: "PUSH_REQUEST_DELETED",
-    userId,
-    coords: { x: request.x, y: request.y },
-    requestId,
-    previousPushState: previousState,
-    data: {
-      channelId: request.channelId,
-    },
-  });
+  // 5. Hard delete is not undoable; nothing is recorded.
+  const actionId = 0;
+  void previousState;
 
   // 6. Build action text
   const villageDisplay = village

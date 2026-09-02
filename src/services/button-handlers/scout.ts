@@ -7,32 +7,80 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ContainerBuilder,
-  TextDisplayBuilder,
   MessageFlags,
   LabelBuilder,
+  Client,
+  time,
+  TimestampStyles,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { scheduleScoutNotification, cancelScoutNotifications } from "../scout-scheduler";
-import { parseTimeToTimestamp, formatTimeDisplay } from "../../utils/time";
+import { parseTimeToTimestamp } from "../../utils/time";
+import {
+  getScoutRequestByMessageId,
+  findScoutByMessageId,
+  setScoutGoing,
+  markScoutDone,
+  ScoutRequest,
+} from "../scout-requests";
+import { updateScoutCard } from "../scout-message";
+import { isValidReportLink, normalizeReportLink } from "../../utils/report-link";
+import { errors } from "../../actions/messages";
+import {
+  SCOUT_GOING_BUTTON_ID,
+  SCOUT_GOING_MODAL_ID,
+  SCOUT_TIME_INPUT_ID,
+  SCOUT_RESULT_BUTTON_ID,
+  SCOUT_RESULT_MODAL_ID,
+  SCOUT_REPORT_INPUT_ID,
+} from "./scout-ids";
 
-// Scout button/modal IDs
-export const SCOUT_GOING_BUTTON_ID = "scout_going_button";
-export const SCOUT_GOING_MODAL_ID = "scout_going_modal";
-export const SCOUT_TIME_INPUT_ID = "scout_time_input";
-export const SCOUT_DONE_BUTTON_ID = "scout_done_button";
+export {
+  SCOUT_GOING_BUTTON_ID,
+  SCOUT_GOING_MODAL_ID,
+  SCOUT_TIME_INPUT_ID,
+  SCOUT_RESULT_BUTTON_ID,
+  SCOUT_RESULT_MODAL_ID,
+  SCOUT_REPORT_INPUT_ID,
+};
 
-// Accent colors for scout status
-const ACCENT_IN_PROGRESS = 0x3498db; // Blue
-const ACCENT_DONE = 0x2ecc71;        // Green
+/** Card buttons carry no suffix; retry buttons on ephemeral replies carry `:<messageId>`. */
+function targetMessageId(interaction: ButtonInteraction): string {
+  const [, suffix] = interaction.customId.split(":");
+  return suffix || interaction.message.id;
+}
 
-export async function handleScoutGoingButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  // Show modal to ask for landing time
+async function openScoutOrReply(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  messageId: string
+): Promise<{ guildId: string; request: ScoutRequest } | null> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
+    return null;
+  }
+  const request = getScoutRequestByMessageId(guildId, messageId);
+  if (!request) {
+    await interaction.reply({ content: errors.notFound("scout request"), flags: MessageFlags.Ephemeral });
+    return null;
+  }
+  if (request.status === "done") {
+    await interaction.reply({ content: "⚠️ **This scout request is already done.**", flags: MessageFlags.Ephemeral });
+    return null;
+  }
+  return { guildId, request };
+}
+
+// --- I'm going ---
+
+export async function handleScoutGoingButton(interaction: ButtonInteraction): Promise<void> {
+  const messageId = targetMessageId(interaction);
+  const ctx = await openScoutOrReply(interaction, messageId);
+  if (!ctx) return;
+
   const modal = new ModalBuilder()
-    .setCustomId(`${SCOUT_GOING_MODAL_ID}:${interaction.message.id}`)
-    .setTitle("Scouting");
+    .setCustomId(`${SCOUT_GOING_MODAL_ID}:${messageId}`)
+    .setTitle("I'm going to scout");
 
   const timeInput = new TextInputBuilder()
     .setCustomId(SCOUT_TIME_INPUT_ID)
@@ -42,327 +90,150 @@ export async function handleScoutGoingButton(
     .setMaxLength(10);
 
   const timeLabel = new LabelBuilder()
-    .setLabel("When does it land?")
+    .setLabel("Landing time")
+    .setDescription("Server time when your scouts arrive, for example 12:30 or 12:30:45")
     .setTextInputComponent(timeInput);
 
   modal.addLabelComponents(timeLabel);
-
   await interaction.showModal(modal);
 }
 
-export async function handleScoutGoingModal(
-  interaction: ModalSubmitInteraction
-): Promise<void> {
-  // Extract message ID from custom ID
+export async function handleScoutGoingModal(interaction: ModalSubmitInteraction): Promise<void> {
   const [, messageId] = interaction.customId.split(":");
   if (!messageId) {
-    await interaction.reply({
-      content: "Failed to update the message.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: errors.notFound("scout request"), flags: MessageFlags.Ephemeral });
     return;
   }
+  const ctx = await openScoutOrReply(interaction, messageId);
+  if (!ctx) return;
 
-  const timeInput = interaction.fields.getTextInputValue(SCOUT_TIME_INPUT_ID);
+  const rawTime = interaction.fields.getTextInputValue(SCOUT_TIME_INPUT_ID).trim();
+  const config = getGuildConfig(ctx.guildId);
+  const arrivalAt = parseTimeToTimestamp(rawTime, config.serverTimezone) ?? undefined;
 
-  // Fetch the original message
-  const channel = interaction.channel;
-  if (!channel) {
-    await interaction.reply({
-      content: "Failed to find the channel.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  let message;
-  try {
-    message = await channel.messages.fetch(messageId);
-  } catch {
-    await interaction.reply({
-      content: "Failed to find the message.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Get existing components - the container should be the first component
-  const existingComponents = message.components;
-  if (existingComponents.length < 2) {
-    await interaction.reply({
-      content: "Failed to update the message.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Extract existing text from the container
-  const containerData = existingComponents[0];
-
-  if (!("components" in containerData) || !Array.isArray(containerData.components)) {
-    await interaction.reply({
-      content: "Failed to update the message.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const containerComponents = containerData.components;
-  const guildConfig = interaction.guildId
-    ? getGuildConfig(interaction.guildId)
-    : {};
-  const timeDisplay = formatTimeDisplay(timeInput, guildConfig.serverTimezone);
-  const userEntry = `<@${interaction.user.id}> ${timeDisplay}`;
-
-  // Parse timestamp for notification scheduling
-  const arrivalTimestamp = parseTimeToTimestamp(timeInput, guildConfig.serverTimezone);
-
-  // Parse the existing content to find the structure
-  let mainText = "";
-  let requesterId: string | null = null;
-  let coords: { x: number; y: number } | null = null;
-  let goingEntries: string[] = [];
-
-  for (const comp of containerComponents) {
-    if ("content" in comp && typeof comp.content === "string") {
-      const content = comp.content;
-      if (content.startsWith("##") || content.startsWith("#")) {
-        // Main heading - preserve all of it
-        mainText = content;
-        // Extract coordinates from [(x|y)] format
-        const coordsMatch = content.match(/\[\((-?\d+)\|(-?\d+)\)\]/);
-        if (coordsMatch) {
-          coords = { x: parseInt(coordsMatch[1], 10), y: parseInt(coordsMatch[2], 10) };
-        }
-        // Extract requester ID from footer line (> -# Requested by <@userId>)
-        // This is in the same content block, not a separate component
-        const requesterMatch = content.match(/Requested by <@(\d+)>/);
-        if (requesterMatch) {
-          requesterId = requesterMatch[1];
-        }
-      } else if (content.startsWith("**Going:**")) {
-        // Extract existing entries (user + time pairs)
-        const entriesMatch = content.match(/\*\*Going:\*\* (.+)/);
-        if (entriesMatch) {
-          goingEntries = entriesMatch[1].split(", ").filter((e: string) => e.trim());
-        }
-      }
-    }
-  }
-
-  // Check if user already has an entry (by user ID)
-  const userId = interaction.user.id;
-  const existingIndex = goingEntries.findIndex((entry) =>
-    entry.includes(`<@${userId}>`)
-  );
-
-  if (existingIndex !== -1) {
-    // Update existing entry with new time
-    goingEntries[existingIndex] = userEntry;
-  } else {
-    // Add new entry
-    goingEntries.push(userEntry);
-  }
-
-  // Rebuild the container with blue (in progress) accent
-  const container = new ContainerBuilder().setAccentColor(ACCENT_IN_PROGRESS);
-
-  if (mainText) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(mainText)
-    );
-  }
-
-  // Add "Going:" section
-  if (goingEntries.length > 0) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`**Going:** ${goingEntries.join(", ")}`)
-    );
-  }
-
-  // Keep the buttons
-  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(SCOUT_GOING_BUTTON_ID)
-      .setLabel("Going")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(SCOUT_DONE_BUTTON_ID)
-      .setLabel("Done")
-      .setStyle(ButtonStyle.Success)
-  );
-
-  await message.edit({
-    components: [container, buttonRow],
-    flags: MessageFlags.IsComponentsV2,
+  const updated = setScoutGoing(ctx.guildId, ctx.request.id, {
+    userId: interaction.user.id,
+    displayName: interaction.user.displayName,
+    arrivalAt,
+    rawTime,
   });
+  if (!updated) {
+    await interaction.reply({ content: errors.notFound("scout request"), flags: MessageFlags.Ephemeral });
+    return;
+  }
 
-  // Schedule notification and auto-complete if time was parsed successfully
-  if (arrivalTimestamp !== null && requesterId && coords && interaction.guildId) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await updateScoutCard(interaction.client, ctx.guildId, updated);
+
+  if (arrivalAt !== undefined) {
     scheduleScoutNotification(
       interaction.client,
       {
-        messageId: message.id,
-        channelId: channel.id,
-        guildId: interaction.guildId,
-        requesterId,
+        messageId,
+        channelId: updated.channelId,
+        guildId: ctx.guildId,
+        requesterId: updated.requesterId,
         goingUserId: interaction.user.id,
         goingUserName: interaction.user.displayName,
-        coords,
-        arrivalTimestamp,
+        coords: { x: updated.x, y: updated.y },
+        arrivalTimestamp: arrivalAt,
       },
       markScoutMessageAsDoneById
     );
   }
 
-  // Acknowledge the interaction
-  await interaction.deferUpdate();
+  const when = arrivalAt !== undefined
+    ? `lands ${time(arrivalAt, TimestampStyles.RelativeTime)}`
+    : `at "${rawTime}" (could not read that as a time, so no reminder)`;
+  await interaction.editReply({ content: `✅ Marked you as going, ${when}.` });
 }
 
-/**
- * Handle "Done" button click - marks scout request as complete.
- */
-export async function handleScoutDoneButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  const success = await markScoutMessageAsDone(interaction.message);
+// --- Report result ---
 
-  if (!success) {
+function buildResultModal(messageId: string): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(`${SCOUT_RESULT_MODAL_ID}:${messageId}`)
+    .setTitle("Scout result");
+
+  const linkInput = new TextInputBuilder()
+    .setCustomId(SCOUT_REPORT_INPUT_ID)
+    .setPlaceholder("https://ts31.x3.europe.travian.com/report?id=…")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(500);
+
+  const linkLabel = new LabelBuilder()
+    .setLabel("Report link")
+    .setDescription("Paste the in-game report URL")
+    .setTextInputComponent(linkInput);
+
+  modal.addLabelComponents(linkLabel);
+  return modal;
+}
+
+export async function handleScoutResultButton(interaction: ButtonInteraction): Promise<void> {
+  const messageId = targetMessageId(interaction);
+  const ctx = await openScoutOrReply(interaction, messageId);
+  if (!ctx) return;
+  await interaction.showModal(buildResultModal(messageId));
+}
+
+export async function handleScoutResultModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const [, messageId] = interaction.customId.split(":");
+  if (!messageId) {
+    await interaction.reply({ content: errors.notFound("scout request"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const ctx = await openScoutOrReply(interaction, messageId);
+  if (!ctx) return;
+
+  const link = interaction.fields.getTextInputValue(SCOUT_REPORT_INPUT_ID);
+  const config = getGuildConfig(ctx.guildId);
+  if (!isValidReportLink(link, config.serverKey)) {
+    const retry = new ButtonBuilder()
+      .setCustomId(`${SCOUT_RESULT_BUTTON_ID}:${messageId}`)
+      .setLabel("Try again")
+      .setStyle(ButtonStyle.Primary);
     await interaction.reply({
-      content: "Failed to update the message.",
+      content: "⚠️ **That is not a Travian report link.** Open the report in game, copy the address bar, and paste it.",
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(retry)],
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  // Cancel any pending notifications for this message
-  cancelScoutNotifications(interaction.message.id);
-
-  await interaction.deferUpdate();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const done = await completeScout(interaction.client, ctx.guildId, ctx.request, normalizeReportLink(link));
+  await interaction.editReply({
+    content: done ? "✅ Result saved. The card now links to the report." : errors.generic(),
+  });
 }
 
-/**
- * Mark a scout message as done (green accent, strikethrough, no buttons).
- * Returns true if successful, false otherwise.
- */
-async function markScoutMessageAsDone(message: { components: readonly any[]; edit: (options: any) => Promise<any> }): Promise<boolean> {
-  const existingComponents = message.components;
-  if (existingComponents.length < 1) {
-    return false;
-  }
-
-  const containerData = existingComponents[0];
-  if (!("components" in containerData) || !Array.isArray(containerData.components)) {
-    return false;
-  }
-
-  // Check if already done
-  for (const comp of containerData.components) {
-    if ("content" in comp && typeof comp.content === "string") {
-      if (comp.content.includes("**Done**")) {
-        return false; // Already marked as done
-      }
-    }
-  }
-
-  // Parse existing content
-  let mainText = "";
-  let goingEntries: string[] = [];
-
-  for (const comp of containerData.components) {
-    if ("content" in comp && typeof comp.content === "string") {
-      const content = comp.content;
-      if (content.startsWith("##") || content.startsWith("#")) {
-        mainText = content;
-      } else if (content.startsWith("**Going:**")) {
-        const entriesMatch = content.match(/\*\*Going:\*\* (.+)/);
-        if (entriesMatch) {
-          goingEntries = entriesMatch[1].split(", ").filter((e: string) => e.trim());
-        }
-      }
-    }
-  }
-
-  // Apply strikethrough and remove link/mention
-  const formattedText = applyDoneFormatting(mainText);
-
-  // Build new container with green accent
-  const container = new ContainerBuilder().setAccentColor(ACCENT_DONE);
-
-  if (formattedText) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(formattedText)
-    );
-  }
-
-  // Add completion marker
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent("**Done**")
-  );
-
-  // Optionally show who went
-  if (goingEntries.length > 0) {
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`-# Went: ${goingEntries.join(", ")}`)
-    );
-  }
-
-  // Edit message without buttons
-  await message.edit({
-    components: [container],
-    flags: MessageFlags.IsComponentsV2,
-  });
-
+/** Mark a scout done (optionally with the report link), re-render, cancel reminders. */
+export async function completeScout(
+  client: Client,
+  guildId: string,
+  request: ScoutRequest,
+  reportUrl?: string
+): Promise<boolean> {
+  const done = markScoutDone(guildId, request.id, reportUrl);
+  if (!done) return false;
+  if (done.messageId) cancelScoutNotifications(done.messageId);
+  await updateScoutCard(client, guildId, done);
   return true;
 }
 
 /**
- * Apply done formatting: strikethrough headers, remove link/mention lines.
- */
-function applyDoneFormatting(content: string): string {
-  const lines = content.split("\n");
-  const result: string[] = [];
-
-  for (const line of lines) {
-    // Skip SEND link line
-    if (line.includes("[**SEND**]") || line.includes("[SEND]")) {
-      continue;
-    }
-    // Skip role mention line (standalone role mention)
-    if (line.match(/^<@&\d+>$/)) {
-      continue;
-    }
-    // Apply strikethrough to headers (## or #)
-    if (line.startsWith("## ") && !line.includes("~~")) {
-      result.push("## ~~" + line.substring(3) + "~~");
-    } else if (line.startsWith("# ") && !line.includes("~~")) {
-      result.push("# ~~" + line.substring(2) + "~~");
-    } else {
-      result.push(line);
-    }
-  }
-
-  return result.join("\n");
-}
-
-/**
- * Mark a scout message as done by message ID and channel ID.
- * Used by the scheduler to mark messages done after notification fires.
+ * Scheduler callback: the scouts landed, mark the request done.
+ * Looks the request up in the store by message id.
  */
 export async function markScoutMessageAsDoneById(
   messageId: string,
-  channelId: string,
-  client?: { channels: { fetch: (id: string) => Promise<any> } }
+  _channelId: string,
+  client?: Client
 ): Promise<void> {
   if (!client) return;
-
-  try {
-    const channel = await client.channels.fetch(channelId);
-    if (!channel || !("messages" in channel)) return;
-
-    const message = await channel.messages.fetch(messageId);
-    await markScoutMessageAsDone(message);
-  } catch {
-    // Message may have been deleted or already marked done
-  }
+  const found = findScoutByMessageId(messageId);
+  if (!found || found.request.status === "done") return;
+  await completeScout(client, found.guildId, found.request);
 }

@@ -191,6 +191,19 @@ export interface PushDeleteActionSuccess extends ActionSuccess {
 
 export type PushDeleteActionResult = PushDeleteActionSuccess | ActionError;
 
+// --- Push Close Action Types ---
+
+export interface PushCloseActionInput {
+  requestId: number;
+}
+
+export interface PushCloseActionSuccess extends ActionSuccess {
+  requestId: number;
+  coords: { x: number; y: number };
+}
+
+export type PushCloseActionResult = PushCloseActionSuccess | ActionError;
+
 // --- Push Edit Action Types ---
 
 export interface PushEditActionInput {

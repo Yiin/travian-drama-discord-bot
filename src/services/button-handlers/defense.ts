@@ -8,6 +8,7 @@ import {
   StringSelectMenuOptionBuilder,
   LabelBuilder,
   MessageFlags,
+  UserSelectMenuBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { getGuildDefenseData } from "../defense-requests";
@@ -20,6 +21,7 @@ import {
 import { errors } from "../../actions/messages";
 import { getStackPanelUrl } from "../defense-message";
 import { stackChoiceLabel } from "../../utils/choices";
+import { formatTroops } from "../../utils/format";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
 // Defense button/modal IDs
@@ -27,6 +29,7 @@ export const SENT_BUTTON_ID = "sent_troops_button";
 export const SENT_MODAL_ID = "sent_troops_modal";
 export const TARGET_SELECT_ID = "target_select";
 export const TROOPS_INPUT_ID = "troops_input";
+export const SENT_FOR_SELECT_ID = "sent_for_select";
 
 export const REQUEST_DEF_BUTTON_ID = "request_def_button";
 export const REQUEST_DEF_MODAL_ID = "request_def_modal";
@@ -105,6 +108,7 @@ export async function handleSentButton(
     .setDescription("Requests in priority order")
     .setStringSelectMenuComponent(targetSelect);
 
+  const first = data.requests[0];
   const troopsInput = new TextInputBuilder()
     .setCustomId(TROOPS_INPUT_ID)
     .setStyle(TextInputStyle.Short)
@@ -113,11 +117,23 @@ export async function handleSentButton(
     .setMaxLength(10);
 
   const troopsLabel = new LabelBuilder()
-    .setLabel("How many troops did you send?")
-    .setDescription("Troop count")
+    .setLabel("Troops sent")
+    .setDescription(`Whole number. Current: ${formatTroops(first.troopsSent)} / ${formatTroops(first.troopsNeeded)} on the first request`)
     .setTextInputComponent(troopsInput);
 
-  modal.addLabelComponents(targetLabel, troopsLabel);
+  const forSelect = new UserSelectMenuBuilder()
+    .setCustomId(SENT_FOR_SELECT_ID)
+    .setPlaceholder("Pick a member…")
+    .setMinValues(0)
+    .setMaxValues(1)
+    .setRequired(false);
+
+  const forLabel = new LabelBuilder()
+    .setLabel("Sent by")
+    .setDescription("Leave empty if you sent them yourself")
+    .setUserSelectMenuComponent(forSelect);
+
+  modal.addLabelComponents(targetLabel, troopsLabel, forLabel);
 
   await interaction.showModal(modal);
 }
@@ -153,7 +169,7 @@ export async function handleSentModal(
 
   // 3. Extract troops from text input
   const troopsInput = interaction.fields.getTextInputValue(TROOPS_INPUT_ID);
-  const troops = parseInt(troopsInput, 10);
+  const troops = parseInt(troopsInput.replace(/[,.\s]/g, ""), 10);
   if (isNaN(troops) || troops < 1) {
     await interaction.reply({
       content: errors.invalidCount("troops"),
@@ -161,6 +177,9 @@ export async function handleSentModal(
     });
     return;
   }
+
+  const sentBy = interaction.fields.getSelectedUsers(SENT_FOR_SELECT_ID, false)?.first();
+  const creditUserId = sentBy?.id ?? interaction.user.id;
 
   // 4. Defer reply
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -176,7 +195,7 @@ export async function handleSentModal(
     {
       target: requestId.toString(),
       troops,
-      creditUserId: interaction.user.id,
+      creditUserId,
     }
   );
 
@@ -229,6 +248,7 @@ export async function handleRequestDefButton(
 
   const coordsLabel = new LabelBuilder()
     .setLabel("Coordinates")
+    .setDescription("Village to stack, for example 123|456 or -45|89")
     .setTextInputComponent(coordsInput);
 
   const troopsInput = new TextInputBuilder()
@@ -239,7 +259,8 @@ export async function handleRequestDefButton(
     .setMaxLength(10);
 
   const troopsLabel = new LabelBuilder()
-    .setLabel("How many troops are needed?")
+    .setLabel("Troops needed")
+    .setDescription("Total defense to collect, for example 5000")
     .setTextInputComponent(troopsInput);
 
   const messageInput = new TextInputBuilder()
@@ -251,6 +272,7 @@ export async function handleRequestDefButton(
 
   const messageLabel = new LabelBuilder()
     .setLabel("Note (optional)")
+    .setDescription("Shown on the panel, for example: anti cav, or the attack time")
     .setTextInputComponent(messageInput);
 
   modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel);
@@ -274,7 +296,7 @@ export async function handleRequestDefModal(
   const message = interaction.fields.getTextInputValue(MESSAGE_INPUT_ID) || "";
 
   // 3. Parse troops (coords validation is done in action)
-  const troopsNeeded = parseInt(troopsInput, 10);
+  const troopsNeeded = parseInt(troopsInput.replace(/[,.\s]/g, ""), 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
     await interaction.reply({
       content: errors.invalidCount("troops"),

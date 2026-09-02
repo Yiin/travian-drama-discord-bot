@@ -10,6 +10,7 @@ import {
   refreshHubChannel,
 } from "../services/def-calls-message";
 import { parseAndValidateCoords } from "./validation";
+import { scheduleLanding } from "../services/landing-scheduler";
 import { validateUserHasAccount } from "./push-validation";
 import { parseTimeToTimestamp, formatRelativeWithRaw } from "../utils/time";
 import {
@@ -103,10 +104,11 @@ export async function executeDefCallRequestAction(
     console.error("[DefCallRequest] Failed to create channel:", error);
     return {
       success: false,
-      error: "Failed to create the channel. Try again.",
+      error: "⚠️ **Could not create the defense thread.** Check the bot can create threads in the def-calls channel, then try again.",
     };
   }
 
+  scheduleLanding(client, guildId, result.request);
   await refreshHubChannel(client, guildId);
 
   const actionId = recordAction(guildId, {

@@ -1,6 +1,6 @@
 import { transferContribution, getPushRequestById, PushRequest } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { updatePushChannelEmbed, postContributionMessage } from "../services/push-message";
+import { updatePushCard, postContributionMessage } from "../services/push-message";
 import { transferContributionStats } from "../services/push-stats";
 import { ActionContext, PushTransferActionInput, PushTransferActionResult } from "./types";
 import { recordAction } from "../services/action-history";
@@ -66,7 +66,7 @@ export async function executePushTransferAction(
     result.request!,
     `🔄 Transferred contribution: **${fromAccount}** → **${toAccount}** (**${formatResources(transferredAmount)}**)`
   );
-  await updatePushChannelEmbed(client, guildId, result.request!);
+  await updatePushCard(client, guildId, result.request!);
 
   return {
     success: true,

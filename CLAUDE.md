@@ -52,9 +52,20 @@ Stack, def-call and push requests carry a **stable `id`** from a per-guild `next
 
 `src/services/map-data.ts` downloads `map.sql` from `https://{serverKey}.travian.com/map.sql`, parses INSERT statements into a sql.js DB, and exposes `getVillageAt(serverKey, x, y)` returning village info including `targetMapId` (used to build rally-point links). `src/services/map-scheduler.ts` re-runs this daily for every configured server. `/setup server` triggers an initial download.
 
-### Single global embeds
+### Live panels (Components V2)
 
-Both defense and push systems maintain **one continuously-edited embed message per guild** (not new messages per request). `src/services/defense-message.ts` and `src/services/push-message.ts` build and `editMessage()` these embeds. The first request shows ➡️ as the priority marker. After any state change, the action layer calls the corresponding `updateGlobalMessage()` — don't post new messages.
+Every live message is a Components V2 container (`ContainerBuilder`, `flags: MessageFlags.IsComponentsV2`), never an embed:
+
+- **Stack panel** (`src/services/defense-message.ts`, `buildStackPanel`): one per guild in the stack channel. One `SectionBuilder` per request (text + a `Send` link button), capped at `MAX_STACK_SECTIONS`; the rest render as plain lines so the message stays under Discord's 40-component limit. `updateGlobalMessage()` re-renders it after every change.
+- **Def-call card** (`src/services/def-calls-message.ts`, `buildDefCallCard`): one per thread. States: open (gold), fulfilled (green), landed (grey), closed (grey, no buttons). `updateDefCallCard()` edits it in place. The hub message in the def-calls channel (`refreshHubChannel`) shows the open-call count and the Request button.
+- **Push card** (`src/services/push-message.ts`, `buildPushCard`, `updatePushCard`): same shape as the def-call card, top `MAX_INLINE_SENDERS` contributors inline.
+- **Scout card** (`src/services/scout-message.ts`, `buildScoutCard`): one per scout request, state in `data/scout-requests.json` (`src/services/scout-requests.ts`), never parsed back from the rendered message.
+
+`src/services/panel.ts` (`upsertPanel`) is the only way to post or refresh a channel-level panel: it edits the stored message while it is still the last message in the channel, and otherwise deletes it and posts a fresh one so the panel stays at the bottom. Thread cards are edited in place; a fresh card is posted only when the old one is gone. Audit lines and thread notes go out with `MessageFlags.SuppressNotifications`.
+
+**Closing** a def-call or push archives the thread (`thread.setArchived(true)`) and keeps the data; undo reopens it. `/push delete` (admin) is the only hard delete and is not undoable. `src/services/landing-scheduler.ts` flips a def-call card to "Landed" at its landing time with no message and no ping; it is loaded at `ClientReady` and updated on every def-call create, close, and undo.
+
+**Report modals** (stack, def-call, push) share one shape: an amount field whose Label description shows the current progress, plus an optional `Sent by` user select for crediting someone else.
 
 ### Travian server key format
 
@@ -64,7 +75,7 @@ Short form only: `ts31.x3.europe`. The full URL is built by `getFullServerUrl()`
 
 - **New slash command:** add a subcommand to the matching group in `src/commands/`, or create `src/commands/yourcommand.ts` with `guildCommand()`, a `topic` and a `summary`, and call `registerCommand()` in `src/commands/index.ts`; run `npm run register`. `/help` (`src/services/help.ts`) is generated from the registry, so subcommand descriptions are the help text. If it mutates state, the `execute` handler should be a thin wrapper that builds an `ActionContext`, calls an `executeXxxAction`, and renders the result with `confirmationEdit()`.
 - **New text-command alias:** add a regex to `src/services/message-commands/patterns.ts`, a handler in `handlers/`, and a route in `router.ts`. Reuse the same action function the slash command uses.
-- **New button/modal:** add ID constants and handler in `src/services/button-handlers/`, export from its `index.ts`, and add a dispatch branch in the `InteractionCreate` listener in `src/index.ts`.
+- **New button/modal:** add ID constants and handler in `src/services/button-handlers/`, export from its `index.ts`, and add a dispatch branch in the `InteractionCreate` listener in `src/index.ts`. Keep message IDs out of state you need later; store it in the matching `data/*.json` file instead.
 - **New undoable action type:** add the type to `ActionType` in `src/services/action-history.ts` and implement reversal in `executeUndoAction` (`src/actions/undo.action.ts`).
 
 ## User-facing language

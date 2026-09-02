@@ -4,6 +4,7 @@ import {
   EmbedBuilder,
   Colors,
   MessageFlags,
+  GuildMember,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -11,6 +12,7 @@ import {
   executePushRequestAction,
   executePushSentAction,
   executePushDeleteAction,
+  executePushCloseAction,
   executePushEditAction,
 } from "../actions";
 import { executePushEditContributionAction } from "../actions/push-edit-contribution.action";
@@ -20,7 +22,7 @@ import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
-import { requireAdmin } from "../utils/permissions";
+import { requireAdmin, isAdmin } from "../utils/permissions";
 import { guildCommand } from "./shared";
 import { formatResources } from "../utils/format";
 import { errors } from "../actions/messages";
@@ -53,10 +55,10 @@ export const pushCommand: Command = {
         )
     )
     .addSubcommand((sub) =>
-      sub.setName("close").setDescription("Close this push thread (requester or admin)")
+      sub.setName("close").setDescription("Close this push and archive the thread (requester or admin)")
     )
     .addSubcommand((sub) =>
-      sub.setName("delete").setDescription("Delete this push request and its thread (admin)")
+      sub.setName("delete").setDescription("Delete this push and its thread for good (admin, no undo)")
     )
     .addSubcommand((sub) =>
       sub
@@ -383,9 +385,20 @@ async function handleClose(interaction: ChatInputCommandInteraction): Promise<vo
     await interaction.reply({ content: errors.notInThread("push"), flags: MessageFlags.Ephemeral });
     return;
   }
-  const isRequester = requestData.request.requesterId === interaction.user.id;
-  if (!isRequester && !(await requireAdmin(interaction))) return;
-  await handleDelete(interaction);
+
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
+  const result = await executePushCloseAction(
+    { guildId: validation.guildId, config: validation.config, client: interaction.client, userId: interaction.user.id },
+    { requestId: requestData.requestId },
+    { isAdmin: isAdmin(interaction.member as GuildMember | null) }
+  );
+  if (!result.success) {
+    await interaction.editReply({ content: result.error });
+    return;
+  }
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -430,11 +443,9 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
   }
 
   try {
-    await interaction.editReply(
-      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
-    );
+    await interaction.editReply(confirmationEdit(result.confirmText ?? asConfirm(result.actionText)));
   } catch {
-    // the thread is being deleted; the reply may already be gone
+    // the thread was deleted; the reply may already be gone
   }
 }
 

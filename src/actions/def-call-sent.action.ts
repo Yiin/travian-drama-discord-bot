@@ -6,8 +6,7 @@ import {
 import { recordContribution } from "../services/stats";
 import { recordAction } from "../services/action-history";
 import {
-  updateDefCallChannelEmbed,
-  postDefCallContributionMessage,
+  updateDefCallCard,
   refreshHubChannel,
 } from "../services/def-calls-message";
 import { validateUserHasAccount } from "./push-validation";
@@ -41,7 +40,10 @@ export async function executeDefCallSentAction(
 
   const requestBefore = getRequestById(guildId, requestId);
   if (!requestBefore) {
-    return { success: false, error: `Request #${requestId} not found.` };
+    return { success: false, error: errors.notFound("defense call", requestId) };
+  }
+  if (requestBefore.closed) {
+    return { success: false, error: "⚠️ **This defense call is closed.** Undo the close first if it was a mistake." };
   }
   const previousState: DefCallRequest = {
     ...requestBefore,
@@ -73,12 +75,7 @@ export async function executeDefCallSentAction(
     },
   });
 
-  await postDefCallContributionMessage(
-    client,
-    result.request,
-    `**${accountName}** sent **${formatTroops(troops)}** troops`
-  );
-  await updateDefCallChannelEmbed(client, guildId, result.request);
+  await updateDefCallCard(client, guildId, result.request);
   await refreshHubChannel(client, guildId);
 
   const actionText = `**${accountName}** sent **${formatTroops(troops)}** troops to (${result.request.x}|${result.request.y})`;

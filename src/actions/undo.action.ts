@@ -6,13 +6,16 @@ import {
   isDefCallAction,
 } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
-import { updatePushChannelEmbed } from "../services/push-message";
+import { updatePushCard, archivePushThread, unarchivePushThread } from "../services/push-message";
 import { getPushRequestById } from "../services/push-requests";
 import { getRequestById as getDefCallRequestById } from "../services/def-calls";
 import {
   refreshHubChannel,
-  updateDefCallChannelEmbed,
+  updateDefCallCard,
+  archiveDefCallThread,
+  unarchiveDefCallThread,
 } from "../services/def-calls-message";
+import { scheduleLanding, cancelLanding } from "../services/landing-scheduler";
 import { removeContribution } from "../services/stats";
 import { removePushContribution } from "../services/push-stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
@@ -77,25 +80,29 @@ export async function executeUndoAction(
 
   // 4. Update the appropriate message/channel based on action type
   if (isDefCallAction(action)) {
-    if (result.requestId) {
-      const request = getDefCallRequestById(guildId, result.requestId);
-      if (request && request.channelId) {
-        await updateDefCallChannelEmbed(client, guildId, request);
+    const request = getDefCallRequestById(guildId, result.requestId ?? action.requestId);
+    if (request && request.channelId) {
+      if (request.closed) {
+        cancelLanding(guildId, request.id);
+        await updateDefCallCard(client, guildId, request);
+        await archiveDefCallThread(client, request);
+      } else {
+        await unarchiveDefCallThread(client, request);
+        await updateDefCallCard(client, guildId, request);
+        scheduleLanding(client, guildId, request);
       }
     }
     await refreshHubChannel(client, guildId);
   } else if (isPushAction(action)) {
-    // For push actions, try to update the channel embed if the request still exists
-    // Note: For deleted requests that were restored, the channel won't be recreated
-    if (result.requestId) {
-      const request = getPushRequestById(guildId, result.requestId);
-      if (request && request.channelId) {
-        await updatePushChannelEmbed(client, guildId, request);
+    const request = getPushRequestById(guildId, result.requestId ?? action.requestId);
+    if (request && request.channelId) {
+      if (request.closed) {
+        await updatePushCard(client, guildId, request);
+        await archivePushThread(client, request);
+      } else {
+        await unarchivePushThread(client, request);
+        await updatePushCard(client, guildId, request);
       }
-    }
-    // For PUSH_REQUEST_ADD undo (deletion), the channel should be deleted
-    if (action.type === "PUSH_REQUEST_ADD" && action.data.channelId) {
-      // Channel was already deleted as part of the undo, nothing more to do
     }
   } else {
     await updateGlobalMessage(client, guildId);

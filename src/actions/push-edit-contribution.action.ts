@@ -1,6 +1,6 @@
 import { updateContributorResources, getPushRequestById, PushRequest } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { updatePushChannelEmbed, postContributionMessage } from "../services/push-message";
+import { updatePushCard, postContributionMessage } from "../services/push-message";
 import { adjustContributionStats } from "../services/push-stats";
 import { ActionContext, PushEditContributionActionInput, PushEditContributionActionResult } from "./types";
 import { recordAction } from "../services/action-history";
@@ -67,7 +67,7 @@ export async function executePushEditContributionAction(
     result.request!,
     `📝 Changed **${accountName}** contribution: **${formatResources(oldAmount)}** → **${formatResources(newAmount)}**`
   );
-  await updatePushChannelEmbed(client, guildId, result.request!);
+  await updatePushCard(client, guildId, result.request!);
 
   return {
     success: true,

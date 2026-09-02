@@ -27,6 +27,8 @@ export interface DefCallRequest {
   summaryMessageId?: string;
   createdAt: number;
   closed: boolean;
+  /** Set by the landing scheduler once `landingAt` has passed. */
+  landed?: boolean;
 }
 
 export interface GuildDefCalls {
@@ -226,6 +228,26 @@ export function closeRequest(
   return request;
 }
 
+export function setLanded(guildId: string, requestId: number, landed: boolean): DefCallRequest | undefined {
+  const data = getGuildDefCalls(guildId);
+  const request = findById(data, requestId);
+  if (!request) return undefined;
+  request.landed = landed;
+  saveGuildData(guildId, data);
+  return request;
+}
+
+export function reopenRequest(guildId: string, requestId: number): DefCallRequest | { error: string } {
+  const data = getGuildDefCalls(guildId);
+  const request = findById(data, requestId);
+  if (!request) {
+    return { error: `Request #${requestId} not found.` };
+  }
+  request.closed = false;
+  saveGuildData(guildId, data);
+  return request;
+}
+
 export function restoreRequest(
   guildId: string,
   requestId: number,
@@ -309,4 +331,9 @@ export function getActiveRequests(
 
 export function getAllRequests(guildId: string): DefCallRequest[] {
   return getGuildDefCalls(guildId).requests;
+}
+
+/** Every guild with def-call data; used by the landing scheduler on boot. */
+export function getAllDefCallGuildIds(): string[] {
+  return Object.keys(loadAllData());
 }

@@ -39,7 +39,7 @@ export async function handleScoutCommand(
   }
 
   // Send the scout message to the channel
-  const sent = await sendScoutMessage(ctx.client, ctx.config.scoutChannelId, {
+  const sent = await sendScoutMessage(ctx.client, ctx.guildId, ctx.config.scoutChannelId, {
     ...result,
     message: scoutMessage,
     requesterId: ctx.message.author.id,

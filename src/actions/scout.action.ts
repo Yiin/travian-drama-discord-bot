@@ -1,13 +1,4 @@
-import {
-  TextChannel,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  MessageFlags,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  Client,
-} from "discord.js";
+import { Client } from "discord.js";
 import {
   getVillageAt,
   ensureMapData,
@@ -16,8 +7,9 @@ import {
 } from "../services/map-data";
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, ScoutActionInput, ScoutActionResult, ActionError } from "./types";
-import { SCOUT_GOING_BUTTON_ID, SCOUT_DONE_BUTTON_ID } from "../services/button-handlers/index";
 import { errors } from "./messages";
+import { addScoutRequest, pruneScoutRequests, ScoutRequest } from "../services/scout-requests";
+import { postScoutCard } from "../services/scout-message";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.
@@ -69,55 +61,26 @@ export async function executeScoutAction(
 }
 
 /**
- * Build and send the scout message to the scout channel.
- * Returns true if successful, false otherwise.
+ * Store the request and post its card to the scout channel.
+ * Returns the stored request, or null when the channel is unreachable.
  */
 export async function sendScoutMessage(
   client: Client,
+  guildId: string,
   scoutChannelId: string,
   data: ScoutActionSuccess & { message: string; requesterId: string; scoutRoleId?: string }
-): Promise<boolean> {
-  const channel = (await client.channels.fetch(scoutChannelId)) as TextChannel | null;
-  if (!channel) {
-    return false;
-  }
-
-  // Build Components v2 message with orange accent (pending state)
-  const container = new ContainerBuilder().setAccentColor(0xf39c12);
-
-  const roleMention = data.scoutRoleId ? `<@&${data.scoutRoleId}>` : "";
-  const sendLink = data.rallyLink
-    ? `## [**SEND**](${data.rallyLink})\n`
-    : "";
-  const content = new TextDisplayBuilder().setContent(
-    `## ${data.villageDisplay} · ${data.population} pop\n` +
-      `# ${data.message}\n` +
-      sendLink +
-      (roleMention ? `${roleMention}\n` : "") +
-      `> -# Requested by <@${data.requesterId}>`
-  );
-
-  container.addTextDisplayComponents(content);
-
-  // Add "Going" and "Done" buttons
-  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(SCOUT_GOING_BUTTON_ID)
-      .setLabel("Going")
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(SCOUT_DONE_BUTTON_ID)
-      .setLabel("Done")
-      .setStyle(ButtonStyle.Success)
-  );
-
-  await channel.send({
-    components: [container, buttonRow],
-    flags: MessageFlags.IsComponentsV2,
+): Promise<ScoutRequest | null> {
+  const request = addScoutRequest(guildId, {
+    channelId: scoutChannelId,
+    x: data.coords.x,
+    y: data.coords.y,
+    note: data.message,
+    requesterId: data.requesterId,
+    scoutRoleId: data.scoutRoleId,
   });
-
-  return true;
+  pruneScoutRequests(guildId);
+  const posted = await postScoutCard(client, guildId, request);
+  return posted ? request : null;
 }
 
-// Re-export the success type for use in sendScoutMessage
 type ScoutActionSuccess = Exclude<ScoutActionResult, ActionError>;

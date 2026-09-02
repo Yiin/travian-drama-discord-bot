@@ -4,7 +4,7 @@ import {
   PushRequest,
 } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay, getMapLink } from "../services/map-data";
-import { postContributionMessage, updatePushChannelEmbed, markPushComplete } from "../services/push-message";
+import { updatePushCard, markPushComplete } from "../services/push-message";
 import { recordPushContribution } from "../services/push-stats";
 import { resolvePushTarget, validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushSentActionInput, PushSentActionResult } from "./types";
@@ -46,7 +46,10 @@ export async function executePushSentAction(
   // 3. Get request before modification (deep copy for undo)
   const requestBefore = getPushRequestById(guildId, requestId);
   if (!requestBefore) {
-    return { success: false, error: `Push request #${requestId} not found.` };
+    return { success: false, error: errors.notFound("push request", requestId) };
+  }
+  if (requestBefore.closed) {
+    return { success: false, error: "⚠️ **This push request is closed.** Undo the close first if it was a mistake." };
   }
   const previousState: PushRequest = {
     ...requestBefore,
@@ -99,15 +102,11 @@ export async function executePushSentAction(
     },
   });
 
-  // 9. Post contribution message in the push channel
-  const contributionText = `**${accountName}** sent **${formatResources(resources)}** resources`;
-  await postContributionMessage(client, result.request, contributionText);
-
-  // 10. Update the channel embed or mark complete
+  // 9. Update the card, or mark complete
   if (result.isComplete && !result.wasAlreadyComplete) {
     await markPushComplete(client, guildId, result.request);
   } else {
-    await updatePushChannelEmbed(client, guildId, result.request);
+    await updatePushCard(client, guildId, result.request);
   }
 
   return {

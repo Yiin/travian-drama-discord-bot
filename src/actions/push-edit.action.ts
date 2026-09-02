@@ -1,6 +1,6 @@
 import { updatePushRequest, getPushRequestById, PushRequest } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { updatePushChannelEmbed, postContributionMessage } from "../services/push-message";
+import { updatePushCard, postContributionMessage } from "../services/push-message";
 import { ActionContext, PushEditActionInput, PushEditActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 import { formatResources } from "../utils/format";
@@ -57,7 +57,7 @@ export async function executePushEditAction(
 
   // 6. Post edit notification in the channel and update embed
   await postContributionMessage(client, result, `📝 Changed target: **${formatResources(oldAmount)}** → **${formatResources(resourcesNeeded)}**`);
-  await updatePushChannelEmbed(client, guildId, result);
+  await updatePushCard(client, guildId, result);
 
   return {
     success: true,

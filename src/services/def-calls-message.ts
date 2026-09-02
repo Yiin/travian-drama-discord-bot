@@ -1,31 +1,60 @@
 import {
   Client,
-  EmbedBuilder,
   TextChannel,
-  Colors,
+  ThreadChannel,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ContainerBuilder,
+  SectionBuilder,
+  SeparatorBuilder,
+  TextDisplayBuilder,
+  MessageFlags,
+  time,
+  TimestampStyles,
 } from "discord.js";
 import {
   DefCallRequest,
   getRequestByChannelId,
+  getActiveRequests,
   updateChannelInfo,
   updateMessageId,
   updateSummaryMessageId,
   getHubButtonMessageId,
   setHubButtonMessageId,
-  closeRequest,
 } from "./def-calls";
 import { getGuildConfig } from "../config/guild-config";
-import { getVillageAt, getMapLink, formatVillageDisplay, getRallyPointLink, VillageData } from "./map-data";
-import { formatRelativeWithRaw, formatRawTime } from "../utils/time";
+import {
+  getVillageAt,
+  getMapLink,
+  getRallyPointLink,
+  getTribeName,
+  VillageData,
+} from "./map-data";
+import { formatRawTime } from "../utils/time";
 import {
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_SENT_BUTTON_ID,
+  DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_CLOSE_BUTTON_ID,
 } from "./button-handlers/def-call-ids";
-import { formatTroops } from "../utils/format";
+import { formatTroops, percentOf, progressBar } from "../utils/format";
+import { upsertPanel, v2 } from "./panel";
+
+const ACCENT_OPEN = 0xf1c40f;
+const ACCENT_DONE = 0x248046;
+const ACCENT_GREY = 0x6d6f78;
+const ACCENT_HUB = 0x5865f2;
+
+type CardState = "open" | "fulfilled" | "landed" | "closed";
+
+function text(content: string): TextDisplayBuilder {
+  return new TextDisplayBuilder().setContent(content);
+}
+
+function unixNow(): number {
+  return Math.floor(Date.now() / 1000);
+}
 
 /** `def-12|-45-1430`: coordinates plus landing time (HHMM) in the server's timezone. */
 export function buildDefCallThreadName(request: DefCallRequest, serverTimezone?: string): string {
@@ -33,111 +62,107 @@ export function buildDefCallThreadName(request: DefCallRequest, serverTimezone?:
   return `def-${request.x}|${request.y}-${hhmm}`;
 }
 
-function isDefCallFulfilled(request: DefCallRequest): boolean {
-  return (
-    request.troopsNeeded !== undefined &&
-    request.troopsSent >= request.troopsNeeded
-  );
+export function isDefCallFulfilled(request: DefCallRequest): boolean {
+  return request.troopsNeeded !== undefined && request.troopsSent >= request.troopsNeeded;
+}
+
+export function defCallState(request: DefCallRequest): CardState {
+  if (request.closed) return "closed";
+  if (request.landed || request.landingAt < unixNow()) return "landed";
+  if (isDefCallFulfilled(request)) return "fulfilled";
+  return "open";
+}
+
+function villageLink(serverKey: string, request: DefCallRequest, village: VillageData | null): string {
+  const name = village ? village.villageName : "Unknown village";
+  return `[${name}](${getMapLink(serverKey, request)}) (${request.x}|${request.y})`;
+}
+
+function ownerLine(village: VillageData | null): string {
+  if (!village) return "unknown village";
+  const alliance = village.allianceName ? ` [${village.allianceName}]` : "";
+  return `${village.playerName}${alliance} · ${getTribeName(village.tribe)} · ${formatTroops(village.population)} pop`;
 }
 
 function buildStarterContent(
   request: DefCallRequest,
   serverKey: string,
   serverTimezone: string | undefined,
-  village: VillageData | null
+  village: VillageData | null,
 ): string {
-  const villageDisplay = village
-    ? `${village.villageName} (${village.playerName})`
-    : "Unknown village";
-  const mapLink = getMapLink(serverKey, request);
-  const commentSuffix = request.comment ? ` — _${request.comment}_` : "";
-  const prefix = isDefCallFulfilled(request) && !request.closed ? "✅ " : "";
-  const landsDisplay = formatRelativeWithRaw(request.landingAt, serverTimezone);
-  return `${prefix}<@${request.requesterId}> requests defense: **[${villageDisplay} (${request.x}|${request.y})](${mapLink})** — lands ${landsDisplay}${commentSuffix}`;
+  const state = defCallState(request);
+  const prefix = state === "fulfilled" ? "✅ " : state === "landed" ? "🏁 " : state === "closed" ? "🔒 " : "";
+  const note = request.comment ? ` — _${request.comment}_` : "";
+  const lands = `${time(request.landingAt, TimestampStyles.RelativeTime)} (${formatRawTime(request.landingAt, serverTimezone)})`;
+  return `${prefix}<@${request.requesterId}> requests defense: **${villageLink(serverKey, request, village)}** — lands ${lands}${note}`;
 }
 
-export async function buildPerCallEmbed(
+function buildButtons(): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(DEFCALL_SENT_BUTTON_ID).setLabel("I sent troops").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(DEFCALL_SENT_FOR_BUTTON_ID).setLabel("Sent for someone").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(DEFCALL_CLOSE_BUTTON_ID).setLabel("Close").setStyle(ButtonStyle.Secondary),
+  );
+}
+
+/** The thread card: header section with Send button, progress, note, footer, action row. */
+export function buildDefCallCard(
   request: DefCallRequest,
   serverKey: string,
   serverTimezone: string | undefined,
-  village: VillageData | null
-): Promise<EmbedBuilder> {
-  const nowSec = Math.floor(Date.now() / 1000);
-  const overdue = request.landingAt < nowSec && !request.closed;
-  const fulfilled = isDefCallFulfilled(request);
+  village: VillageData | null,
+): ContainerBuilder {
+  const state = defCallState(request);
+  const accent = state === "fulfilled" ? ACCENT_DONE : state === "open" ? ACCENT_OPEN : ACCENT_GREY;
+  const card = new ContainerBuilder().setAccentColor(accent);
 
-  const embed = new EmbedBuilder().setTimestamp();
-  if (request.closed) {
-    embed.setColor(Colors.Green).setTitle("✅ Defense delivered");
-  } else if (fulfilled) {
-    embed.setColor(Colors.Green).setTitle("✅ Defense fulfilled");
-  } else if (overdue) {
-    embed.setColor(Colors.Grey).setTitle("⚠️ Defense Request (overdue)");
-  } else {
-    embed.setColor(Colors.Gold).setTitle("⚔️ Defense Request");
-  }
+  const title =
+    state === "closed" ? "🔒 Closed" :
+    state === "landed" ? "🏁 Landed" :
+    state === "fulfilled" ? "✅ Covered" : "⚔️ Defend";
+  const landsVerb = state === "landed" || state === "closed" ? "Landed" : "Lands";
+  const headerLines = [
+    `## ${title} · ${villageLink(serverKey, request, village)}`,
+    ownerLine(village),
+    `🕒 ${landsVerb} **${time(request.landingAt, TimestampStyles.RelativeTime)}** · ${formatRawTime(request.landingAt, serverTimezone)} server time`,
+  ];
+  const accessory = village
+    ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Send").setURL(getRallyPointLink(serverKey, village.targetMapId, 1))
+    : new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Map").setURL(getMapLink(serverKey, request));
+  card.addSectionComponents(
+    new SectionBuilder().addTextDisplayComponents(...headerLines.map(text)).setButtonAccessory(accessory),
+  );
 
-  const mapLink = getMapLink(serverKey, request);
-  const rallyLink = village
-    ? getRallyPointLink(serverKey, village.targetMapId)
-    : mapLink;
-
-  const lines: string[] = [];
-  if (village) {
-    lines.push(`📍 ${formatVillageDisplay(serverKey, village)} [**[ SEND ]**](${rallyLink})`);
-  } else {
-    lines.push(`📍 [(${request.x}|${request.y})](${mapLink}) [**[ SEND ]**](${rallyLink})`);
-  }
-
-  lines.push(`🕒 Lands ${formatRelativeWithRaw(request.landingAt, serverTimezone)}`);
-
+  card.addSeparatorComponents(new SeparatorBuilder());
+  const senders = request.contributors.length;
+  const senderWord = senders === 1 ? "sender" : "senders";
   if (request.troopsNeeded) {
-    lines.push(`🎯 Troop limit: **${formatTroops(request.troopsNeeded)}**`);
+    card.addTextDisplayComponents(
+      text(`${progressBar(request.troopsSent, request.troopsNeeded)} **${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)}** · ${percentOf(request.troopsSent, request.troopsNeeded)}% · ${senders} ${senderWord}`),
+    );
+  } else {
+    card.addTextDisplayComponents(text(`**${formatTroops(request.troopsSent)} sent** · ${senders} ${senderWord}`));
+  }
+  if (senders > 0) {
+    const sorted = [...request.contributors].sort((a, b) => b.troops - a.troops);
+    card.addTextDisplayComponents(
+      text(`-# ${sorted.map((c) => `${c.accountName} ${formatTroops(c.troops)}`).join(" · ")}`),
+    );
   }
 
   if (request.comment) {
-    lines.push(`💬 ${request.comment}`);
+    card.addSeparatorComponents(new SeparatorBuilder());
+    card.addTextDisplayComponents(text(`> ${request.comment}`));
   }
 
-  lines.push(`👤 Requested by: <@${request.requesterId}> (${request.requesterAccount})`);
+  card.addTextDisplayComponents(
+    text(`-# Asked by <@${request.requesterId}> ${time(Math.floor(request.createdAt / 1000), TimestampStyles.RelativeTime)} · #${request.id}`),
+  );
 
-  embed.setDescription(lines.join("\n"));
-
-  const sentSuffix = request.troopsNeeded
-    ? ` / ${formatTroops(request.troopsNeeded)}`
-    : "";
-  const sentHeader = `Sent (${formatTroops(request.troopsSent)}${sentSuffix})`;
-  if (request.contributors.length > 0) {
-    const sorted = [...request.contributors].sort((a, b) => b.troops - a.troops);
-    const contribLines = sorted.map(
-      (c) => `• ${c.accountName}: ${formatTroops(c.troops)}`
-    );
-    embed.addFields({
-      name: sentHeader,
-      value: contribLines.join("\n"),
-    });
-  } else {
-    embed.addFields({
-      name: sentHeader,
-      value: "_no one yet_",
-    });
+  if (state !== "closed") {
+    card.addActionRowComponents(buildButtons());
   }
-
-  return embed;
-}
-
-export function buildPerCallButtons(): ActionRowBuilder<ButtonBuilder> {
-  const sentButton = new ButtonBuilder()
-    .setCustomId(DEFCALL_SENT_BUTTON_ID)
-    .setLabel("Sent")
-    .setStyle(ButtonStyle.Success);
-
-  const closeButton = new ButtonBuilder()
-    .setCustomId(DEFCALL_CLOSE_BUTTON_ID)
-    .setLabel("Close")
-    .setStyle(ButtonStyle.Danger);
-
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(sentButton, closeButton);
+  return card;
 }
 
 export interface CreateDefCallChannelResult {
@@ -149,31 +174,18 @@ export async function createDefCallThread(
   client: Client,
   guildId: string,
   request: DefCallRequest,
-  requestId: number
+  requestId: number,
 ): Promise<CreateDefCallChannelResult> {
   const config = getGuildConfig(guildId);
-  if (!config.defCallsChannelId) {
-    throw new Error("Def-calls channel not configured");
-  }
-  if (!config.serverKey) {
-    throw new Error("Server key not configured");
-  }
+  if (!config.defCallsChannelId) throw new Error("Def-calls channel not configured");
+  if (!config.serverKey) throw new Error("Server key not configured");
 
-  const parent = (await client.channels.fetch(config.defCallsChannelId)) as TextChannel;
-  if (!parent) {
-    throw new Error(`Could not fetch def-calls channel ${config.defCallsChannelId}`);
-  }
+  const parent = (await client.channels.fetch(config.defCallsChannelId)) as TextChannel | null;
+  if (!parent) throw new Error(`Could not fetch def-calls channel ${config.defCallsChannelId}`);
 
   const village = await getVillageAt(config.serverKey, request.x, request.y);
-  const starterContent = buildStarterContent(
-    request,
-    config.serverKey,
-    config.serverTimezone,
-    village
-  );
-
   const starter = await parent.send({
-    content: starterContent,
+    content: buildStarterContent(request, config.serverKey, config.serverTimezone, village),
     allowedMentions: { parse: [] },
   });
 
@@ -183,15 +195,8 @@ export async function createDefCallThread(
     reason: `Def call by ${request.requesterAccount}`,
   });
 
-  const embed = await buildPerCallEmbed(
-    request,
-    config.serverKey,
-    config.serverTimezone,
-    village
-  );
-  const buttons = buildPerCallButtons();
-
-  const message = await thread.send({ embeds: [embed], components: [buttons] });
+  const card = buildDefCallCard(request, config.serverKey, config.serverTimezone, village);
+  const message = await thread.send(v2({ components: [card], allowedMentions: { parse: [] } }));
 
   updateChannelInfo(guildId, requestId, thread.id, message.id);
   updateSummaryMessageId(guildId, requestId, starter.id);
@@ -199,21 +204,28 @@ export async function createDefCallThread(
   return { channelId: thread.id, messageId: message.id };
 }
 
-async function syncDefCallStarterMessage(
+async function fetchThread(client: Client, channelId: string | undefined): Promise<ThreadChannel | null> {
+  if (!channelId) return null;
+  try {
+    const channel = await client.channels.fetch(channelId);
+    return channel && channel.isThread() ? channel : null;
+  } catch {
+    return null;
+  }
+}
+
+async function syncStarterMessage(
   client: Client,
   guildId: string,
   request: DefCallRequest,
-  content: string
+  content: string,
 ): Promise<void> {
   const config = getGuildConfig(guildId);
   if (!config.defCallsChannelId || !request.summaryMessageId) return;
   try {
-    const parent = (await client.channels.fetch(
-      config.defCallsChannelId
-    )) as TextChannel | null;
+    const parent = (await client.channels.fetch(config.defCallsChannelId)) as TextChannel | null;
     if (!parent) return;
     const message = await parent.messages.fetch(request.summaryMessageId);
-    if (!message) return;
     if (message.content !== content) {
       await message.edit({ content, allowedMentions: { parse: [] } });
     }
@@ -222,129 +234,105 @@ async function syncDefCallStarterMessage(
   }
 }
 
-async function replaceDefCallEmbedMessage(
+/** Re-render the thread card in place. Posts a fresh card only when the old one is gone. */
+export async function updateDefCallCard(
   client: Client,
   guildId: string,
   request: DefCallRequest,
-  embed: EmbedBuilder
 ): Promise<void> {
   if (!request.channelId) return;
-  const channel = (await client.channels.fetch(request.channelId)) as TextChannel | null;
-  if (!channel) {
-    const requestData = getRequestByChannelId(guildId, request.channelId);
-    if (requestData) {
-      closeRequest(guildId, requestData.requestId);
-    }
-    return;
-  }
-
-  if (request.messageId) {
-    try {
-      const oldMessage = await channel.messages.fetch(request.messageId);
-      if (oldMessage) {
-        await oldMessage.delete();
-      }
-    } catch {
-      // already gone
-    }
-  }
-
-  const buttons = buildPerCallButtons();
-  const newMessage = await channel.send({
-    embeds: [embed],
-    components: [buttons],
-  });
-
-  const requestData = getRequestByChannelId(guildId, request.channelId);
-  if (requestData) {
-    updateMessageId(guildId, requestData.requestId, newMessage.id);
-  }
-}
-
-export async function updateDefCallChannelEmbed(
-  client: Client,
-  guildId: string,
-  request: DefCallRequest
-): Promise<void> {
-  if (!request.channelId) {
-    return;
-  }
-
   const config = getGuildConfig(guildId);
-  if (!config.serverKey) {
-    return;
-  }
+  if (!config.serverKey) return;
 
   const village = await getVillageAt(config.serverKey, request.x, request.y);
-  const starterContent = buildStarterContent(
-    request,
-    config.serverKey,
-    config.serverTimezone,
-    village
-  );
-  const embed = await buildPerCallEmbed(
-    request,
-    config.serverKey,
-    config.serverTimezone,
-    village
-  );
+  await syncStarterMessage(client, guildId, request, buildStarterContent(request, config.serverKey, config.serverTimezone, village));
 
+  const thread = await fetchThread(client, request.channelId);
+  if (!thread) return;
+
+  const wasArchived = thread.archived;
+  if (wasArchived) {
+    // An archived thread cannot be edited; open it for the edit only.
+    try {
+      await thread.setArchived(false, "Updating the defense card");
+    } catch {
+      return;
+    }
+  }
+
+  const card = buildDefCallCard(request, config.serverKey, config.serverTimezone, village);
+  const payload = v2({ components: [card], allowedMentions: { parse: [] } });
   try {
-    await Promise.all([
-      syncDefCallStarterMessage(client, guildId, request, starterContent),
-      replaceDefCallEmbedMessage(client, guildId, request, embed),
-    ]);
+    let edited = false;
+    if (request.messageId) {
+      try {
+        const message = await thread.messages.fetch(request.messageId);
+        await message.edit(payload);
+        edited = true;
+      } catch {
+        edited = false;
+      }
+    }
+    if (!edited) {
+      const message = await thread.send(payload);
+      const data = getRequestByChannelId(guildId, request.channelId);
+      if (data) updateMessageId(guildId, data.requestId, message.id);
+    }
   } catch (error) {
-    console.error("[DefCallsMessage] Error updating per-call embed:", error);
-    const requestData = getRequestByChannelId(guildId, request.channelId);
-    if (requestData) {
-      closeRequest(guildId, requestData.requestId);
+    console.error("[DefCallsMessage] Error updating the card:", error);
+  }
+
+  if (wasArchived && request.closed) {
+    try {
+      await thread.setArchived(true, "Defense call closed");
+    } catch {
+      // ignore
     }
   }
 }
 
-export async function postDefCallContributionMessage(
-  client: Client,
-  request: DefCallRequest,
-  text: string
-): Promise<void> {
-  if (!request.channelId) return;
+export async function archiveDefCallThread(client: Client, request: DefCallRequest): Promise<void> {
+  const thread = await fetchThread(client, request.channelId);
+  if (!thread || thread.archived) return;
   try {
-    const channel = (await client.channels.fetch(request.channelId)) as TextChannel | null;
-    if (!channel) return;
-    await channel.send(text);
+    await thread.setArchived(true, "Defense call closed");
   } catch (error) {
-    console.error("[DefCallsMessage] Error posting contribution message:", error);
+    console.error("[DefCallsMessage] Error archiving thread:", error);
   }
 }
 
-export async function deleteDefCallChannel(
-  client: Client,
-  request: DefCallRequest
-): Promise<void> {
-  if (!request.channelId) return;
+export async function unarchiveDefCallThread(client: Client, request: DefCallRequest): Promise<void> {
+  const thread = await fetchThread(client, request.channelId);
+  if (!thread || !thread.archived) return;
   try {
-    const channel = await client.channels.fetch(request.channelId);
-    if (channel) {
-      await channel.delete("Def call closed");
-    }
+    await thread.setArchived(false, "Defense call reopened");
   } catch (error) {
-    console.error("[DefCallsMessage] Error deleting channel:", error);
+    console.error("[DefCallsMessage] Error unarchiving thread:", error);
   }
 }
 
-function buildHubButtonRow(): ActionRowBuilder<ButtonBuilder> {
-  const button = new ButtonBuilder()
-    .setCustomId(DEFCALL_REQUEST_BUTTON_ID)
-    .setLabel("Request defense")
-    .setStyle(ButtonStyle.Primary);
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+function buildHubPanel(guildId: string): ContainerBuilder {
+  const open = getActiveRequests(guildId).map((r) => r.request).filter((r) => !r.landed && r.landingAt >= unixNow());
+  const next = open.reduce<number | undefined>((min, r) => (min === undefined || r.landingAt < min ? r.landingAt : min), undefined);
+  const summary =
+    open.length === 0
+      ? "No open calls."
+      : `${open.length} open ${open.length === 1 ? "call" : "calls"} · next lands ${time(next!, TimestampStyles.RelativeTime)}`;
+  const panel = new ContainerBuilder().setAccentColor(ACCENT_HUB);
+  panel.addTextDisplayComponents(text(`**Need defense?** ${summary}`));
+  panel.addActionRowComponents(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(DEFCALL_REQUEST_BUTTON_ID).setLabel("Request defense").setStyle(ButtonStyle.Primary),
+    ),
+  );
+  return panel;
 }
 
-export async function refreshHubChannel(
-  client: Client,
-  guildId: string
-): Promise<void> {
+/**
+ * Keep the hub message (open-call count plus the Request button) current and at the
+ * bottom of the def-calls channel. Safe to call when nothing changed.
+ */
+export async function refreshHubChannel(client: Client, guildId: string): Promise<void> {
   const config = getGuildConfig(guildId);
   if (!config.defCallsChannelId || !config.serverKey) return;
 
@@ -356,27 +344,14 @@ export async function refreshHubChannel(
   }
   if (!channel) return;
 
-  // Keep the "Request defense" hub button as the most recent message.
-  // Delete the previous button message and repost it at the bottom.
-  const previousButtonId = getHubButtonMessageId(guildId);
-  if (previousButtonId) {
-    try {
-      const oldButton = await channel.messages.fetch(previousButtonId);
-      if (oldButton) {
-        await oldButton.delete();
-      }
-    } catch {
-      // already gone — ignore
-    }
-  }
-
   try {
-    const buttonMessage = await channel.send({
-      content: "**Need defense?** Press the button below to create a new request.",
-      components: [buildHubButtonRow()],
+    await upsertPanel({
+      channel,
+      storedMessageId: getHubButtonMessageId(guildId),
+      payload: { components: [buildHubPanel(guildId)], allowedMentions: { parse: [] } },
+      save: (id) => setHubButtonMessageId(guildId, id),
     });
-    setHubButtonMessageId(guildId, buttonMessage.id);
   } catch (error) {
-    console.error("[DefCallsMessage] Error sending hub button:", error);
+    console.error("[DefCallsMessage] Error updating the hub message:", error);
   }
 }

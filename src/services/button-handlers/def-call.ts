@@ -7,6 +7,7 @@ import {
   LabelBuilder,
   GuildMember,
   MessageFlags,
+  UserSelectMenuBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { isAdmin } from "../../utils/permissions";
@@ -26,7 +27,10 @@ import {
   DEFCALL_COMMENT_INPUT_ID,
   DEFCALL_NEEDED_INPUT_ID,
   DEFCALL_TROOPS_INPUT_ID,
+  DEFCALL_SENT_FOR_BUTTON_ID,
+  DEFCALL_SENT_FOR_SELECT_ID,
 } from "./def-call-ids";
+import { formatTroops } from "../../utils/format";
 import { errors } from "../../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
@@ -41,6 +45,8 @@ export {
   DEFCALL_COMMENT_INPUT_ID,
   DEFCALL_NEEDED_INPUT_ID,
   DEFCALL_TROOPS_INPUT_ID,
+  DEFCALL_SENT_FOR_BUTTON_ID,
+  DEFCALL_SENT_FOR_SELECT_ID,
 };
 
 export async function handleDefCallRequestButton(
@@ -57,7 +63,7 @@ export async function handleDefCallRequestButton(
 
   const modal = new ModalBuilder()
     .setCustomId(DEFCALL_REQUEST_MODAL_ID)
-    .setTitle("New defense request");
+    .setTitle("Request defense");
 
   const coordsInput = new TextInputBuilder()
     .setCustomId(DEFCALL_COORDS_INPUT_ID)
@@ -67,6 +73,7 @@ export async function handleDefCallRequestButton(
     .setMaxLength(20);
   const coordsLabel = new LabelBuilder()
     .setLabel("Coordinates")
+    .setDescription("Village under attack, for example 123|456 or -45|89")
     .setTextInputComponent(coordsInput);
 
   const landingInput = new TextInputBuilder()
@@ -76,7 +83,8 @@ export async function handleDefCallRequestButton(
     .setRequired(true)
     .setMaxLength(60);
   const landingLabel = new LabelBuilder()
-    .setLabel("Attack landing time")
+    .setLabel("Landing time")
+    .setDescription("Server time, for example 12:30 or 12:30:45, or paste the Travian text")
     .setTextInputComponent(landingInput);
 
   const commentInput = new TextInputBuilder()
@@ -86,7 +94,8 @@ export async function handleDefCallRequestButton(
     .setRequired(false)
     .setMaxLength(200);
   const commentLabel = new LabelBuilder()
-    .setLabel("Comment (optional)")
+    .setLabel("Note (optional)")
+    .setDescription("What is coming, for example: WW from the north, 3 waves")
     .setTextInputComponent(commentInput);
 
   const neededInput = new TextInputBuilder()
@@ -97,6 +106,7 @@ export async function handleDefCallRequestButton(
     .setMaxLength(10);
   const neededLabel = new LabelBuilder()
     .setLabel("Troop limit (optional)")
+    .setDescription("The card turns green once this many troops are reported, for example 10000")
     .setTextInputComponent(neededInput);
 
   modal.addLabelComponents(coordsLabel, landingLabel, commentLabel, neededLabel);
@@ -156,6 +166,42 @@ export async function handleDefCallRequestModal(
   );
 }
 
+function buildSentModal(request: { troopsSent: number; troopsNeeded?: number }): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(DEFCALL_SENT_MODAL_ID)
+    .setTitle("Report sent troops");
+
+  const current = request.troopsNeeded
+    ? `Current: ${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)}`
+    : `Current: ${formatTroops(request.troopsSent)} sent`;
+
+  const troopsInput = new TextInputBuilder()
+    .setCustomId(DEFCALL_TROOPS_INPUT_ID)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("5000")
+    .setRequired(true)
+    .setMaxLength(10);
+  const troopsLabel = new LabelBuilder()
+    .setLabel("Troops sent")
+    .setDescription(`Whole number. ${current}`)
+    .setTextInputComponent(troopsInput);
+
+  const forSelect = new UserSelectMenuBuilder()
+    .setCustomId(DEFCALL_SENT_FOR_SELECT_ID)
+    .setPlaceholder("Pick a member…")
+    .setMinValues(0)
+    .setMaxValues(1)
+    .setRequired(false);
+  const forLabel = new LabelBuilder()
+    .setLabel("Sent by")
+    .setDescription("Leave empty if you sent them yourself")
+    .setUserSelectMenuComponent(forSelect);
+
+  modal.addLabelComponents(troopsLabel, forLabel);
+  return modal;
+}
+
+/** Both "I sent troops" and "Sent for someone" open the same modal. */
 export async function handleDefCallSentButton(
   interaction: ButtonInteraction
 ): Promise<void> {
@@ -168,8 +214,7 @@ export async function handleDefCallSentButton(
     return;
   }
 
-  const channelId = interaction.channelId;
-  const requestData = getRequestByChannelId(guildId, channelId);
+  const requestData = getRequestByChannelId(guildId, interaction.channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("defense"),
@@ -177,23 +222,15 @@ export async function handleDefCallSentButton(
     });
     return;
   }
+  if (requestData.request.closed) {
+    await interaction.reply({
+      content: "⚠️ **This defense call is closed.** Undo the close first if it was a mistake.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 
-  const modal = new ModalBuilder()
-    .setCustomId(DEFCALL_SENT_MODAL_ID)
-    .setTitle("Sent Troops");
-
-  const troopsInput = new TextInputBuilder()
-    .setCustomId(DEFCALL_TROOPS_INPUT_ID)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("5000")
-    .setRequired(true)
-    .setMaxLength(10);
-  const troopsLabel = new LabelBuilder()
-    .setLabel("How many troops did you send?")
-    .setTextInputComponent(troopsInput);
-
-  modal.addLabelComponents(troopsLabel);
-  await interaction.showModal(modal);
+  await interaction.showModal(buildSentModal(requestData.request));
 }
 
 export async function handleDefCallSentModal(
@@ -235,6 +272,7 @@ export async function handleDefCallSentModal(
     });
     return;
   }
+  const sentBy = interaction.fields.getSelectedUsers(DEFCALL_SENT_FOR_SELECT_ID, false)?.first();
 
   const config = getGuildConfig(guildId);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -246,7 +284,7 @@ export async function handleDefCallSentModal(
       client: interaction.client,
       userId: interaction.user.id,
     },
-    { requestId: requestData.requestId, troops }
+    { requestId: requestData.requestId, troops, creditUserId: sentBy?.id }
   );
 
   if (!result.success) {
@@ -306,9 +344,7 @@ export async function handleDefCallCloseButton(
     return;
   }
 
-  try {
-    await interaction.editReply(confirmationEdit(result.confirmText ?? asConfirm(result.actionText)));
-  } catch {
-    // channel deleted before reply lands; that's fine
-  }
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }

@@ -70,7 +70,13 @@ function migrateIds(data: AllGuildData): boolean {
   let changed = false;
   for (const [guildId, guild] of Object.entries(data)) {
     const missing = guild.requests.some((r) => r.id === undefined);
-    if (!missing && guild.nextId !== undefined) continue;
+    const missingCreatedAt = guild.requests.some((r) => r.createdAt === undefined);
+    if (!missing && !missingCreatedAt && guild.nextId !== undefined) continue;
+    if (missingCreatedAt) {
+      for (const request of guild.requests) {
+        request.createdAt ??= Date.now();
+      }
+    }
     if (missing) {
       let next = 1;
       for (const request of guild.requests) {

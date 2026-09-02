@@ -20,3 +20,15 @@ describe("formatResources", () => {
     expect(formatResources(12500)).toBe("13k");
   });
 });
+
+describe("progressBar", () => {
+  it("fills 16 cells in proportion and caps at 100%", async () => {
+    const { progressBar, percentOf } = await import("./format");
+    expect(progressBar(0, 5000)).toBe("▱".repeat(16));
+    expect(progressBar(1200, 5000)).toBe("▰▰▰▰" + "▱".repeat(12));
+    expect(progressBar(5000, 5000)).toBe("▰".repeat(16));
+    expect(progressBar(9000, 5000)).toBe("▰".repeat(16));
+    expect(percentOf(1200, 5000)).toBe(24);
+    expect(percentOf(10, 0)).toBe(0);
+  });
+});
