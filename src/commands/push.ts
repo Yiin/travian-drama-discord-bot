@@ -25,7 +25,7 @@ import { withRetry } from "../utils/retry";
 import { requireAdmin, isAdmin } from "../utils/permissions";
 import { guildCommand } from "./shared";
 import { formatResources } from "../utils/format";
-import { errors } from "../actions/messages";
+import { errors, failReply, failEdit } from "../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const pushCommand: Command = {
@@ -281,7 +281,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -308,7 +308,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
 
   // 5. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -325,7 +325,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -364,7 +364,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 6. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -377,7 +377,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 async function handleClose(interaction: ChatInputCommandInteraction): Promise<void> {
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
   const requestData = getPushRequestByChannelId(validation.guildId, interaction.channelId);
@@ -393,7 +393,7 @@ async function handleClose(interaction: ChatInputCommandInteraction): Promise<vo
     { isAdmin: isAdmin(interaction.member as GuildMember | null) }
   );
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
   await interaction.editReply(
@@ -405,7 +405,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -438,7 +438,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
   // 5. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -453,7 +453,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -490,7 +490,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 6. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -503,7 +503,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -542,7 +542,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
 
   // 6. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -555,7 +555,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -594,7 +594,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
 
   // 6. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -703,7 +703,7 @@ async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promis
   const result = editGlobalStats(guildId, playerName, newAmount);
 
   if (!result.success) {
-    await interaction.editReply({ content: result.error! });
+    await interaction.editReply(failEdit(result.error!, interaction));
     return;
   }
 
@@ -728,7 +728,7 @@ async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Pr
   const result = transferGlobalStats(guildId, fromAccount, toAccount);
 
   if (!result.success) {
-    await interaction.editReply({ content: result.error! });
+    await interaction.editReply(failEdit(result.error!, interaction));
     return;
   }
 

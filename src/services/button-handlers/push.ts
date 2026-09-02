@@ -20,7 +20,7 @@ import {
   executePushEditAction,
 } from "../../actions";
 import { formatResources } from "../../utils/format";
-import { errors, confirmationEdit, asConfirm } from "../../actions/messages";
+import { errors, confirmationEdit, asConfirm, failReply, failEdit } from "../../actions/messages";
 
 export {
   PUSH_SENT_BUTTON_ID,
@@ -44,7 +44,7 @@ async function pushContext(
 ): Promise<Ctx | null> {
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return null;
   }
   const channelId = interaction.channelId;
@@ -74,7 +74,7 @@ export async function handlePushSentButton(interaction: ButtonInteraction): Prom
 
   const accountResult = validateUserHasAccount(ctx.guildId, interaction.user.id);
   if (!accountResult.valid) {
-    await interaction.reply({ content: accountResult.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(accountResult.error, interaction));
     return;
   }
 
@@ -125,7 +125,7 @@ export async function handlePushSentModal(interaction: ModalSubmitInteraction): 
   );
 
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
   await interaction.editReply(
@@ -168,7 +168,7 @@ export async function handlePushEditModal(interaction: ModalSubmitInteraction): 
     { requestId: ctx.requestId, resourcesNeeded }
   );
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
   await interaction.editReply(
@@ -187,7 +187,7 @@ export async function handlePushCloseButton(interaction: ButtonInteraction): Pro
     { isAdmin: isAdmin(interaction.member as GuildMember | null) }
   );
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
   await interaction.editReply(

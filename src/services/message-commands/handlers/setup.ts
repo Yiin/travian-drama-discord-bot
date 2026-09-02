@@ -3,7 +3,7 @@ import { requireAdminMiddleware } from "../middleware";
 import { normalizeServerKey, isValidServerKey, replyError } from "../utils";
 import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setPushChannelId, setServerTimezone } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
-import { buildSetupSummary } from "../../../commands/setup";
+import { buildSetupSummary } from "../../setup-panel";
 import { isValidTimezone } from "../../../utils/time";
 
 async function handleSetupServerCommandInner(

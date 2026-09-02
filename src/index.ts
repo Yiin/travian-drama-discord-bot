@@ -77,7 +77,29 @@ import {
 import { cacheCommandIds } from "./actions/messages";
 import { handleHelpButton } from "./commands/help";
 import { HELP_BUTTON_PREFIX } from "./services/help";
-import { errors } from "./actions/messages";
+import { errors, ACCOUNT_LINK_BUTTON_PREFIX, SETUP_OPEN_BUTTON_ID, SETUP_PING_ADMIN_BUTTON_ID } from "./actions/messages";
+import {
+  postWelcomePanel,
+  warnIfCommandsMissing,
+  handleSetupOpenButton,
+  handleSetupPingAdminButton,
+  handleSetupServerButton,
+  handleSetupServerModal,
+  handleSetupChannelSelect,
+  handleSetupRoleSelect,
+  handleSetupTimezoneButton,
+  handleSetupTimezoneModal,
+  handleSetupReminderButton,
+  handleSetupFinishButton,
+  SETUP_SERVER_BUTTON_ID,
+  SETUP_SERVER_MODAL_ID,
+  SETUP_TIMEZONE_BUTTON_ID,
+  SETUP_TIMEZONE_MODAL_ID,
+  SETUP_CHANNEL_SELECT_PREFIX,
+  SETUP_ROLE_SELECT_ID,
+  SETUP_FINISH_BUTTON_ID,
+  SETUP_REMINDER_BUTTON_ID,
+} from "./services/setup-panel";
 
 dotenv.config();
 
@@ -106,6 +128,16 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Flip def-call cards to "Landed" at landing time
   loadAndScheduleLandings(readyClient);
+});
+
+// Onboarding: greet a new server with the setup panel
+client.on(Events.GuildCreate, async (guild) => {
+  try {
+    await warnIfCommandsMissing(guild);
+    await postWelcomePanel(client, guild);
+  } catch (error) {
+    console.error(`Error onboarding guild ${guild.id}:`, error);
+  }
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -166,8 +198,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleUndoButton(interaction);
       } else if (interaction.customId.startsWith(HELP_BUTTON_PREFIX)) {
         await handleHelpButton(interaction);
-      } else if (interaction.customId === ACCOUNT_REMINDER_ADD_BUTTON_ID) {
+      } else if (
+        interaction.customId === ACCOUNT_REMINDER_ADD_BUTTON_ID ||
+        interaction.customId.startsWith(ACCOUNT_LINK_BUTTON_PREFIX)
+      ) {
         await handleAccountReminderAddButton(interaction);
+      } else if (interaction.customId === SETUP_OPEN_BUTTON_ID) {
+        await handleSetupOpenButton(interaction);
+      } else if (interaction.customId === SETUP_PING_ADMIN_BUTTON_ID) {
+        await handleSetupPingAdminButton(interaction);
+      } else if (interaction.customId === SETUP_SERVER_BUTTON_ID) {
+        await handleSetupServerButton(interaction);
+      } else if (interaction.customId === SETUP_TIMEZONE_BUTTON_ID) {
+        await handleSetupTimezoneButton(interaction);
+      } else if (interaction.customId === SETUP_FINISH_BUTTON_ID) {
+        await handleSetupFinishButton(interaction);
+      } else if (interaction.customId === SETUP_REMINDER_BUTTON_ID) {
+        await handleSetupReminderButton(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_SKIP_BUTTON_ID) {
         await handleAccountReminderSkipButton(interaction);
       } else if (interaction.customId === DEFCALL_REQUEST_BUTTON_ID) {
@@ -210,8 +257,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handlePushEditModal(interaction);
       } else if (interaction.customId.startsWith(STACK_EDIT_MODAL_PREFIX)) {
         await handleStackEditModal(interaction);
-      } else if (interaction.customId === ACCOUNT_REMINDER_MODAL_ID) {
+      } else if (interaction.customId.startsWith(ACCOUNT_REMINDER_MODAL_ID)) {
         await handleAccountReminderModal(interaction);
+      } else if (interaction.customId === SETUP_SERVER_MODAL_ID) {
+        await handleSetupServerModal(interaction);
+      } else if (interaction.customId === SETUP_TIMEZONE_MODAL_ID) {
+        await handleSetupTimezoneModal(interaction);
       } else if (interaction.customId === DEFCALL_REQUEST_MODAL_ID) {
         await handleDefCallRequestModal(interaction);
       } else if (interaction.customId === DEFCALL_SENT_MODAL_ID) {
@@ -241,6 +292,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     } catch (error) {
       console.error("Error handling select menu:", error);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
+        }
+      } catch {
+        // Ignore reply errors
+      }
+    }
+    return;
+  }
+
+  // Setup panel pickers
+  if (interaction.isChannelSelectMenu() || interaction.isRoleSelectMenu()) {
+    try {
+      if (interaction.isChannelSelectMenu() && interaction.customId.startsWith(SETUP_CHANNEL_SELECT_PREFIX)) {
+        await handleSetupChannelSelect(interaction);
+      } else if (interaction.isRoleSelectMenu() && interaction.customId === SETUP_ROLE_SELECT_ID) {
+        await handleSetupRoleSelect(interaction);
+      }
+    } catch (error) {
+      console.error("Error handling setup picker:", error);
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });

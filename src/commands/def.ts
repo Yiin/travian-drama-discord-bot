@@ -13,7 +13,7 @@ import {
 import { getRequestByChannelId } from "../services/def-calls";
 import { isAdmin } from "../utils/permissions";
 import { withRetry } from "../utils/retry";
-import { errors, confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
+import { errors, confirmationEdit, asConfirm, channelUrl, failEdit } from "../actions/messages";
 import { guildCommand, requireGuild } from "./shared";
 
 export const defCommand: Command = {
@@ -73,7 +73,7 @@ export const defCommand: Command = {
           troopsNeeded: interaction.options.getInteger("limit") ?? undefined,
         });
         if (!result.success) {
-          await interaction.editReply({ content: result.error });
+          await interaction.editReply(failEdit(result.error, interaction));
           return;
         }
         await interaction.editReply(
@@ -99,7 +99,7 @@ export const defCommand: Command = {
           creditUserId: creditUser?.id,
         });
         if (!result.success) {
-          await interaction.editReply({ content: result.error });
+          await interaction.editReply(failEdit(result.error, interaction));
           return;
         }
         await interaction.editReply(
@@ -122,7 +122,7 @@ export const defCommand: Command = {
         await interaction.editReply(
           result.success
             ? confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
-            : { content: result.error }
+            : failEdit(result.error, interaction)
         );
         return;
       }

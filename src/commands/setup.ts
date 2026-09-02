@@ -9,22 +9,17 @@ import { Command } from "../types";
 import {
   getGuildConfig,
   getAllConfiguredServers,
-  setServerKey,
-  setDefenseChannel,
-  setScoutChannel,
-  setPushChannelId,
-  setDefCallsChannelId,
   setScoutRole,
-  setServerTimezone,
-  GuildConfig,
 } from "../config/guild-config";
-import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
-import { isValidTimezone } from "../utils/time";
 import { normalizeServerKey, isValidServerKey } from "../services/message-commands/utils";
 import { filterChoices } from "../utils/choices";
-import { ChannelKind, cmd } from "../actions/messages";
+import { ChannelKind } from "../actions/messages";
+import { applyChannel, applyServerKey, applyTimezone } from "../actions/setup.action";
+import { buildSetupSummary, setupPanelPayload } from "../services/setup-panel";
 import { guildCommand, requireGuild } from "./shared";
+
+export { buildSetupSummary };
 
 const CHANNEL_CHOICES: { name: string; value: ChannelKind }[] = [
   { name: "Stack requests", value: "defense" },
@@ -87,7 +82,8 @@ export const setupCommand: Command = {
         .setDescription("Role to mention on scout requests; leave empty to clear it")
         .addRoleOption((opt) => opt.setName("role").setDescription("The role to mention"))
     )
-    .addSubcommand((sub) => sub.setName("show").setDescription("Show the current setup")),
+    .addSubcommand((sub) => sub.setName("show").setDescription("Show the current setup"))
+    .addSubcommand((sub) => sub.setName("panel").setDescription("Open the setup panel with channel pickers")),
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const focused = interaction.options.getFocused(true);
@@ -139,98 +135,36 @@ export const setupCommand: Command = {
       case "show":
         await interaction.reply({ content: buildSetupSummary(getGuildConfig(guildId)), flags: MessageFlags.Ephemeral });
         return;
+      case "panel":
+        await interaction.reply({ ...setupPanelPayload(guildId), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+        return;
     }
   },
 };
 
-/** Ephemeral checklist of the current setup, ✅ for set items and ⬜ for missing ones. */
-export function buildSetupSummary(config: GuildConfig): string {
-  const line = (ok: boolean, label: string, value?: string) =>
-    `${ok ? "✅" : "⬜"} **${label}:** ${value ?? "not set"}`;
-  const channel = (id?: string) => (id ? `<#${id}>` : undefined);
-  const lines = [
-    "**Bot setup**",
-    line(!!config.serverKey, "Travian server", config.serverKey ? `\`${config.serverKey}\`` : undefined),
-    line(!!config.defenseChannelId, "Stack requests channel", channel(config.defenseChannelId)),
-    line(!!config.defCallsChannelId, "Defense calls channel", channel(config.defCallsChannelId)),
-    line(!!config.scoutChannelId, "Scouting channel", channel(config.scoutChannelId)),
-    line(!!config.pushChannelId, "Resource pushes channel", channel(config.pushChannelId)),
-    line(!!config.scoutRoleId, "Scout role", config.scoutRoleId ? `<@&${config.scoutRoleId}>` : "none (optional)"),
-    line(!!config.serverTimezone, "Timezone", config.serverTimezone ? `\`${config.serverTimezone}\`` : "UTC (optional)"),
-  ];
-  const missing = !config.serverKey || !config.defenseChannelId || !config.defCallsChannelId || !config.scoutChannelId || !config.pushChannelId;
-  if (missing) {
-    lines.push("", `Fill the ⬜ items with ${cmd("setup server")} and ${cmd("setup channel")}.`);
-  }
-  return lines.join("\n");
-}
-
 async function handleServer(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const serverKey = normalizeServerKey(interaction.options.getString("value", true));
-
-  if (!isValidServerKey(serverKey)) {
-    await interaction.reply({
-      content: "⚠️ **That is not a Travian server key.** Use the form `ts31.x3.europe`.",
-      flags: MessageFlags.Ephemeral,
-    });
+  const raw = interaction.options.getString("value", true);
+  if (!isValidServerKey(normalizeServerKey(raw))) {
+    const invalid = await applyServerKey(guildId, raw); // returns the error without saving
+    await interaction.reply({ content: invalid.ok ? invalid.text : invalid.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
-
-  setServerKey(guildId, serverKey);
-  try {
-    await updateMapData(serverKey);
-    await interaction.editReply({ content: `✅ Travian server set to \`${serverKey}\`. Map data downloaded.` });
-  } catch (error) {
-    console.error("[Setup] Failed to download map data:", error);
-    await interaction.editReply({
-      content: `✅ Travian server set to \`${serverKey}\`. ⚠️ Map data could not be downloaded yet; the bot will retry.`,
-    });
-  }
+  const result = await applyServerKey(guildId, raw);
+  await interaction.editReply({ content: result.ok ? result.text : result.error });
 }
 
 async function handleChannel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const type = interaction.options.getString("type", true) as ChannelKind;
   const channel = interaction.options.getChannel("value", true);
-
-  const setters: Record<ChannelKind, (guildId: string, channelId: string) => void> = {
-    defense: setDefenseChannel,
-    scout: setScoutChannel,
-    defcalls: setDefCallsChannelId,
-    push: setPushChannelId,
-  };
-  setters[type](guildId, channel.id);
-
-  const label = CHANNEL_CHOICES.find((c) => c.value === type)?.name ?? type;
-  await interaction.reply({
-    content: `✅ ${label} now go to <#${channel.id}>.`,
-    flags: MessageFlags.Ephemeral,
-  });
+  const result = applyChannel(guildId, type, channel.id);
+  await interaction.reply({ content: result.ok ? result.text : result.error, flags: MessageFlags.Ephemeral });
 }
 
 async function handleTimezone(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const value = interaction.options.getString("value", true).trim();
-
-  if (value.toLowerCase() === "clear") {
-    setServerTimezone(guildId, null);
-    await interaction.reply({ content: "✅ Timezone cleared. Typed times are read as UTC.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-
-  if (!isValidTimezone(value)) {
-    await interaction.reply({
-      content: `⚠️ **Unknown timezone \`${value}\`.** Use an IANA name, for example \`Europe/Vilnius\`.`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  setServerTimezone(guildId, value);
-  await interaction.reply({
-    content: `✅ Timezone set to \`${value}\`. Typed times are read as local time there.`,
-    flags: MessageFlags.Ephemeral,
-  });
+  const result = applyTimezone(guildId, interaction.options.getString("value", true));
+  await interaction.reply({ content: result.ok ? result.text : result.error, flags: MessageFlags.Ephemeral });
 }
 
 async function handleScoutRole(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {

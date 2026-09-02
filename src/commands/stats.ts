@@ -26,7 +26,7 @@ import { getAllPlayers } from "../services/player-accounts";
 import { guildCommand, requireGuild } from "./shared";
 import { parseCoords } from "../utils/parse-coords";
 import { formatNumber } from "../utils/format";
-import { errors, cmd } from "../actions/messages";
+import { errors, cmd, failReply } from "../actions/messages";
 
 export const statsCommand: Command = {
   topic: "info",
@@ -229,7 +229,7 @@ async function handlePlayer(
 
   if (!serverKey) {
     await interaction.reply({
-      content: errors.notSetUp(),
+      ...failReply(errors.notSetUp(), interaction),
       flags: MessageFlags.Ephemeral,
     });
     return;

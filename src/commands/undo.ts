@@ -3,7 +3,7 @@ import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { executeUndoAction } from "../actions";
 import { withRetry } from "../utils/retry";
-import { errors, confirmationEdit, asConfirm } from "../actions/messages";
+import { errors, confirmationEdit, asConfirm, failEdit, failReply } from "../actions/messages";
 import { getLatestUndoableActionId } from "../services/action-history";
 import { getStackPanelUrl } from "../services/defense-message";
 import { guildCommand, requireGuild } from "./shared";
@@ -26,7 +26,7 @@ export const undoCommand: Command = {
 
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
-      await interaction.reply({ content: errors.notSetUp(), flags: MessageFlags.Ephemeral });
+      await interaction.reply(failReply(errors.notSetUp(), interaction));
       return;
     }
 
@@ -44,7 +44,7 @@ export const undoCommand: Command = {
     );
 
     if (!result.success) {
-      await interaction.editReply({ content: result.error });
+      await interaction.editReply(failEdit(result.error, interaction));
       return;
     }
 

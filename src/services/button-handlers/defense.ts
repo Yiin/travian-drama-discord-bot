@@ -18,7 +18,7 @@ import {
   executeSentAction,
   executeStackAction,
 } from "../../actions";
-import { errors } from "../../actions/messages";
+import { errors, failReply, failEdit } from "../../actions/messages";
 import { getStackPanelUrl } from "../defense-message";
 import { stackChoiceLabel } from "../../utils/choices";
 import { formatTroops } from "../../utils/format";
@@ -52,7 +52,7 @@ export async function handleSentButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: errors.notSetUp(),
+      ...failReply(errors.notSetUp(), interaction),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -144,7 +144,7 @@ export async function handleSentModal(
   // 1. Validate configuration
   const validation = validateDefenseConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -201,7 +201,7 @@ export async function handleSentModal(
 
   // 6. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -228,7 +228,7 @@ export async function handleRequestDefButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: errors.notSetUp(),
+      ...failReply(errors.notSetUp(), interaction),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -286,7 +286,7 @@ export async function handleRequestDefModal(
   // 1. Validate configuration
   const validation = validateDefenseConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    await interaction.reply(failReply(validation.error, interaction));
     return;
   }
 
@@ -325,7 +325,7 @@ export async function handleRequestDefModal(
 
   // 6. Handle response
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 

@@ -7,7 +7,7 @@ import {
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { executeUndoAction } from "../../actions/undo.action";
-import { errors, UNDO_BUTTON_PREFIX } from "../../actions/messages";
+import { errors, UNDO_BUTTON_PREFIX, failReply } from "../../actions/messages";
 
 export { UNDO_BUTTON_PREFIX };
 
@@ -41,7 +41,7 @@ export async function handleUndoButton(interaction: ButtonInteraction): Promise<
   );
 
   if (!result.success) {
-    await interaction.followUp({ content: result.error, flags: MessageFlags.Ephemeral });
+    await interaction.followUp(failReply(result.error, interaction));
     return;
   }
 

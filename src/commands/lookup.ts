@@ -27,7 +27,7 @@ import {
 } from "../services/map-data";
 import { getPlayerHistoryByName, formatPopulationTrend } from "../services/population-history";
 import { withRetry } from "../utils/retry";
-import { errors } from "../actions/messages";
+import { errors, failReply } from "../actions/messages";
 import { guildCommand, requireGuild } from "./shared";
 
 // ============================================
@@ -172,7 +172,7 @@ export const lookupCommand: Command = {
     // For other lookups, require guild server config
     if (!config.serverKey) {
       await interaction.reply({
-        content: errors.notSetUp(),
+        ...failReply(errors.notSetUp(), interaction),
         flags: MessageFlags.Ephemeral,
       });
       return;

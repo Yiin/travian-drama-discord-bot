@@ -7,9 +7,8 @@ import {
   MessageFlags,
 } from "discord.js";
 import { isBotOwner } from "../config/owners";
-import { errors } from "../actions/messages";
-
-export const ADMIN_ONLY_MESSAGE = errors.adminOnly();
+/** Same wording as `errors.adminOnly()`; kept here so messages.ts can import this module. */
+export const ADMIN_ONLY_MESSAGE = "⚠️ **Only administrators can do this.**";
 
 /**
  * Check if a member has admin permissions (Administrator or ManageChannels).

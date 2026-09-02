@@ -3,7 +3,7 @@ import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
 import { executeScoutAction, sendScoutMessage } from "../actions";
-import { errors, confirmationEdit, messageUrl } from "../actions/messages";
+import { errors, confirmationEdit, messageUrl, failEdit, failReply } from "../actions/messages";
 import { guildCommand, requireGuild } from "./shared";
 import { getOpenScoutRequests, getScoutRequest, formatScoutId } from "../services/scout-requests";
 import { getVillageAt } from "../services/map-data";
@@ -43,7 +43,7 @@ export const scoutCommand: Command = {
 
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
-      await interaction.reply({ content: errors.notSetUp(), flags: MessageFlags.Ephemeral });
+      await interaction.reply(failReply(errors.notSetUp(), interaction));
       return;
     }
 
@@ -68,7 +68,7 @@ export const scoutCommand: Command = {
     );
 
     if (!result.success) {
-      await interaction.editReply({ content: result.error });
+      await interaction.editReply(failEdit(result.error, interaction));
       return;
     }
 

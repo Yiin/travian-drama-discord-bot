@@ -26,7 +26,7 @@ import { getVillageAt, formatVillageDisplay } from "../map-data";
 import { updateGlobalMessage } from "../defense-message";
 import { recordAction } from "../action-history";
 import { formatTroops } from "../../utils/format";
-import { errors, confirmationEdit } from "../../actions/messages";
+import { errors, confirmationEdit, failReply } from "../../actions/messages";
 import { getStackPanelUrl } from "../defense-message";
 import { stackChoiceLabel } from "../../utils/choices";
 
@@ -187,7 +187,7 @@ async function moveByOffset(interaction: ButtonInteraction, offset: -1 | 1): Pro
 
   const result = moveRequest(guildId, requestId, target);
   if (!result.success) {
-    await interaction.followUp({ content: result.error ?? errors.generic(), flags: MessageFlags.Ephemeral });
+    await interaction.followUp(failReply(result.error ?? errors.generic(), interaction));
     return;
   }
 
@@ -280,7 +280,7 @@ export async function handleStackEditModal(
 
   const result = updateRequest(guildId, requestId, { troopsNeeded, message });
   if ("error" in result) {
-    await interaction.followUp({ content: result.error, flags: MessageFlags.Ephemeral });
+    await interaction.followUp(failReply(result.error, interaction));
     return;
   }
 

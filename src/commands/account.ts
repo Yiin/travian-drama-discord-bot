@@ -1,9 +1,6 @@
 import {
   ChatInputCommandInteraction,
   AutocompleteInteraction,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   TextChannel,
   MessageFlags,
 } from "discord.js";
@@ -17,11 +14,7 @@ import {
 } from "../services/player-accounts";
 import { renameAccountInPushRequests } from "../services/push-requests";
 import { renameAccountInPushStats } from "../services/push-stats";
-import { getGuildConfig, setAccountReminderMessage } from "../config/guild-config";
-import {
-  ACCOUNT_REMINDER_ADD_BUTTON_ID,
-  ACCOUNT_REMINDER_SKIP_BUTTON_ID,
-} from "../services/button-handlers/index";
+import { postAccountReminder } from "../services/account-reminder-message";
 import { requireAdmin } from "../utils/permissions";
 import { ARROW } from "../utils/format";
 import { filterChoices } from "../utils/choices";
@@ -183,30 +176,6 @@ async function handlePostReminder(interaction: ChatInputCommandInteraction, guil
     await interaction.reply({ content: "⚠️ **Run this in a text channel.**", flags: MessageFlags.Ephemeral });
     return;
   }
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(ACCOUNT_REMINDER_ADD_BUTTON_ID).setLabel("Add").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(ACCOUNT_REMINDER_SKIP_BUTTON_ID).setLabel("Not playing").setStyle(ButtonStyle.Secondary)
-  );
-
-  const content =
-    "**Link your Discord account to your in-game account**\n" +
-    "Press **Add** to enter your player name.\n" +
-    "Press **Not playing** if you are not playing this server.";
-
-  const config = getGuildConfig(guildId);
-  if (config.accountReminderChannelId && config.accountReminderMessageId) {
-    try {
-      const oldChannel = (await interaction.client.channels.fetch(config.accountReminderChannelId)) as TextChannel | null;
-      const oldMessage = await oldChannel?.messages.fetch(config.accountReminderMessageId);
-      await oldMessage?.delete();
-    } catch {
-      // Old message already gone
-    }
-  }
-
-  const message = await channel.send({ content, components: [row] });
-  setAccountReminderMessage(guildId, channel.id, message.id);
-
+  await postAccountReminder(interaction.client, guildId, channel);
   await interaction.reply({ content: "✅ Reminder posted.", flags: MessageFlags.Ephemeral });
 }

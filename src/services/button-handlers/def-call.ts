@@ -31,7 +31,7 @@ import {
   DEFCALL_SENT_FOR_SELECT_ID,
 } from "./def-call-ids";
 import { formatTroops } from "../../utils/format";
-import { errors } from "../../actions/messages";
+import { errors, failEdit } from "../../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
 export {
@@ -153,7 +153,7 @@ export async function handleDefCallRequestModal(
   );
 
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -288,7 +288,7 @@ export async function handleDefCallSentModal(
   );
 
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
 
@@ -337,7 +337,7 @@ export async function handleDefCallCloseButton(
 
   if (!result.success) {
     try {
-      await interaction.editReply({ content: result.error });
+      await interaction.editReply(failEdit(result.error, interaction));
     } catch {
       // ignore
     }

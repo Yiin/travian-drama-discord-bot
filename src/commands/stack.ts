@@ -17,7 +17,7 @@ import { getStackPanelUrl, updateGlobalMessage } from "../services/defense-messa
 import { getAllRequests } from "../services/defense-requests";
 import { getVillageAt } from "../services/map-data";
 import { buildStackEditor } from "../services/button-handlers/stack-edit";
-import { confirmationEdit, asConfirm, errors } from "../actions/messages";
+import { confirmationEdit, asConfirm, errors, failReply, failEdit } from "../actions/messages";
 import { stackChoiceLabel, filterChoices } from "../utils/choices";
 import { guildCommand } from "./shared";
 
@@ -112,7 +112,7 @@ export const stackCommand: Command = {
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const validation = validateDefenseConfig(interaction.guildId);
     if (!validation.valid) {
-      await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+      await interaction.reply(failReply(validation.error, interaction));
       return;
     }
     const context = {
@@ -201,7 +201,7 @@ type Outcome =
 
 async function reply(interaction: ChatInputCommandInteraction, result: Outcome, panelUrl?: string): Promise<void> {
   if (!result.success) {
-    await interaction.editReply({ content: result.error });
+    await interaction.editReply(failEdit(result.error, interaction));
     return;
   }
   await interaction.editReply(

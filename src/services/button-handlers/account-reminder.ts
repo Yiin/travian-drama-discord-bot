@@ -7,7 +7,7 @@ import {
   LabelBuilder,
   MessageFlags,
 } from "discord.js";
-import { cmd } from "../../actions/messages";
+import { ACCOUNT_LINK_BUTTON_PREFIX, cmd } from "../../actions/messages";
 import {
   getAccountForUser,
   isNotPlaying,
@@ -35,9 +35,14 @@ export async function handleAccountReminderAddButton(
 
   const existing = getAccountForUser(guildId, interaction.user.id);
 
+  // `account_link:<command path>` buttons on errors carry the command to retry after linking.
+  const retry = interaction.customId.startsWith(ACCOUNT_LINK_BUTTON_PREFIX)
+    ? interaction.customId.slice(ACCOUNT_LINK_BUTTON_PREFIX.length)
+    : "";
+
   const modal = new ModalBuilder()
-    .setCustomId(ACCOUNT_REMINDER_MODAL_ID)
-    .setTitle("Add In-Game Account");
+    .setCustomId(retry ? `${ACCOUNT_REMINDER_MODAL_ID}:${retry}` : ACCOUNT_REMINDER_MODAL_ID)
+    .setTitle("Link in-game account");
 
   const nameInput = new TextInputBuilder()
     .setCustomId(ACCOUNT_REMINDER_NAME_INPUT_ID)
@@ -52,6 +57,7 @@ export async function handleAccountReminderAddButton(
 
   const nameLabel = new LabelBuilder()
     .setLabel("In-game account name")
+    .setDescription("Exactly as it appears in Travian")
     .setTextInputComponent(nameInput);
 
   modal.addLabelComponents(nameLabel);
@@ -77,23 +83,28 @@ export async function handleAccountReminderModal(
 
   if (!inGameName) {
     await interaction.reply({
-      content: "Enter a valid player name.",
+      content: "⚠️ **Enter your in-game player name.**",
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
+
+  const retry = interaction.customId.includes(":")
+    ? interaction.customId.slice(interaction.customId.indexOf(":") + 1)
+    : "";
 
   const previous = getAccountForUser(guildId, interaction.user.id);
   setAccount(guildId, interaction.user.id, inGameName);
 
   const message =
     previous && previous !== inGameName
-      ? `Updated account: **${previous}** → **${inGameName}**.`
+      ? `✅ Updated account: **${previous}** → **${inGameName}**.`
       : previous === inGameName
-        ? `You are already linked to **${inGameName}**.`
-        : `You are linked to in-game account **${inGameName}**.`;
+        ? `✅ You are already linked to **${inGameName}**.`
+        : `✅ You are linked to in-game account **${inGameName}**.`;
+  const next = retry ? ` Now retry ${cmd(retry)}.` : " Now retry what you were doing.";
 
-  await interaction.reply({ content: message, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: message + next, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAccountReminderSkipButton(

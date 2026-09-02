@@ -1,11 +1,14 @@
 import {
   ActionRowBuilder,
+  BaseInteraction,
   ButtonBuilder,
   ButtonStyle,
   chatInputApplicationCommandMention,
   Client,
+  GuildMember,
   MessageFlags,
 } from "discord.js";
+import { isAdmin } from "../utils/permissions";
 
 /**
  * The only place for user-facing error and success wording.
@@ -64,7 +67,7 @@ export const errors = {
   guildOnly: () => "⚠️ **This only works inside a server.**",
 
   notSetUp: () =>
-    `⚠️ **Bot is not set up yet.** An admin needs to run ${cmd("setup server")} to pick the Travian server.`,
+    `⚠️ **Bot is not set up yet.** An admin needs to run ${cmd("setup panel")} to pick the Travian server and channels.`,
 
   channelMissing: (kind: ChannelKind) =>
     `⚠️ **No ${CHANNEL_LABEL[kind]} channel yet.** An admin can pick one with ${cmd("setup channel")} (type: ${CHANNEL_SETUP_TYPE[kind]}).`,
@@ -168,6 +171,69 @@ export function confirmationEdit(content: string, options: ConfirmationOptions =
 /** Ephemeral error payload. */
 export function errorReply(content: string) {
   return { content, components: [], flags: MessageFlags.Ephemeral as const };
+}
+
+// --- Fix buttons on errors ---
+
+export const ACCOUNT_LINK_BUTTON_PREFIX = "account_link:";
+export const SETUP_OPEN_BUTTON_ID = "setup_open_button";
+export const SETUP_PING_ADMIN_BUTTON_ID = "setup_ping_admin_button";
+
+const ACCOUNT_NOT_LINKED_MARK = "**Link your in-game account first.**";
+const NOT_SET_UP_MARK = "**Bot is not set up yet.**";
+
+/**
+ * Buttons that fix the error in place: `Link account` on the not-linked error,
+ * `Open setup` (admins) or `Ping an admin` on the not-set-up error.
+ * `retry` is the command path to suggest after linking, e.g. "stack sent".
+ */
+export function errorButtons(content: string, options: { admin?: boolean; retry?: string } = {}): ActionRowBuilder<ButtonBuilder>[] {
+  if (content.includes(ACCOUNT_NOT_LINKED_MARK)) {
+    return [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${ACCOUNT_LINK_BUTTON_PREFIX}${options.retry ?? ""}`.slice(0, 100))
+          .setLabel("Link account")
+          .setStyle(ButtonStyle.Primary),
+      ),
+    ];
+  }
+  if (content.includes(NOT_SET_UP_MARK)) {
+    return [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        options.admin
+          ? new ButtonBuilder().setCustomId(SETUP_OPEN_BUTTON_ID).setLabel("Open setup").setStyle(ButtonStyle.Primary)
+          : new ButtonBuilder().setCustomId(SETUP_PING_ADMIN_BUTTON_ID).setLabel("Ping an admin").setStyle(ButtonStyle.Secondary),
+      ),
+    ];
+  }
+  return [];
+}
+
+/** Command path ("stack sent") of a slash interaction, for the retry hint. Empty for buttons and modals. */
+export function interactionCommandPath(interaction: BaseInteraction): string {
+  if (!interaction.isChatInputCommand()) return "";
+  const group = interaction.options.getSubcommandGroup(false);
+  const sub = interaction.options.getSubcommand(false);
+  return [interaction.commandName, group, sub].filter(Boolean).join(" ");
+}
+
+/** Ephemeral error reply with its fix button, for `interaction.reply(...)`. */
+export function failReply(content: string, interaction: BaseInteraction) {
+  return {
+    content,
+    components: errorButtons(content, {
+      admin: isAdmin(interaction.member as GuildMember | null),
+      retry: interactionCommandPath(interaction),
+    }),
+    flags: MessageFlags.Ephemeral as const,
+  };
+}
+
+/** Same payload for `editReply` / `followUp` after a deferred ephemeral reply. */
+export function failEdit(content: string, interaction: BaseInteraction) {
+  const { flags: _flags, ...rest } = failReply(content, interaction);
+  return rest;
 }
 
 export function messageUrl(guildId: string, channelId: string, messageId: string): string {
