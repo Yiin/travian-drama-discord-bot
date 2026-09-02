@@ -3,5 +3,7 @@
   "backend": "dolt",
   "dolt_mode": "server",
   "dolt_database": "travian_drama_discord_bot",
-  "project_id": "4c2c1a8f-480f-4530-8c9c-9029362f77a0"
+  "project_id": "4c2c1a8f-480f-4530-8c9c-9029362f77a0",
+  "dolt_server_host": "100.107.50.39",
+  "dolt_server_user": "root"
 }
