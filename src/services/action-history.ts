@@ -80,12 +80,14 @@ export interface Action {
   userId: string;
   timestamp: number;
   coords: { x: number; y: number };
-  requestId: number; // 1-based position ID at time of action
+  requestId: number; // stable request id
   previousState?: DefenseRequest;
   previousPushState?: PushRequest; // For push actions
   previousDefCallState?: DefCallRequest;
   data: ActionData;
   undone: boolean;
+  /** Set when the action was expired by a migration instead of undone by a user. */
+  expiredReason?: string;
 }
 
 export interface GuildActionHistory {
@@ -145,7 +147,7 @@ export interface RecordActionInput {
   type: ActionType;
   userId: string;
   coords: { x: number; y: number };
-  requestId: number; // 1-based position ID at time of action
+  requestId: number; // stable request id
   previousState?: DefenseRequest;
   previousPushState?: PushRequest; // For push actions
   previousDefCallState?: DefCallRequest;
@@ -273,8 +275,8 @@ export interface UndoResult {
  * Performs the undo operation for a given action.
  * Returns a result with success status and a message describing what happened.
  *
- * Note: Uses stored requestId for lookups, but position-based IDs may shift
- * when other requests are removed. We verify coordinates match before operating.
+ * Request ids are stable, so the stored requestId still points at the same request.
+ * Coordinates are checked anyway as a guard against corrupted data.
  */
 export function undoAction(guildId: string, actionId: number): UndoResult {
   const action = getAction(guildId, actionId);

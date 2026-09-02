@@ -19,6 +19,7 @@ import {
 } from "../../actions";
 import { errors } from "../../actions/messages";
 import { getStackPanelUrl } from "../defense-message";
+import { stackChoiceLabel } from "../../utils/choices";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
 // Defense button/modal IDs
@@ -57,7 +58,7 @@ export async function handleSentButton(
   const data = getGuildDefenseData(guildId);
   if (data.requests.length === 0) {
     await interaction.reply({
-      content: "There are no active defense requests.",
+      content: "⚠️ **There are no open stack requests.** Press **Request stack** to add one.",
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -66,28 +67,25 @@ export async function handleSentButton(
   // Build options from active requests
   const options: StringSelectMenuOptionBuilder[] = [];
   for (let i = 0; i < data.requests.length; i++) {
-    const prefix = i === 0 ? "➡️ " : "";
     const request = data.requests[i];
     const village = await getVillageAt(config.serverKey, request.x, request.y);
-    const villageName = village?.villageName || "Unknown";
-    const playerName = village?.playerName || "Unknown";
 
-    // Build description: progress + message (truncated if needed)
-    let description = `${request.troopsSent}/${request.troopsNeeded}`;
+    const playerPart = village ? `${village.playerName}` : "unknown village";
+    let description = playerPart;
     if (request.message) {
       const maxMsgLen = 100 - description.length - 3; // Discord limit is 100 chars
       const truncatedMsg = request.message.length > maxMsgLen
         ? request.message.substring(0, maxMsgLen - 3) + "..."
         : request.message;
-      description += ` - ${truncatedMsg}`;
+      description += ` · ${truncatedMsg}`;
     }
 
     options.push(
       new StringSelectMenuOptionBuilder()
         .setDefault(i === 0)
-        .setLabel(`${prefix}(${request.x}|${request.y}) ${villageName} (${playerName})`)
+        .setLabel(stackChoiceLabel(request, village?.villageName, i === 0))
         .setDescription(description)
-        .setValue(`${i + 1}`) // 1-based request ID
+        .setValue(`${request.id}`)
     );
   }
 
@@ -104,6 +102,7 @@ export async function handleSentButton(
 
   const targetLabel = new LabelBuilder()
     .setLabel("Target")
+    .setDescription("Requests in priority order")
     .setStringSelectMenuComponent(targetSelect);
 
   const troopsInput = new TextInputBuilder()
@@ -137,7 +136,7 @@ export async function handleSentModal(
   const selectedValues = interaction.fields.getStringSelectValues(TARGET_SELECT_ID);
   if (!selectedValues || selectedValues.length === 0) {
     await interaction.reply({
-      content: "Error: failed to identify the target.",
+      content: errors.notFound("target"),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -146,7 +145,7 @@ export async function handleSentModal(
   const requestId = parseInt(selectedValues[0], 10);
   if (isNaN(requestId) || requestId < 1) {
     await interaction.reply({
-      content: "Error: invalid target ID.",
+      content: errors.notFound("target"),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -219,7 +218,7 @@ export async function handleRequestDefButton(
   // Build modal with text inputs using LabelBuilder
   const modal = new ModalBuilder()
     .setCustomId(REQUEST_DEF_MODAL_ID)
-    .setTitle("New defense request");
+    .setTitle("Request stack");
 
   const coordsInput = new TextInputBuilder()
     .setCustomId(COORDS_INPUT_ID)
@@ -251,7 +250,7 @@ export async function handleRequestDefButton(
     .setMaxLength(100);
 
   const messageLabel = new LabelBuilder()
-    .setLabel("Additional information (optional)")
+    .setLabel("Note (optional)")
     .setTextInputComponent(messageInput);
 
   modal.addLabelComponents(coordsLabel, troopsLabel, messageLabel);

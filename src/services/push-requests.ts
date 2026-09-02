@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { expireActionHistory } from "./history-expiry";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const REQUESTS_FILE = path.join(DATA_DIR, "push-requests.json");
@@ -12,6 +13,8 @@ export interface PushContributor {
 }
 
 export interface PushRequest {
+  /** Stable per-guild id. Never changes, never reused. Shown to users as `#9`. */
+  id: number;
   x: number;
   y: number;
   resourcesSent: number;
@@ -26,6 +29,7 @@ export interface PushRequest {
 }
 
 export interface GuildPushData {
+  nextId: number;
   requests: PushRequest[];
 }
 
@@ -42,8 +46,30 @@ function loadAllData(): AllGuildData {
   if (!fs.existsSync(REQUESTS_FILE)) {
     return {};
   }
-  const data = fs.readFileSync(REQUESTS_FILE, "utf-8");
-  return JSON.parse(data);
+  const data: AllGuildData = JSON.parse(fs.readFileSync(REQUESTS_FILE, "utf-8"));
+  if (migrateIds(data)) {
+    saveAllData(data);
+  }
+  return data;
+}
+
+function migrateIds(data: AllGuildData): boolean {
+  let changed = false;
+  for (const [guildId, guild] of Object.entries(data)) {
+    const missing = guild.requests.some((r) => r.id === undefined);
+    if (!missing && guild.nextId !== undefined) continue;
+    if (missing) {
+      let next = 1;
+      for (const request of guild.requests) {
+        request.id = next++;
+      }
+      expireActionHistory(guildId, "expired by id migration");
+    }
+    const maxId = guild.requests.reduce((max, r) => Math.max(max, r.id), 0);
+    guild.nextId = Math.max(guild.nextId ?? 1, maxId + 1);
+    changed = true;
+  }
+  return changed;
 }
 
 function saveAllData(data: AllGuildData): void {
@@ -53,8 +79,13 @@ function saveAllData(data: AllGuildData): void {
 
 function getDefaultGuildData(): GuildPushData {
   return {
+    nextId: 1,
     requests: [],
   };
+}
+
+function findById(data: GuildPushData, requestId: number): PushRequest | undefined {
+  return data.requests.find((r) => r.id === requestId);
 }
 
 export function getGuildPushData(guildId: string): GuildPushData {
@@ -75,10 +106,10 @@ export function updatePushRequestChannelInfo(
   messageId: string
 ): void {
   const data = getGuildPushData(guildId);
-  const index = requestId - 1; // Convert 1-based to 0-based
-  if (index >= 0 && index < data.requests.length) {
-    data.requests[index].channelId = channelId;
-    data.requests[index].messageId = messageId;
+  const request = findById(data, requestId);
+  if (request) {
+    request.channelId = channelId;
+    request.messageId = messageId;
     saveGuildData(guildId, data);
   }
 }
@@ -87,18 +118,13 @@ export function getPushRequestByChannelId(
   guildId: string,
   channelId: string
 ): { request: PushRequest; requestId: number } | undefined {
-  const data = getGuildPushData(guildId);
-  for (let i = 0; i < data.requests.length; i++) {
-    if (data.requests[i].channelId === channelId) {
-      return { request: data.requests[i], requestId: i + 1 };
-    }
-  }
-  return undefined;
+  const request = getGuildPushData(guildId).requests.find((r) => r.channelId === channelId);
+  return request ? { request, requestId: request.id } : undefined;
 }
 
 export interface AddPushRequestResult {
   request: PushRequest;
-  requestId: number; // 1-based position ID
+  requestId: number;
 }
 
 export function addPushRequest(
@@ -118,6 +144,7 @@ export function addPushRequest(
 
   // Create new request
   const newRequest: PushRequest = {
+    id: data.nextId++,
     x,
     y,
     resourcesSent: 0,
@@ -132,16 +159,14 @@ export function addPushRequest(
   data.requests.push(newRequest);
   saveGuildData(guildId, data);
 
-  return { request: newRequest, requestId: data.requests.length };
+  return { request: newRequest, requestId: newRequest.id };
 }
 
 export function getPushRequestById(
   guildId: string,
   requestId: number
 ): PushRequest | undefined {
-  const data = getGuildPushData(guildId);
-  // IDs are 1-based, so convert to 0-based index
-  return data.requests[requestId - 1];
+  return findById(getGuildPushData(guildId), requestId);
 }
 
 export function getPushRequestsByCoords(
@@ -149,14 +174,9 @@ export function getPushRequestsByCoords(
   x: number,
   y: number
 ): { request: PushRequest; requestId: number }[] {
-  const data = getGuildPushData(guildId);
-  const results: { request: PushRequest; requestId: number }[] = [];
-  data.requests.forEach((r, index) => {
-    if (r.x === x && r.y === y) {
-      results.push({ request: r, requestId: index + 1 });
-    }
-  });
-  return results;
+  return getGuildPushData(guildId)
+    .requests.filter((r) => r.x === x && r.y === y)
+    .map((request) => ({ request, requestId: request.id }));
 }
 
 export interface ReportResourcesResult {
@@ -172,9 +192,7 @@ export function reportResourcesSent(
   resources: number
 ): ReportResourcesResult | { error: string } {
   const data = getGuildPushData(guildId);
-  // IDs are 1-based, convert to 0-based index
-  const index = requestId - 1;
-  const request = data.requests[index];
+  const request = findById(data, requestId);
 
   if (!request) {
     return { error: `Request #${requestId} not found.` };
@@ -216,9 +234,7 @@ export function updatePushRequest(
   updates: UpdatePushRequestOptions
 ): PushRequest | { error: string } {
   const data = getGuildPushData(guildId);
-  // IDs are 1-based, convert to 0-based index
-  const index = requestId - 1;
-  const request = data.requests[index];
+  const request = findById(data, requestId);
 
   if (!request) {
     return { error: `Request #${requestId} not found.` };
@@ -239,10 +255,9 @@ export function removePushRequest(
   requestId: number
 ): PushRequest | null {
   const data = getGuildPushData(guildId);
-  // IDs are 1-based, convert to 0-based index
-  const index = requestId - 1;
+  const index = data.requests.findIndex((r) => r.id === requestId);
 
-  if (index < 0 || index >= data.requests.length) {
+  if (index === -1) {
     return null;
   }
 
@@ -274,13 +289,11 @@ export function subtractResources(
   resources: number
 ): SubtractResourcesResult {
   const data = getGuildPushData(guildId);
-  const index = requestId - 1; // Convert 1-based to 0-based
+  const request = findById(data, requestId);
 
-  if (index < 0 || index >= data.requests.length) {
+  if (!request) {
     return { success: false, error: "Request not found." };
   }
-
-  const request = data.requests[index];
 
   // Subtract from total
   request.resourcesSent = Math.max(0, request.resourcesSent - resources);
@@ -328,18 +341,21 @@ export function restorePushRequest(
     };
   }
 
-  // Create a copy of the request with its contributors
+  // Keep the id unless it is active again
+  const idTaken = request.id === undefined || findById(data, request.id) !== undefined;
   const restoredRequest: PushRequest = {
     ...request,
+    id: idTaken ? data.nextId++ : request.id,
     contributors: [...request.contributors],
   };
+  data.nextId = Math.max(data.nextId, restoredRequest.id + 1);
 
   data.requests.push(restoredRequest);
   saveGuildData(guildId, data);
 
   return {
     success: true,
-    requestId: data.requests.length, // 1-based ID
+    requestId: restoredRequest.id,
   };
 }
 
@@ -363,13 +379,12 @@ export function updateContributorResources(
   newAmount: number
 ): UpdateContributorResult {
   const data = getGuildPushData(guildId);
-  const index = requestId - 1;
+  const request = findById(data, requestId);
 
-  if (index < 0 || index >= data.requests.length) {
+  if (!request) {
     return { success: false, error: "Request not found." };
   }
 
-  const request = data.requests[index];
   const contributor = request.contributors.find((c) => c.accountName === accountName);
 
   if (!contributor) {
@@ -451,13 +466,12 @@ export function transferContribution(
   toAccount: string
 ): TransferContributionResult {
   const data = getGuildPushData(guildId);
-  const index = requestId - 1;
+  const request = findById(data, requestId);
 
-  if (index < 0 || index >= data.requests.length) {
+  if (!request) {
     return { success: false, error: "Request not found." };
   }
 
-  const request = data.requests[index];
   const fromContributor = request.contributors.find((c) => c.accountName === fromAccount);
 
   if (!fromContributor) {

@@ -163,6 +163,7 @@ export type PushRequestActionResult = PushRequestActionSuccess | ActionError;
 export interface PushSentActionInput {
   target: string; // Request ID or coordinates string
   resources: number;
+  creditUserId?: string; // User to credit (defaults to the actor)
 }
 
 export interface PushSentActionSuccess extends ActionSuccess {
@@ -209,7 +210,7 @@ export type PushEditActionResult = PushEditActionSuccess | ActionError;
 // --- Move Action Types ---
 
 export interface MoveActionInput {
-  fromPosition: number;
+  requestId: number;
   toPosition: number;
 }
 
@@ -217,7 +218,7 @@ export interface MoveActionSuccess {
   success: true;
   actionText: string;
   confirmText?: string;
-  fromPosition: number;
+  requestId: number;
   toPosition: number;
 }
 

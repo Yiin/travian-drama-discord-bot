@@ -1,10 +1,9 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
+import { ChatInputCommandInteraction } from "discord.js";
 import { Command } from "../types";
+import { guildCommand } from "./shared";
 
 export const penisCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("penis")
-    .setDescription("Generate a random penis size"),
+  data: guildCommand("penis", "Generate a random penis size"),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const random = Math.random() * 30;

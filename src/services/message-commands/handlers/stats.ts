@@ -20,7 +20,8 @@ import {
 } from "../../stats";
 import { getVillageAt, getMapLink, getPlayerByExactName } from "../../map-data";
 import { errors } from "../../../actions/messages";
-import { replyError, rememberAction } from "../utils";
+import { replyError } from "../utils";
+import { recordContribution } from "../../stats";
 
 async function handleStatsLeaderboardCommandInner(ctx: CommandContext): Promise<void> {
   const leaderboard = getLeaderboard(ctx.guildId);
@@ -310,9 +311,40 @@ async function handleStatsResetCommandInner(ctx: CommandContext): Promise<void> 
 }
 
 // Wrap all with admin checks
-export const handleStatsLeaderboardCommand = requireAdminMiddleware(handleStatsLeaderboardCommandInner);
-export const handleStatsUserCommand = requireAdminMiddleware(handleStatsUserCommandInner);
-export const handleStatsPlayerCommand = requireAdminMiddleware(handleStatsPlayerCommandInner);
-export const handleStatsVillageCommand = requireAdminMiddleware(handleStatsVillageCommandInner);
-export const handleStatsStacksCommand = requireAdminMiddleware(handleStatsStacksCommandInner);
+// Same gates as the slash command: reading stats is open, changing them is admin-only
+export const handleStatsLeaderboardCommand = handleStatsLeaderboardCommandInner;
+export const handleStatsUserCommand = handleStatsUserCommandInner;
+export const handleStatsPlayerCommand = handleStatsPlayerCommandInner;
+export const handleStatsVillageCommand = handleStatsVillageCommandInner;
+export const handleStatsStacksCommand = handleStatsStacksCommandInner;
 export const handleStatsResetCommand = requireAdminMiddleware(handleStatsResetCommandInner);
+
+async function handleStatsAddCommandInner(
+  ctx: CommandContext,
+  coordsInput: string,
+  troops: number,
+  forUserId?: string
+): Promise<void> {
+  const coords = parseCoords(coordsInput);
+  if (!coords) {
+    await replyError(ctx, errors.invalidCoords());
+    return;
+  }
+  if (troops === 0) {
+    await replyError(ctx, errors.countIsZero("troop"));
+    return;
+  }
+
+  const targetUserId = forUserId || ctx.message.author.id;
+  recordContribution(ctx.guildId, targetUserId, coords.x, coords.y, troops);
+
+  await ctx.message.react("✅");
+  const verb = troops > 0 ? "Added" : "Subtracted";
+  const preposition = troops > 0 ? "to" : "from";
+  await ctx.message.reply({
+    content: `✅ ${verb} **${formatNumber(Math.abs(troops))}** troops ${preposition} (${coords.x}|${coords.y}) stats for <@${targetUserId}>.`,
+    allowedMentions: { parse: [] },
+  });
+}
+
+export const handleStatsAddCommand = requireAdminMiddleware(handleStatsAddCommandInner);

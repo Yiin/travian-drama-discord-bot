@@ -10,25 +10,25 @@ export async function executeMoveAction(
   input: MoveActionInput
 ): Promise<MoveActionResult> {
   const { guildId, client, userId } = context;
-  const { fromPosition, toPosition } = input;
+  const { requestId, toPosition } = input;
 
   // 1. Execute the move
-  const result = moveRequest(guildId, fromPosition, toPosition);
+  const result = moveRequest(guildId, requestId, toPosition);
   if (!result.success) {
     return { success: false, error: result.error! };
   }
 
   // 2. Update the global message
   // 3. Build action text, update the global message, post the audit line
-  const actionText = `<@${userId}> moved request #${fromPosition} to position #${toPosition}`;
-  const confirmText = `✅ Moved request #${fromPosition} to position #${toPosition}.`;
+  const actionText = `<@${userId}> moved request #${requestId} to position ${toPosition}`;
+  const confirmText = `✅ Moved request #${requestId} to position ${toPosition}.`;
   await updateGlobalMessage(client, guildId, { text: actionText, undoId: 0 });
 
   return {
     success: true,
     actionText,
     confirmText,
-    fromPosition,
+    requestId,
     toPosition,
   };
 }

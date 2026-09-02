@@ -1,31 +1,32 @@
-// Defense handlers
+// Stack queue
 export {
   handleSentCommand,
   handleStackCommand,
-  handleDeleteDefCommand,
-  handleUpdateDefCommand,
+  handleRemoveCommand,
+  handleMoveCommand,
   handleUndoCommand,
-  handleStackinfoCommand,
+  handleStackListCommand,
 } from "./defense";
 
-// Scout handler
+// Scouting
 export { handleScoutCommand } from "./scout";
 
-// Lookup handler
+// Lookup
 export { handleLookupCommand } from "./lookup";
 
-// Drama handler
-export { handleDramaCommand } from "./drama";
+// Help
+export { handleHelpCommand } from "./help";
 
-// Configure handlers
+// Setup
 export {
-  handleConfigureServerCommand,
-  handleConfigureChannelCommand,
-  handleConfigureScoutRoleCommand,
-  handleConfigureTimezoneCommand,
-} from "./configure";
+  handleSetupServerCommand,
+  handleSetupChannelCommand,
+  handleSetupScoutRoleCommand,
+  handleSetupTimezoneCommand,
+  handleSetupShowCommand,
+} from "./setup";
 
-// Stats handlers
+// Stats
 export {
   handleStatsLeaderboardCommand,
   handleStatsUserCommand,
@@ -33,21 +34,19 @@ export {
   handleStatsVillageCommand,
   handleStatsStacksCommand,
   handleStatsResetCommand,
+  handleStatsAddCommand,
 } from "./stats";
 
-// Addstat handler
-export { handleAddstatCommand } from "./addstat";
-
-// Account handlers
+// Accounts and sitters
 export {
-  handleAccountSetCommand,
-  handleAccountDelCommand,
+  handleAccountLinkCommand,
+  handleAccountUnlinkCommand,
   handleSitterSetCommand,
   handleSitterDelCommand,
   handlePlayersCommand,
 } from "./accounts";
 
-// Def call handlers
+// Defense calls
 export {
   handleDefCommand,
   handleDefCallSentCommand,

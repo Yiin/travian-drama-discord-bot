@@ -23,7 +23,8 @@ import {
   formatVillageDisplay,
 } from "./map-data";
 import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers/index";
-import { messageUrl } from "../actions/messages";
+import { cmd, messageUrl } from "../actions/messages";
+import { formatTroops } from "../utils/format";
 
 export interface LastActionInfo {
   text: string;
@@ -57,8 +58,7 @@ export async function buildGlobalEmbed(
     const request = data.requests[i];
     const isFirst = i === 0;
     const icon = isFirst ? "➡️ " : "";
-    const displayId = i + 1; // IDs are 1-based position in array
-    let line = `**${displayId}.** ${icon}`;
+    let line = `**${i + 1}.** ${icon}\`#${request.id}\``;
 
     const village = await getVillageAt(config.serverKey, request.x, request.y);
     if (village) {
@@ -77,7 +77,7 @@ export async function buildGlobalEmbed(
       100,
       Math.round((request.troopsSent / request.troopsNeeded) * 100),
     );
-    line += ` - **${request.troopsSent}/${request.troopsNeeded}** (${progressPercent}%)`;
+    line += ` - **${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)}** (${progressPercent}%)`;
 
     // Add message (truncate if too long)
     const truncatedMessage =
@@ -96,7 +96,7 @@ export async function buildGlobalEmbed(
 
   if (data.requests.length > 0) {
     lines.push(
-      "\n*After sending, press the button below or use `/stack queue-number troops`*",
+      `\n*After sending, press the button below or use ${cmd("stack sent")}*`,
     );
   }
 

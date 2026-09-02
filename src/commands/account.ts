@@ -1,5 +1,4 @@
 import {
-  SlashCommandBuilder,
   ChatInputCommandInteraction,
   AutocompleteInteraction,
   ActionRowBuilder,
@@ -18,238 +17,124 @@ import {
 } from "../services/player-accounts";
 import { renameAccountInPushRequests } from "../services/push-requests";
 import { renameAccountInPushStats } from "../services/push-stats";
-import {
-  getGuildConfig,
-  setAccountReminderMessage,
-} from "../config/guild-config";
+import { getGuildConfig, setAccountReminderMessage } from "../config/guild-config";
 import {
   ACCOUNT_REMINDER_ADD_BUTTON_ID,
   ACCOUNT_REMINDER_SKIP_BUTTON_ID,
 } from "../services/button-handlers/index";
 import { requireAdmin } from "../utils/permissions";
-import { errors } from "../actions/messages";
+import { ARROW } from "../utils/format";
+import { filterChoices } from "../utils/choices";
+import { guildCommand, requireGuild } from "./shared";
 
 export const accountCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("account")
-    .setDescription("Link your Discord user to an in-game account")
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("set")
-        .setDescription("Set in-game player name for yourself or another user")
-        .addStringOption((option) =>
-          option
-            .setName("name")
-            .setDescription("In-game player name")
-            .setRequired(true)
+  topic: "you",
+  summary: "Link your Discord user to your in-game account",
+  data: guildCommand("account", "Link your Discord user to your in-game account")
+    .addSubcommand((sub) =>
+      sub
+        .setName("link")
+        .setDescription("Link an in-game account to yourself, or to another member")
+        .addStringOption((opt) =>
+          opt.setName("name").setDescription("In-game player name").setRequired(true).setMaxLength(50)
         )
-        .addUserOption((option) =>
-          option
-            .setName("user")
-            .setDescription("Discord user to set account for (optional, defaults to yourself)")
-            .setRequired(false)
+        .addUserOption((opt) =>
+          opt.setName("user").setDescription("Link the account to this member instead of yourself")
         )
     )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("del")
-        .setDescription("Unlink your in-game account")
-    )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("reminder")
-        .setDescription(
-          "Post a singleton message with Add / Not playing buttons (admin)"
+    .addSubcommand((sub) =>
+      sub
+        .setName("unlink")
+        .setDescription("Remove the link between a Discord user and an in-game account")
+        .addUserOption((opt) =>
+          opt.setName("user").setDescription("Unlink this member instead of yourself")
         )
     )
-    .addSubcommand((subcommand) =>
-      subcommand
+    .addSubcommand((sub) =>
+      sub
         .setName("rename")
-        .setDescription("Rename a player's in-game account name")
-        .addStringOption((option) =>
-          option
-            .setName("old")
-            .setDescription("Current in-game account name")
-            .setRequired(true)
-            .setAutocomplete(true)
+        .setDescription("Rename an in-game account everywhere it is stored (admin)")
+        .addStringOption((opt) =>
+          opt.setName("old").setDescription("Current in-game name").setRequired(true).setAutocomplete(true)
         )
-        .addStringOption((option) =>
-          option
-            .setName("new")
-            .setDescription("New in-game account name")
-            .setRequired(true)
+        .addStringOption((opt) =>
+          opt.setName("new").setDescription("New in-game name").setRequired(true).setMaxLength(50)
         )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("reminder")
+        .setDescription("Post the account-link reminder with Add / Not playing buttons here (admin)")
     ),
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const guildId = interaction.guildId;
-    if (!guildId) return;
-
-    const focusedValue = interaction.options.getFocused().toLowerCase();
-    const players = getAllPlayers(guildId);
-
-    const filtered = players
-      .filter((p) => p.name.toLowerCase().includes(focusedValue))
-      .slice(0, 25)
-      .map((p) => ({ name: p.name, value: p.name }));
-
-    await interaction.respond(filtered);
+    if (!guildId) {
+      await interaction.respond([]);
+      return;
+    }
+    const choices = getAllPlayers(guildId).map((p) => ({ name: p.name, value: p.name }));
+    await interaction.respond(filterChoices(choices, interaction.options.getFocused()));
   },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const guildId = interaction.guildId;
+    const guildId = await requireGuild(interaction);
+    if (!guildId) return;
 
-    if (!guildId) {
-      await interaction.reply({
-        content: errors.guildOnly(),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const subcommand = interaction.options.getSubcommand();
-
-    if (subcommand === "set") {
-      await handleSetAccount(interaction, guildId);
-    } else if (subcommand === "del") {
-      await handleDeleteAccount(interaction, guildId);
-    } else if (subcommand === "rename") {
-      await handleRenameAccount(interaction, guildId);
-    } else if (subcommand === "reminder") {
-      await handlePostReminder(interaction, guildId);
+    switch (interaction.options.getSubcommand()) {
+      case "link":
+        await handleLink(interaction, guildId);
+        return;
+      case "unlink":
+        await handleUnlink(interaction, guildId);
+        return;
+      case "rename":
+        if (!(await requireAdmin(interaction))) return;
+        await handleRename(interaction, guildId);
+        return;
+      case "reminder":
+        if (!(await requireAdmin(interaction))) return;
+        await handlePostReminder(interaction, guildId);
+        return;
     }
   },
 };
 
-async function handlePostReminder(
-  interaction: ChatInputCommandInteraction,
-  guildId: string
-): Promise<void> {
-  if (!(await requireAdmin(interaction))) return;
-
-  const channel = interaction.channel;
-  if (!channel || !(channel instanceof TextChannel)) {
-    await interaction.reply({
-      content: "Use this command in a text channel.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const addButton = new ButtonBuilder()
-    .setCustomId(ACCOUNT_REMINDER_ADD_BUTTON_ID)
-    .setLabel("Add")
-    .setStyle(ButtonStyle.Primary);
-
-  const skipButton = new ButtonBuilder()
-    .setCustomId(ACCOUNT_REMINDER_SKIP_BUTTON_ID)
-    .setLabel("Not playing")
-    .setStyle(ButtonStyle.Secondary);
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    addButton,
-    skipButton
-  );
-
-  const content =
-    "**Link your Discord account to your in-game account**\n" +
-    "Press **Add** to enter your player name.\n" +
-    "Press **Not playing** if you are not playing this server.";
-
-  // Delete previous singleton message if it exists
-  const config = getGuildConfig(guildId);
-  if (config.accountReminderChannelId && config.accountReminderMessageId) {
-    try {
-      const oldChannel = (await interaction.client.channels.fetch(
-        config.accountReminderChannelId
-      )) as TextChannel | null;
-      if (oldChannel) {
-        const oldMessage = await oldChannel.messages.fetch(
-          config.accountReminderMessageId
-        );
-        await oldMessage.delete();
-      }
-    } catch {
-      // Old message already gone, ignore
-    }
-  }
-
-  const message = await channel.send({ content, components: [row] });
-  setAccountReminderMessage(guildId, channel.id, message.id);
-
-  await interaction.reply({
-    content: "Reminder posted.",
-    flags: MessageFlags.Ephemeral,
-  });
-}
-
-async function handleSetAccount(
-  interaction: ChatInputCommandInteraction,
-  guildId: string
-): Promise<void> {
+async function handleLink(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const inGameName = interaction.options.getString("name", true).trim();
   const targetUser = interaction.options.getUser("user");
   const userId = targetUser?.id ?? interaction.user.id;
   const isSelf = userId === interaction.user.id;
 
   if (!inGameName) {
-    await interaction.reply({
-      content: "Please provide a valid in-game name.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: "⚠️ **Enter a valid in-game name.**", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const previousName = getAccountForUser(guildId, userId);
   setAccount(guildId, userId, inGameName);
 
-  if (isSelf) {
-    if (previousName && previousName !== inGameName) {
-      await interaction.reply({
-        content: `Changed your linked account from **${previousName}** to **${inGameName}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    } else if (previousName === inGameName) {
-      await interaction.reply({
-        content: `You are already linked to **${inGameName}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    } else {
-      await interaction.reply({
-        content: `You are now linked to in-game account **${inGameName}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+  const who = isSelf ? "You are" : `<@${userId}> is`;
+  let content: string;
+  if (previousName === inGameName) {
+    content = `✅ ${who} already linked to **${inGameName}**.`;
+  } else if (previousName) {
+    content = `✅ ${who} now linked to **${inGameName}** (was **${previousName}**).`;
   } else {
-    if (previousName && previousName !== inGameName) {
-      await interaction.reply({
-        content: `Updated <@${userId}> account from **${previousName}** to **${inGameName}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    } else if (previousName === inGameName) {
-      await interaction.reply({
-        content: `<@${userId}> is already linked to **${inGameName}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    } else {
-      await interaction.reply({
-        content: `<@${userId}> is now linked to in-game account **${inGameName}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    content = `✅ ${who} now linked to **${inGameName}**.`;
   }
+  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
 }
 
-async function handleDeleteAccount(
-  interaction: ChatInputCommandInteraction,
-  guildId: string
-): Promise<void> {
-  const userId = interaction.user.id;
+async function handleUnlink(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const targetUser = interaction.options.getUser("user");
+  const userId = targetUser?.id ?? interaction.user.id;
+  const isSelf = userId === interaction.user.id;
   const previousName = getAccountForUser(guildId, userId);
 
   if (!previousName) {
     await interaction.reply({
-      content: "You have no linked in-game account.",
+      content: isSelf ? "⚠️ **You have no linked in-game account.**" : `⚠️ **<@${userId}> has no linked in-game account.**`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -257,66 +142,71 @@ async function handleDeleteAccount(
 
   deleteAccount(guildId, userId);
   await interaction.reply({
-    content: `Unlinked **${previousName}**.`,
+    content: isSelf ? `✅ Unlinked **${previousName}**.` : `✅ Unlinked **${previousName}** from <@${userId}>.`,
     flags: MessageFlags.Ephemeral,
   });
 }
 
-async function handleRenameAccount(
-  interaction: ChatInputCommandInteraction,
-  guildId: string
-): Promise<void> {
+async function handleRename(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const oldName = interaction.options.getString("old", true).trim();
   const newName = interaction.options.getString("new", true).trim();
 
   if (!oldName || !newName) {
-    await interaction.reply({
-      content: "Please provide valid account names.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: "⚠️ **Enter both names.**", flags: MessageFlags.Ephemeral });
     return;
   }
-
   if (oldName === newName) {
-    await interaction.reply({
-      content: "Old and new names are the same.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: "⚠️ **Old and new names are the same.**", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Rename in player accounts
   const accountRenamed = renameAccount(guildId, oldName, newName);
-
-  // Rename in push requests
   const pushUpdates = renameAccountInPushRequests(guildId, oldName, newName);
-
-  // Rename in push stats
   const statsUpdates = renameAccountInPushStats(guildId, oldName, newName);
 
   if (!accountRenamed && pushUpdates === 0 && statsUpdates === 0) {
-    await interaction.reply({
-      content: `Account **${oldName}** not found.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: `⚠️ **Account ${oldName} not found.**`, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const parts: string[] = [];
-  parts.push(`Renamed **${oldName}** → **${newName}**`);
+  const parts = [`✅ Renamed **${oldName}** ${ARROW} **${newName}**.`];
+  if (accountRenamed) parts.push("• Player link updated");
+  if (pushUpdates > 0) parts.push(`• ${pushUpdates} push request reference(s) updated`);
+  if (statsUpdates > 0) parts.push(`• ${statsUpdates} push stats record(s) updated`);
 
-  if (accountRenamed) {
-    parts.push("• Updated player account");
-  }
-  if (pushUpdates > 0) {
-    parts.push(`• Updated ${pushUpdates} push request reference(s)`);
-  }
-  if (statsUpdates > 0) {
-    parts.push(`• Updated ${statsUpdates} push stats record(s)`);
+  await interaction.reply({ content: parts.join("\n"), flags: MessageFlags.Ephemeral });
+}
+
+async function handlePostReminder(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const channel = interaction.channel;
+  if (!channel || !(channel instanceof TextChannel)) {
+    await interaction.reply({ content: "⚠️ **Run this in a text channel.**", flags: MessageFlags.Ephemeral });
+    return;
   }
 
-  await interaction.reply({
-    content: parts.join("\n"),
-    flags: MessageFlags.Ephemeral,
-  });
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ACCOUNT_REMINDER_ADD_BUTTON_ID).setLabel("Add").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(ACCOUNT_REMINDER_SKIP_BUTTON_ID).setLabel("Not playing").setStyle(ButtonStyle.Secondary)
+  );
+
+  const content =
+    "**Link your Discord account to your in-game account**\n" +
+    "Press **Add** to enter your player name.\n" +
+    "Press **Not playing** if you are not playing this server.";
+
+  const config = getGuildConfig(guildId);
+  if (config.accountReminderChannelId && config.accountReminderMessageId) {
+    try {
+      const oldChannel = (await interaction.client.channels.fetch(config.accountReminderChannelId)) as TextChannel | null;
+      const oldMessage = await oldChannel?.messages.fetch(config.accountReminderMessageId);
+      await oldMessage?.delete();
+    } catch {
+      // Old message already gone
+    }
+  }
+
+  const message = await channel.send({ content, components: [row] });
+  setAccountReminderMessage(guildId, channel.id, message.id);
+
+  await interaction.reply({ content: "✅ Reminder posted.", flags: MessageFlags.Ephemeral });
 }

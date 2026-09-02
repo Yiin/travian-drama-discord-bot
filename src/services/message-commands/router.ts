@@ -6,19 +6,20 @@ import { parseTroopCount } from "../../utils/parse-number";
 import { errors } from "../../actions/messages";
 import { replyError } from "./utils";
 
-/** Slash command to suggest when a stack-queue text command is typed outside the defense channel. */
+type ChannelKindInput = "defense" | "stack" | "scout" | "defcalls" | "push";
+
+/** Slash command to suggest when a stack-queue text command is typed outside the stack channel. */
 function stackCommandTypedElsewhere(content: string): string | undefined {
-  if (patterns.SENT_PATTERN.test(content) || patterns.SENT_VERBOSE_PATTERN.test(content)) return "sent";
-  if (patterns.STACK_PATTERN.test(content)) return "stack";
-  if (patterns.DELETEDEF_PATTERN.test(content)) return "deletedef";
-  if (patterns.STACKINFO_PATTERN.test(content)) return "stackinfo";
-  if (patterns.UPDATEDEF_PATTERN.test(content)) return "updatedef";
-  if (patterns.UNDO_PATTERN.test(content)) return "undo";
+  if (patterns.SENT_PATTERN.test(content) || patterns.SENT_VERBOSE_PATTERN.test(content)) return "stack sent";
+  if (patterns.STACK_PATTERN.test(content)) return "stack request";
+  if (patterns.REMOVE_PATTERN.test(content)) return "stack remove";
+  if (patterns.MOVE_PATTERN.test(content)) return "stack move";
+  if (patterns.STACK_LIST_PATTERN.test(content)) return "stack list";
   return undefined;
 }
 
 /**
- * Process a single command line
+ * Route one line of a message to its handler.
  */
 export async function processSingleCommand(
   ctx: CommandContext,
@@ -28,56 +29,54 @@ export async function processSingleCommand(
   // Global commands (work in any channel)
   // ============================================
 
-  // Lookup command
   let match = content.match(patterns.LOOKUP_PATTERN);
   if (match) {
     await handlers.handleLookupCommand(ctx, match[1]);
     return;
   }
 
-  // Drama command
-  match = content.match(patterns.DRAMA_PATTERN);
+  match = content.match(patterns.HELP_PATTERN);
   if (match) {
-    await handlers.handleDramaCommand(ctx, match[1]);
+    await handlers.handleHelpCommand(ctx, match[1]);
     return;
   }
 
-  // Configure commands
-  match = content.match(patterns.CONFIGURE_SERVER_PATTERN);
+  match = content.match(patterns.SETUP_SERVER_PATTERN);
   if (match) {
-    await handlers.handleConfigureServerCommand(ctx, match[1]);
+    await handlers.handleSetupServerCommand(ctx, match[1]);
     return;
   }
 
-  match = content.match(patterns.CONFIGURE_CHANNEL_PATTERN);
+  match = content.match(patterns.SETUP_CHANNEL_PATTERN);
   if (match) {
-    await handlers.handleConfigureChannelCommand(ctx, match[1] as "defense" | "scout" | "defcalls" | "push", match[2]);
+    const kind = match[1].toLowerCase() as ChannelKindInput;
+    await handlers.handleSetupChannelCommand(ctx, kind === "stack" ? "defense" : kind, match[2]);
     return;
   }
 
-  match = content.match(patterns.CONFIGURE_SCOUTROLE_PATTERN);
+  match = content.match(patterns.SETUP_SCOUTROLE_PATTERN);
   if (match) {
-    await handlers.handleConfigureScoutRoleCommand(ctx, match[1], match[2]);
+    await handlers.handleSetupScoutRoleCommand(ctx, match[1], match[2]);
     return;
   }
 
-  match = content.match(patterns.CONFIGURE_TIMEZONE_PATTERN);
+  match = content.match(patterns.SETUP_TIMEZONE_PATTERN);
   if (match) {
-    await handlers.handleConfigureTimezoneCommand(ctx, match[1]);
+    await handlers.handleSetupTimezoneCommand(ctx, match[1]);
     return;
   }
 
-  // Def commands - work in any channel
+  match = content.match(patterns.SETUP_SHOW_PATTERN);
+  if (match) {
+    await handlers.handleSetupShowCommand(ctx);
+    return;
+  }
+
+  // Defense calls work in any channel; the thread identifies the request for !sent / !close
   match = content.match(patterns.DEF_PATTERN);
   if (match) {
-    const troopsNeeded = parseTroopCount(match[4]) ?? undefined;
-    await handlers.handleDefCommand(
-      ctx,
-      match[1],
-      match[2],
-      match[3] || undefined,
-      troopsNeeded
-    );
+    const limit = parseTroopCount(match[4]) ?? undefined;
+    await handlers.handleDefCommand(ctx, match[1], match[2], match[3] || undefined, limit);
     return;
   }
 
@@ -87,30 +86,32 @@ export async function processSingleCommand(
     return;
   }
 
-  // Def-call thread /sent — only inside a def-call request channel
   match = content.match(patterns.DEFCALL_SENT_PATTERN);
   if (match) {
-    const defCallRequestData = getRequestByChannelId(
-      ctx.guildId,
-      ctx.channelId
-    );
-    if (defCallRequestData) {
-      const troops = parseInt(match[1], 10);
-      const forUserId = match[2];
-      await handlers.handleDefCallSentCommand(
-        ctx,
-        defCallRequestData.requestId,
-        troops,
-        forUserId
-      );
+    const defCall = getRequestByChannelId(ctx.guildId, ctx.channelId);
+    if (defCall) {
+      await handlers.handleDefCallSentCommand(ctx, defCall.requestId, parseInt(match[1], 10), match[2]);
       return;
     }
   }
 
-  // Stats commands
+  // Undo works anywhere
+  match = content.match(patterns.UNDO_PATTERN);
+  if (match) {
+    await handlers.handleUndoCommand(ctx, match[1] ? parseInt(match[1], 10) : undefined);
+    return;
+  }
+
+  // Stats
   match = content.match(patterns.STATS_LEADERBOARD_PATTERN);
   if (match) {
     await handlers.handleStatsLeaderboardCommand(ctx);
+    return;
+  }
+
+  match = content.match(patterns.STATS_ME_PATTERN);
+  if (match) {
+    await handlers.handleStatsUserCommand(ctx, ctx.message.author.id);
     return;
   }
 
@@ -138,40 +139,43 @@ export async function processSingleCommand(
     return;
   }
 
+  match = content.match(patterns.STATS_PLAYERS_PATTERN);
+  if (match) {
+    await handlers.handlePlayersCommand(ctx);
+    return;
+  }
+
+  match = content.match(patterns.STATS_ADD_PATTERN);
+  if (match) {
+    await handlers.handleStatsAddCommand(ctx, match[1], parseInt(match[2], 10), match[3]);
+    return;
+  }
+
   match = content.match(patterns.STATS_RESET_PATTERN);
   if (match) {
     await handlers.handleStatsResetCommand(ctx);
     return;
   }
 
-  // Addstat command
-  match = content.match(patterns.ADDSTAT_PATTERN);
+  // Account and sitter
+  match = content.match(patterns.ACCOUNT_LINK_USER_PATTERN);
   if (match) {
-    const forUserId = match[3]; // Optional user mention
-    await handlers.handleAddstatCommand(ctx, match[1], parseInt(match[2], 10), forUserId);
+    await handlers.handleAccountLinkCommand(ctx, match[1], match[2]);
     return;
   }
 
-  // Account commands
-  match = content.match(patterns.ACCOUNT_SET_USER_PATTERN);
+  match = content.match(patterns.ACCOUNT_LINK_PATTERN);
   if (match) {
-    await handlers.handleAccountSetCommand(ctx, match[1], match[2]);
+    await handlers.handleAccountLinkCommand(ctx, match[1]);
     return;
   }
 
-  match = content.match(patterns.ACCOUNT_SET_PATTERN);
+  match = content.match(patterns.ACCOUNT_UNLINK_PATTERN);
   if (match) {
-    await handlers.handleAccountSetCommand(ctx, match[1]);
+    await handlers.handleAccountUnlinkCommand(ctx, match[1]);
     return;
   }
 
-  match = content.match(patterns.ACCOUNT_DEL_PATTERN);
-  if (match) {
-    await handlers.handleAccountDelCommand(ctx);
-    return;
-  }
-
-  // Sitter commands
   match = content.match(patterns.SITTER_SET_PATTERN);
   if (match) {
     await handlers.handleSitterSetCommand(ctx, match[1]);
@@ -184,21 +188,14 @@ export async function processSingleCommand(
     return;
   }
 
-  // Players command
-  match = content.match(patterns.PLAYERS_PATTERN);
-  if (match) {
-    await handlers.handlePlayersCommand(ctx);
-    return;
-  }
-
   // ============================================
   // Channel-specific commands
   // ============================================
 
-  const isDefenseChannel = ctx.channelId === ctx.config.defenseChannelId;
+  const isStackChannel = ctx.channelId === ctx.config.defenseChannelId;
   const isScoutChannel = ctx.channelId === ctx.config.scoutChannelId;
 
-  if (!isDefenseChannel) {
+  if (!isStackChannel) {
     const slash = stackCommandTypedElsewhere(content);
     if (slash) {
       await replyError(ctx, errors.wrongChannel("defense", ctx.config.defenseChannelId, slash));
@@ -207,62 +204,44 @@ export async function processSingleCommand(
   }
   if (!isScoutChannel) {
     if (patterns.SCOUT_PATTERN.test(content) || patterns.SCOUT_VERBOSE_PATTERN.test(content)) {
-      await replyError(ctx, errors.wrongChannel("scout", ctx.config.scoutChannelId, "scout"));
+      await replyError(ctx, errors.wrongChannel("scout", ctx.config.scoutChannelId, "scout request"));
       return;
     }
   }
 
-  if (!isDefenseChannel && !isScoutChannel) return;
-
-  // Defense channel commands
-  if (isDefenseChannel) {
-    // Sent command (simple or verbose format)
+  if (isStackChannel) {
     match = content.match(patterns.SENT_PATTERN) || content.match(patterns.SENT_VERBOSE_PATTERN);
     if (match) {
-      const forUserId = match[3]; // Optional user mention
-      await handlers.handleSentCommand(ctx, match[1], parseInt(match[2], 10), forUserId);
+      await handlers.handleSentCommand(ctx, match[1], parseInt(match[2], 10), match[3]);
       return;
     }
 
-    // Stack command
     match = content.match(patterns.STACK_PATTERN);
     if (match) {
       await handlers.handleStackCommand(ctx, match[1], parseInt(match[2], 10), match[3] || "");
       return;
     }
 
-    // Deletedef command
-    match = content.match(patterns.DELETEDEF_PATTERN);
+    match = content.match(patterns.REMOVE_PATTERN);
     if (match) {
-      await handlers.handleDeleteDefCommand(ctx, parseInt(match[1], 10));
+      await handlers.handleRemoveCommand(ctx, parseInt(match[1], 10));
       return;
     }
 
-    // Stackinfo command
-    match = content.match(patterns.STACKINFO_PATTERN);
+    match = content.match(patterns.MOVE_PATTERN);
     if (match) {
-      await handlers.handleStackinfoCommand(ctx);
+      await handlers.handleMoveCommand(ctx, parseInt(match[1], 10), parseInt(match[2], 10));
       return;
     }
 
-    // Updatedef command (admin only)
-    match = content.match(patterns.UPDATEDEF_PATTERN);
+    match = content.match(patterns.STACK_LIST_PATTERN);
     if (match) {
-      await handlers.handleUpdateDefCommand(ctx, parseInt(match[1], 10), match[2] || "");
-      return;
-    }
-
-    // Undo command
-    match = content.match(patterns.UNDO_PATTERN);
-    if (match) {
-      await handlers.handleUndoCommand(ctx, match[1] ? parseInt(match[1], 10) : undefined);
+      await handlers.handleStackListCommand(ctx);
       return;
     }
   }
 
-  // Scout channel commands
   if (isScoutChannel) {
-    // Scout command (simple or verbose format)
     match = content.match(patterns.SCOUT_PATTERN) || content.match(patterns.SCOUT_VERBOSE_PATTERN);
     if (match) {
       await handlers.handleScoutCommand(ctx, match[1], match[2]);

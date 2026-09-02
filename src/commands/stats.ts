@@ -1,6 +1,7 @@
 import {
-  SlashCommandBuilder,
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  User,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -19,86 +20,88 @@ import {
   resetStats,
   getLastResetTime,
 } from "../services/stats";
-import { getVillageAt, getMapLink, getPlayerByExactName } from "../services/map-data";
+import { getVillageAt, getMapLink, getPlayerByExactName, searchPlayersByName } from "../services/map-data";
+import { recordContribution } from "../services/stats";
+import { getAllPlayers } from "../services/player-accounts";
+import { guildCommand, requireGuild } from "./shared";
 import { parseCoords } from "../utils/parse-coords";
 import { formatNumber } from "../utils/format";
-import { errors } from "../actions/messages";
+import { errors, cmd } from "../actions/messages";
 
 export const statsCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("stats")
-    .setDescription("View defense statistics")
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("leaderboard")
-        .setDescription("Show users ranked by total troops sent")
-    )
-    .addSubcommand((subcommand) =>
-      subcommand
+  topic: "info",
+  summary: "Defense statistics: leaderboard, per user, per player, per village",
+  data: guildCommand("stats", "Defense statistics")
+    .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Members ranked by troops sent"))
+    .addSubcommand((sub) => sub.setName("me").setDescription("Your own troops sent, per village"))
+    .addSubcommand((sub) =>
+      sub
         .setName("user")
-        .setDescription("Show stats for a specific user")
-        .addUserOption((option) =>
-          option
-            .setName("user")
-            .setDescription("The user to show stats for")
-            .setRequired(true)
-        )
+        .setDescription("Troops sent by one member")
+        .addUserOption((opt) => opt.setName("user").setDescription("The member").setRequired(true))
     )
-    .addSubcommand((subcommand) =>
-      subcommand
+    .addSubcommand((sub) =>
+      sub
         .setName("player")
-        .setDescription("Show stats for villages owned by a Travian player")
-        .addStringOption((option) =>
-          option
-            .setName("name")
-            .setDescription("The exact Travian player name")
-            .setRequired(true)
+        .setDescription("Defense collected by each village of a Travian player")
+        .addStringOption((opt) =>
+          opt.setName("name").setDescription("Exact Travian player name").setRequired(true).setAutocomplete(true)
         )
     )
-    .addSubcommand((subcommand) =>
-      subcommand
+    .addSubcommand((sub) =>
+      sub
         .setName("village")
-        .setDescription("Show stats for a specific village")
-        .addStringOption((option) =>
-          option
-            .setName("coords")
-            .setDescription("Village coordinates (e.g., 123|456 or -45|89)")
-            .setRequired(true)
+        .setDescription("Who sent defense to one village")
+        .addStringOption((opt) =>
+          opt.setName("coords").setDescription("Village coordinates, for example 123|456").setRequired(true)
         )
     )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("stacks")
-        .setDescription("Show villages ranked by total defense collected")
+    .addSubcommand((sub) => sub.setName("stacks").setDescription("Villages ranked by defense collected"))
+    .addSubcommand((sub) => sub.setName("players").setDescription("Linked accounts with their Discord users and sitters"))
+    .addSubcommand((sub) =>
+      sub
+        .setName("add")
+        .setDescription("Add or subtract troops in the stats without a request (admin)")
+        .addStringOption((opt) =>
+          opt.setName("coords").setDescription("Village coordinates, for example 123|456").setRequired(true)
+        )
+        .addIntegerOption((opt) =>
+          opt.setName("troops").setDescription("Troops to add; negative subtracts").setRequired(true)
+        )
+        .addUserOption((opt) => opt.setName("for").setDescription("Credit this member instead of yourself"))
     )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("reset")
-        .setDescription("Reset all stats for this server")
-    ),
+    .addSubcommand((sub) => sub.setName("reset").setDescription("Reset all stats for this server (admin)")),
 
-  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const guildId = interaction.guildId;
-
-    if (!guildId) {
-      await interaction.reply({
-        content: errors.guildOnly(),
-        flags: MessageFlags.Ephemeral,
-      });
+    const typed = interaction.options.getFocused().trim();
+    const config = guildId ? getGuildConfig(guildId) : {};
+    if (!config.serverKey || typed.length < 2) {
+      await interaction.respond([]);
       return;
     }
+    const players = await searchPlayersByName(config.serverKey, typed, 25);
+    await interaction.respond(
+      players.map((p) => ({
+        name: `${p.playerName} · ${p.villageCount} villages`.slice(0, 100),
+        value: p.playerName.slice(0, 100),
+      }))
+    );
+  },
 
-    // Check administrator permission
-    if (!await requireAdmin(interaction)) return;
+  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+    const guildId = await requireGuild(interaction);
+    if (!guildId) return;
 
-    const subcommand = interaction.options.getSubcommand();
-
-    switch (subcommand) {
+    switch (interaction.options.getSubcommand()) {
       case "leaderboard":
         await handleLeaderboard(interaction, guildId);
         break;
+      case "me":
+        await handleUser(interaction, guildId, interaction.user);
+        break;
       case "user":
-        await handleUser(interaction, guildId);
+        await handleUser(interaction, guildId, interaction.options.getUser("user", true));
         break;
       case "player":
         await handlePlayer(interaction, guildId);
@@ -109,7 +112,15 @@ export const statsCommand: Command = {
       case "stacks":
         await handleStacks(interaction, guildId);
         break;
+      case "players":
+        await handlePlayers(interaction, guildId);
+        break;
+      case "add":
+        if (!(await requireAdmin(interaction))) return;
+        await handleAdd(interaction, guildId);
+        break;
       case "reset":
+        if (!(await requireAdmin(interaction))) return;
         await handleReset(interaction, guildId);
         break;
     }
@@ -124,7 +135,7 @@ async function handleLeaderboard(
 
   if (leaderboard.length === 0) {
     await interaction.reply({
-      content: "No stats recorded yet.",
+      content: "⚠️ **No stats recorded yet.**",
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -159,9 +170,9 @@ async function handleLeaderboard(
 
 async function handleUser(
   interaction: ChatInputCommandInteraction,
-  guildId: string
+  guildId: string,
+  user: User
 ): Promise<void> {
-  const user = interaction.options.getUser("user", true);
   const config = getGuildConfig(guildId);
   const serverKey = config.serverKey;
 
@@ -169,7 +180,7 @@ async function handleUser(
 
   if (!userStats) {
     await interaction.reply({
-      content: `<@${user.id}> has no recorded contributions.`,
+      content: user.id === interaction.user.id ? "⚠️ **No troops recorded for you yet.**" : `⚠️ **No troops recorded for <@${user.id}> yet.**`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -428,4 +439,65 @@ async function handleReset(
       components: [],
     });
   }
+}
+
+async function handlePlayers(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const players = getAllPlayers(guildId);
+
+  if (players.length === 0) {
+    await interaction.reply({
+      content: `⚠️ **No linked accounts yet.** Link yours with ${cmd("account link")}.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const lines = players.map((player) => {
+    const owners = player.owners.length > 0 ? player.owners.map((id) => `<@${id}>`).join(", ") : "_no owner_";
+    const sitters = player.sitters.length > 0 ? ` (sitters: ${player.sitters.map((id) => `<@${id}>`).join(", ")})` : "";
+    return `**${player.name}**: ${owners}${sitters}`;
+  });
+
+  // Discord caps messages at 2000 characters; chunk without pinging anyone
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of lines) {
+    if (current.length + line.length + 1 > 1900) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current += (current ? "\n" : "") + line;
+    }
+  }
+  if (current) chunks.push(current);
+
+  await interaction.reply({ content: chunks[0], allowedMentions: { parse: [] } });
+  for (const chunk of chunks.slice(1)) {
+    await interaction.followUp({ content: chunk, allowedMentions: { parse: [] } });
+  }
+}
+
+async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const coords = parseCoords(interaction.options.getString("coords", true));
+  const troops = interaction.options.getInteger("troops", true);
+  const target = interaction.options.getUser("for") ?? interaction.user;
+
+  if (!coords) {
+    await interaction.reply({ content: errors.invalidCoords(), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (troops === 0) {
+    await interaction.reply({ content: errors.countIsZero("troop"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  recordContribution(guildId, target.id, coords.x, coords.y, troops);
+
+  const verb = troops > 0 ? "Added" : "Subtracted";
+  const preposition = troops > 0 ? "to" : "from";
+  await interaction.reply({
+    content: `✅ ${verb} **${formatNumber(Math.abs(troops))}** troops ${preposition} (${coords.x}|${coords.y}) stats for <@${target.id}>.`,
+    flags: MessageFlags.Ephemeral,
+    allowedMentions: { parse: [] },
+  });
 }

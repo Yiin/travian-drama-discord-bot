@@ -1,5 +1,4 @@
 import {
-  SlashCommandBuilder,
   ChatInputCommandInteraction,
   AutocompleteInteraction,
   EmbedBuilder,
@@ -21,59 +20,50 @@ import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
+import { requireAdmin } from "../utils/permissions";
+import { guildCommand } from "./shared";
 import { formatResources } from "../utils/format";
 import { errors } from "../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const pushCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("push")
-    .setDescription("Resource push coordination")
+  topic: "pushes",
+  summary: "Resource pushes: one thread per request, report what you sent inside it",
+  data: guildCommand("push", "Resource pushes: ask for resources or report what you sent")
     .addSubcommand((sub) =>
       sub
         .setName("request")
-        .setDescription("Create a push request")
+        .setDescription("Open a push thread for a village that needs resources")
         .addStringOption((opt) =>
-          opt
-            .setName("coords")
-            .setDescription("Coordinates (e.g., 123|456)")
-            .setRequired(true)
+          opt.setName("coords").setDescription("Village coordinates, for example 123|456").setRequired(true)
         )
         .addIntegerOption((opt) =>
-          opt
-            .setName("amount")
-            .setDescription("Resources needed")
-            .setRequired(true)
-            .setMinValue(1)
+          opt.setName("amount").setDescription("Resources needed in total").setRequired(true).setMinValue(1)
         )
     )
     .addSubcommand((sub) =>
       sub
         .setName("sent")
-        .setDescription("Report resources sent (use in push channel)")
+        .setDescription("Report resources you sent (use inside the push thread)")
         .addIntegerOption((opt) =>
-          opt
-            .setName("amount")
-            .setDescription("Resources sent")
-            .setRequired(true)
-            .setMinValue(1)
+          opt.setName("amount").setDescription("Resources you sent").setRequired(true).setMinValue(1)
+        )
+        .addUserOption((opt) =>
+          opt.setName("for").setDescription("Credit another member instead of yourself")
         )
     )
     .addSubcommand((sub) =>
-      sub
-        .setName("delete")
-        .setDescription("Delete this push request (use in push channel)")
+      sub.setName("close").setDescription("Close this push thread (requester or admin)")
+    )
+    .addSubcommand((sub) =>
+      sub.setName("delete").setDescription("Delete this push request and its thread (admin)")
     )
     .addSubcommand((sub) =>
       sub
         .setName("edit")
-        .setDescription("Edit push request amount (use in push channel)")
+        .setDescription("Change how many resources this push needs (use inside the thread)")
         .addIntegerOption((opt) =>
-          opt
-            .setName("amount")
-            .setDescription("New resource amount needed")
-            .setRequired(true)
-            .setMinValue(1)
+          opt.setName("amount").setDescription("New total needed").setRequired(true).setMinValue(1)
         )
     )
     .addSubcommandGroup((group) =>
@@ -187,8 +177,10 @@ export const pushCommand: Command = {
       } else if (subcommand === "player") {
         await handleStatsPlayer(interaction);
       } else if (subcommand === "edit") {
+        if (!(await requireAdmin(interaction))) return;
         await handleStatsEdit(interaction);
       } else if (subcommand === "transfer") {
+        if (!(await requireAdmin(interaction))) return;
         await handleStatsTransfer(interaction);
       }
       return;
@@ -212,7 +204,11 @@ export const pushCommand: Command = {
       case "sent":
         await handleSent(interaction);
         break;
+      case "close":
+        await handleClose(interaction);
+        break;
       case "delete":
+        if (!(await requireAdmin(interaction))) return;
         await handleDelete(interaction);
         break;
       case "edit":
@@ -344,6 +340,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 3. Parse inputs
   const resources = interaction.options.getInteger("amount", true);
+  const creditUser = interaction.options.getUser("for");
 
   // 4. Defer reply
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
@@ -359,6 +356,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
     {
       target: requestData.requestId.toString(),
       resources,
+      creditUserId: creditUser?.id,
     }
   );
 
@@ -371,6 +369,23 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
   await interaction.editReply(
     confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
   );
+}
+
+/** Close = the requester or an admin removes the request. Archiving arrives in Phase 3. */
+async function handleClose(interaction: ChatInputCommandInteraction): Promise<void> {
+  const validation = validatePushConfig(interaction.guildId);
+  if (!validation.valid) {
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const requestData = getPushRequestByChannelId(validation.guildId, interaction.channelId);
+  if (!requestData) {
+    await interaction.reply({ content: errors.notInThread("push"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const isRequester = requestData.request.requesterId === interaction.user.id;
+  if (!isRequester && !(await requireAdmin(interaction))) return;
+  await handleDelete(interaction);
 }
 
 async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {

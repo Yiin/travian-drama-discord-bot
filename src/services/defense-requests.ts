@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { expireActionHistory } from "./history-expiry";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const REQUESTS_FILE = path.join(DATA_DIR, "defense-requests.json");
@@ -12,6 +13,8 @@ export interface Contributor {
 }
 
 export interface DefenseRequest {
+  /** Stable per-guild id. Never changes, never reused. Shown to users as `#41`. */
+  id: number;
   x: number;
   y: number;
   troopsSent: number;
@@ -31,6 +34,9 @@ export interface CompletedRequest {
 
 export interface GuildDefenseData {
   globalMessageId?: string;
+  /** Next stable id to hand out. */
+  nextId: number;
+  /** Array order is the queue position (first = highest priority). */
   requests: DefenseRequest[];
   recentlyCompleted: CompletedRequest[];
 }
@@ -48,8 +54,35 @@ function loadAllData(): AllGuildData {
   if (!fs.existsSync(REQUESTS_FILE)) {
     return {};
   }
-  const data = fs.readFileSync(REQUESTS_FILE, "utf-8");
-  return JSON.parse(data);
+  const data: AllGuildData = JSON.parse(fs.readFileSync(REQUESTS_FILE, "utf-8"));
+  if (migrateIds(data)) {
+    saveAllData(data);
+  }
+  return data;
+}
+
+/**
+ * Give stable ids to records written before ids existed.
+ * Older undo entries referenced positions, so they are expired.
+ * Returns true when anything changed.
+ */
+function migrateIds(data: AllGuildData): boolean {
+  let changed = false;
+  for (const [guildId, guild] of Object.entries(data)) {
+    const missing = guild.requests.some((r) => r.id === undefined);
+    if (!missing && guild.nextId !== undefined) continue;
+    if (missing) {
+      let next = 1;
+      for (const request of guild.requests) {
+        request.id = next++;
+      }
+      expireActionHistory(guildId, "expired by id migration");
+    }
+    const maxId = guild.requests.reduce((max, r) => Math.max(max, r.id), 0);
+    guild.nextId = Math.max(guild.nextId ?? 1, maxId + 1);
+    changed = true;
+  }
+  return changed;
 }
 
 function saveAllData(data: AllGuildData): void {
@@ -59,6 +92,7 @@ function saveAllData(data: AllGuildData): void {
 
 function getDefaultGuildData(): GuildDefenseData {
   return {
+    nextId: 1,
     requests: [],
     recentlyCompleted: [],
   };
@@ -75,6 +109,10 @@ function saveGuildData(guildId: string, data: GuildDefenseData): void {
   saveAllData(allData);
 }
 
+function indexOfId(data: GuildDefenseData, requestId: number): number {
+  return data.requests.findIndex((r) => r.id === requestId);
+}
+
 export function setGlobalMessageId(guildId: string, messageId: string): void {
   const data = getGuildDefenseData(guildId);
   data.globalMessageId = messageId;
@@ -87,7 +125,7 @@ export function getGlobalMessageId(guildId: string): string | undefined {
 
 export interface AddRequestResult {
   request: DefenseRequest;
-  requestId: number; // 1-based position ID
+  requestId: number;
 }
 
 export function addRequest(
@@ -100,13 +138,12 @@ export function addRequest(
 ): AddRequestResult | { error: string } {
   const data = getGuildDefenseData(guildId);
 
-  // Check max requests limit
   if (data.requests.length >= MAX_REQUESTS) {
     return { error: `Maximum of ${MAX_REQUESTS} active requests reached.` };
   }
 
-  // Create new request (multiple requests per coordinate allowed)
   const newRequest: DefenseRequest = {
+    id: data.nextId++,
     x,
     y,
     troopsSent: 0,
@@ -120,16 +157,20 @@ export function addRequest(
   data.requests.push(newRequest);
   saveGuildData(guildId, data);
 
-  return { request: newRequest, requestId: data.requests.length };
+  return { request: newRequest, requestId: newRequest.id };
 }
 
 export function getRequestById(
   guildId: string,
   requestId: number
 ): DefenseRequest | undefined {
-  const data = getGuildDefenseData(guildId);
-  // IDs are 1-based, so convert to 0-based index
-  return data.requests[requestId - 1];
+  return getGuildDefenseData(guildId).requests.find((r) => r.id === requestId);
+}
+
+/** 1-based queue position of a request, or undefined when it is not active. */
+export function getRequestPosition(guildId: string, requestId: number): number | undefined {
+  const index = indexOfId(getGuildDefenseData(guildId), requestId);
+  return index === -1 ? undefined : index + 1;
 }
 
 export function getRequestsByCoords(
@@ -138,13 +179,9 @@ export function getRequestsByCoords(
   y: number
 ): { request: DefenseRequest; requestId: number }[] {
   const data = getGuildDefenseData(guildId);
-  const results: { request: DefenseRequest; requestId: number }[] = [];
-  data.requests.forEach((r, index) => {
-    if (r.x === x && r.y === y) {
-      results.push({ request: r, requestId: index + 1 });
-    }
-  });
-  return results;
+  return data.requests
+    .filter((r) => r.x === x && r.y === y)
+    .map((request) => ({ request, requestId: request.id }));
 }
 
 export interface ReportTroopsResult {
@@ -159,15 +196,13 @@ export function reportTroopsSent(
   troops: number
 ): ReportTroopsResult | { error: string } {
   const data = getGuildDefenseData(guildId);
-  // IDs are 1-based, convert to 0-based index
-  const index = requestId - 1;
+  const index = indexOfId(data, requestId);
   const request = data.requests[index];
 
   if (!request) {
     return { error: `Request #${requestId} not found.` };
   }
 
-  // Add to contributors
   const existingContributor = request.contributors.find(
     (c) => c.userId === userId
   );
@@ -177,17 +212,14 @@ export function reportTroopsSent(
     request.contributors.push({ userId, troops });
   }
 
-  // Update total troops sent
   request.troopsSent += troops;
 
   const isComplete = request.troopsSent >= request.troopsNeeded;
 
   if (isComplete) {
-    // Remove from active requests
     data.requests.splice(index, 1);
-    // Add to recently completed
     data.recentlyCompleted.push({
-      id: requestId,
+      id: request.id,
       x: request.x,
       y: request.y,
       completedBy: userId,
@@ -211,8 +243,7 @@ export function updateRequest(
   updates: UpdateRequestOptions
 ): DefenseRequest | { error: string } {
   const data = getGuildDefenseData(guildId);
-  // IDs are 1-based, convert to 0-based index
-  const index = requestId - 1;
+  const index = indexOfId(data, requestId);
   const request = data.requests[index];
 
   if (!request) {
@@ -229,11 +260,10 @@ export function updateRequest(
     request.message = updates.message;
   }
 
-  // Check if now complete
   if (request.troopsSent >= request.troopsNeeded) {
     data.requests.splice(index, 1);
     data.recentlyCompleted.push({
-      id: requestId,
+      id: request.id,
       x: request.x,
       y: request.y,
       completedBy: "admin",
@@ -249,10 +279,9 @@ export function removeRequest(
   requestId: number
 ): boolean {
   const data = getGuildDefenseData(guildId);
-  // IDs are 1-based, convert to 0-based index
-  const index = requestId - 1;
+  const index = indexOfId(data, requestId);
 
-  if (index < 0 || index >= data.requests.length) {
+  if (index === -1) {
     return false;
   }
 
@@ -282,9 +311,8 @@ export interface RestoreResult {
 }
 
 /**
- * Restores a request back to the active list.
- * Always adds to end (multiple requests per coordinate allowed).
- * Returns the new 1-based request ID.
+ * Puts a request back into the active list at the end of the queue.
+ * The request keeps its id unless that id is active again, in which case it gets a new one.
  */
 export function restoreRequest(
   guildId: string,
@@ -292,23 +320,21 @@ export function restoreRequest(
 ): RestoreResult {
   const data = getGuildDefenseData(guildId);
 
-  // Check max requests limit
   if (data.requests.length >= MAX_REQUESTS) {
-    return { success: false, error: "Maximum request limit reached (20)." };
+    return { success: false, error: `Maximum request limit reached (${MAX_REQUESTS}).` };
   }
 
-  // Add at end
+  const idTaken = request.id === undefined || indexOfId(data, request.id) !== -1;
   const restoredRequest: DefenseRequest = {
     ...request,
+    id: idTaken ? data.nextId++ : request.id,
     contributors: [...request.contributors],
   };
+  data.nextId = Math.max(data.nextId, restoredRequest.id + 1);
   data.requests.push(restoredRequest);
   saveGuildData(guildId, data);
-  return { success: true, requestId: data.requests.length };
+  return { success: true, requestId: restoredRequest.id };
 }
-
-// removeRequestByCoords removed - use removeRequest(guildId, requestId) instead
-// Multiple requests per coordinate are now allowed
 
 export interface SubtractTroopsResult {
   success: boolean;
@@ -317,7 +343,7 @@ export interface SubtractTroopsResult {
 }
 
 /**
- * Subtracts troops from a request by requestId (reverse of reportTroopsSent).
+ * Subtracts troops from a request (reverse of reportTroopsSent).
  * Also updates the contributor's total.
  */
 export function subtractTroops(
@@ -327,23 +353,18 @@ export function subtractTroops(
   troops: number
 ): SubtractTroopsResult {
   const data = getGuildDefenseData(guildId);
-  const index = requestId - 1; // Convert 1-based to 0-based
+  const request = data.requests.find((r) => r.id === requestId);
 
-  if (index < 0 || index >= data.requests.length) {
+  if (!request) {
     return { success: false, error: "Request not found." };
   }
 
-  const request = data.requests[index];
-
-  // Subtract from total
   request.troopsSent = Math.max(0, request.troopsSent - troops);
 
-  // Update contributor
   const contributor = request.contributors.find((c) => c.userId === contributorId);
   if (contributor) {
     contributor.troops -= troops;
     if (contributor.troops <= 0) {
-      // Remove contributor if no troops left
       request.contributors = request.contributors.filter(
         (c) => c.userId !== contributorId
       );
@@ -360,33 +381,33 @@ export interface MoveRequestResult {
 }
 
 /**
- * Moves a request from one position to another.
- * Both positions are 1-based.
+ * Moves a request to a 1-based queue position.
  */
 export function moveRequest(
   guildId: string,
-  fromPosition: number,
+  requestId: number,
   toPosition: number
 ): MoveRequestResult {
   const data = getGuildDefenseData(guildId);
-  const fromIndex = fromPosition - 1;
+  const fromIndex = indexOfId(data, requestId);
   const toIndex = toPosition - 1;
 
-  if (fromIndex < 0 || fromIndex >= data.requests.length) {
-    return { success: false, error: `Request #${fromPosition} not found.` };
+  if (fromIndex === -1) {
+    return { success: false, error: `Request #${requestId} not found.` };
   }
 
   if (toIndex < 0 || toIndex >= data.requests.length) {
-    return { success: false, error: `Position #${toPosition} does not exist.` };
+    return {
+      success: false,
+      error: `Position ${toPosition} does not exist. There are ${data.requests.length} requests.`,
+    };
   }
 
   if (fromIndex === toIndex) {
-    return { success: false, error: "Both positions are the same." };
+    return { success: false, error: `Request #${requestId} is already at position ${toPosition}.` };
   }
 
-  // Remove the request from its current position
   const [request] = data.requests.splice(fromIndex, 1);
-  // Insert it at the new position
   data.requests.splice(toIndex, 0, request);
 
   saveGuildData(guildId, data);

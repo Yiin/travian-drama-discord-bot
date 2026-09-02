@@ -25,13 +25,18 @@ export interface CreatePushChannelResult {
   messageId: string;
 }
 
-function sanitizeChannelName(playerName: string): string {
-  // Lowercase, replace spaces with dashes, remove special chars
-  return playerName
+/** `push-9-playername`; falls back to `push-9` when the name has no ASCII letters or digits. */
+export function buildPushThreadName(requestId: number, playerName: string): string {
+  const slug = playerName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "")
-    .substring(0, 30); // Keep player name portion short
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .substring(0, 30);
+  return slug ? `push-${requestId}-${slug}` : `push-${requestId}`;
 }
 
 function buildProgressBar(percent: number): string {
@@ -116,7 +121,7 @@ export async function createPushThread(
   const config = getGuildConfig(guildId);
 
   if (!config.pushChannelId) {
-    throw new Error("Push channel is not configured. Use /configure channel type:Push first.");
+    throw new Error("Push channel is not configured.");
   }
 
   if (!config.serverKey) {
@@ -131,7 +136,6 @@ export async function createPushThread(
   // Get player name for thread name
   const village = await getVillageAt(config.serverKey, request.x, request.y);
   const playerName = village?.playerName || "unknown";
-  const sanitizedPlayerName = sanitizeChannelName(playerName);
 
   // Build starter message visible in the parent channel feed
   const villageDisplay = village
@@ -145,7 +149,7 @@ export async function createPushThread(
 
   // Create thread from the starter message
   const thread = await starter.startThread({
-    name: `push-${requestId}-${sanitizedPlayerName}`,
+    name: buildPushThreadName(requestId, playerName),
     autoArchiveDuration: 10080,
     reason: `Push request #${requestId} by ${request.requesterAccount}`,
   });

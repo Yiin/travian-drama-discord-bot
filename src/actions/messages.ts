@@ -51,11 +51,11 @@ const CHANNEL_LABEL: Record<ChannelKind, string> = {
   push: "resource pushes",
 };
 
-const CHANNEL_CONFIGURE_TYPE: Record<ChannelKind, string> = {
-  defense: "Defense",
-  scout: "Scout",
-  defcalls: "DefCalls",
-  push: "Push",
+const CHANNEL_SETUP_TYPE: Record<ChannelKind, string> = {
+  defense: "Stack requests",
+  scout: "Scouting",
+  defcalls: "Defense calls",
+  push: "Resource pushes",
 };
 
 // --- Errors ---
@@ -64,13 +64,13 @@ export const errors = {
   guildOnly: () => "⚠️ **This only works inside a server.**",
 
   notSetUp: () =>
-    `⚠️ **Bot is not set up yet.** An admin needs to run ${cmd("configure server")} to pick the Travian server.`,
+    `⚠️ **Bot is not set up yet.** An admin needs to run ${cmd("setup server")} to pick the Travian server.`,
 
   channelMissing: (kind: ChannelKind) =>
-    `⚠️ **No ${CHANNEL_LABEL[kind]} channel yet.** An admin can pick one with ${cmd("configure channel")} (type: ${CHANNEL_CONFIGURE_TYPE[kind]}).`,
+    `⚠️ **No ${CHANNEL_LABEL[kind]} channel yet.** An admin can pick one with ${cmd("setup channel")} (type: ${CHANNEL_SETUP_TYPE[kind]}).`,
 
   channelGone: (kind: ChannelKind) =>
-    `⚠️ **The ${CHANNEL_LABEL[kind]} channel no longer exists.** An admin can pick a new one with ${cmd("configure channel")}.`,
+    `⚠️ **The ${CHANNEL_LABEL[kind]} channel no longer exists.** An admin can pick a new one with ${cmd("setup channel")}.`,
 
   wrongChannel: (kind: ChannelKind, channelId: string | undefined, slashAlternative: string) =>
     channelId
@@ -81,10 +81,10 @@ export const errors = {
     `⚠️ **This is not a ${what} thread.** Run it inside the thread the bot created for the request.`,
 
   accountNotLinked: () =>
-    `⚠️ **Link your in-game account first.** Run ${cmd("account set")} with your player name.`,
+    `⚠️ **Link your in-game account first.** Run ${cmd("account link")} with your player name.`,
 
   otherAccountNotLinked: (userId: string) =>
-    `⚠️ **<@${userId}> has no linked in-game account.** They can link it with ${cmd("account set")}.`,
+    `⚠️ **<@${userId}> has no linked in-game account.** They can link it with ${cmd("account link")}.`,
 
   invalidCoords: () =>
     "⚠️ **Those are not coordinates.** Use the form `123|456` or `-45|89`.",

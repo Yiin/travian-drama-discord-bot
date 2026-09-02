@@ -19,7 +19,7 @@ import {
 } from "./def-calls";
 import { getGuildConfig } from "../config/guild-config";
 import { getVillageAt, getMapLink, formatVillageDisplay, getRallyPointLink, VillageData } from "./map-data";
-import { formatRelativeWithRaw } from "../utils/time";
+import { formatRelativeWithRaw, formatRawTime } from "../utils/time";
 import {
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_SENT_BUTTON_ID,
@@ -27,17 +27,10 @@ import {
 } from "./button-handlers/def-call-ids";
 import { formatTroops } from "../utils/format";
 
-function pad2(n: number): string {
-  return n.toString().padStart(2, "0");
-}
-
-function buildChannelName(request: DefCallRequest): string {
-  const date = new Date(request.landingAt * 1000);
-  const hh = pad2(date.getUTCHours());
-  const mm = pad2(date.getUTCMinutes());
-  const xPart = request.x < 0 ? `n${Math.abs(request.x)}` : `${request.x}`;
-  const yPart = request.y < 0 ? `n${Math.abs(request.y)}` : `${request.y}`;
-  return `def-${xPart}-${yPart}-${hh}${mm}`.toLowerCase();
+/** `def-12|-45-1430`: coordinates plus landing time (HHMM) in the server's timezone. */
+export function buildDefCallThreadName(request: DefCallRequest, serverTimezone?: string): string {
+  const hhmm = formatRawTime(request.landingAt, serverTimezone).slice(0, 5).replace(":", "");
+  return `def-${request.x}|${request.y}-${hhmm}`;
 }
 
 function isDefCallFulfilled(request: DefCallRequest): boolean {
@@ -185,7 +178,7 @@ export async function createDefCallThread(
   });
 
   const thread = await starter.startThread({
-    name: buildChannelName(request),
+    name: buildDefCallThreadName(request, config.serverTimezone),
     autoArchiveDuration: 10080,
     reason: `Def call by ${request.requesterAccount}`,
   });

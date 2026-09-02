@@ -3,9 +3,10 @@ import { requireAdminMiddleware } from "../middleware";
 import { normalizeServerKey, isValidServerKey, replyError } from "../utils";
 import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setPushChannelId, setServerTimezone } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
+import { buildSetupSummary } from "../../../commands/setup";
 import { isValidTimezone } from "../../../utils/time";
 
-async function handleConfigureServerCommandInner(
+async function handleSetupServerCommandInner(
   ctx: CommandContext,
   serverInput: string
 ): Promise<void> {
@@ -23,37 +24,37 @@ async function handleConfigureServerCommandInner(
     // Download map data
     await updateMapData(serverKey);
 
-    await ctx.message.reply(`Travian server set: \`${serverKey}\`\nMap data downloaded successfully!`);
+    await ctx.message.reply(`✅ Travian server set to \`${serverKey}\`. Map data downloaded.`);
     await ctx.message.react("✅");
   } catch (error) {
-    console.error("[Configure] Failed to download map data:", error);
-    await ctx.message.reply(`Server saved as \`${serverKey}\`, but map data could not be downloaded. The bot will retry later.`);
+    console.error("[Setup] Failed to download map data:", error);
+    await ctx.message.reply(`✅ Travian server set to \`${serverKey}\`. ⚠️ Map data could not be downloaded yet; the bot will retry.`);
   }
 }
 
-async function handleConfigureChannelCommandInner(
+async function handleSetupChannelCommandInner(
   ctx: CommandContext,
   type: "defense" | "scout" | "defcalls" | "push",
   channelId: string
 ): Promise<void> {
   if (type === "defense") {
     setDefenseChannel(ctx.guildId, channelId);
-    await ctx.message.reply(`Defense requests will be sent to <#${channelId}>`);
+    await ctx.message.reply(`✅ Stack requests now go to <#${channelId}>.`);
   } else if (type === "scout") {
     setScoutChannel(ctx.guildId, channelId);
-    await ctx.message.reply(`Scout requests will be sent to <#${channelId}>`);
+    await ctx.message.reply(`✅ Scouting now goes to <#${channelId}>.`);
   } else if (type === "defcalls") {
     setDefCallsChannelId(ctx.guildId, channelId);
-    await ctx.message.reply(`Def-call hub channel: <#${channelId}>`);
+    await ctx.message.reply(`✅ Defense calls now go to <#${channelId}>.`);
   } else {
     setPushChannelId(ctx.guildId, channelId);
-    await ctx.message.reply(`Push request threads will be created in <#${channelId}>`);
+    await ctx.message.reply(`✅ Resource pushes now go to <#${channelId}>.`);
   }
 
   await ctx.message.react("✅");
 }
 
-async function handleConfigureScoutRoleCommandInner(
+async function handleSetupScoutRoleCommandInner(
   ctx: CommandContext,
   roleId?: string,
   clearKeyword?: string
@@ -62,27 +63,27 @@ async function handleConfigureScoutRoleCommandInner(
     const config = getGuildConfig(ctx.guildId);
     if (config.scoutRoleId) {
       setScoutRole(ctx.guildId, null);
-      await ctx.message.reply("Scout role mention has been cleared.");
+      await ctx.message.reply("✅ Scout role cleared.");
     } else {
-      await ctx.message.reply("Scout role is not configured.");
+      await ctx.message.reply("⚠️ **No scout role is set.**");
     }
   } else if (roleId) {
     setScoutRole(ctx.guildId, roleId);
-    await ctx.message.reply(`Scout requests will now mention <@&${roleId}>`);
+    await ctx.message.reply(`✅ Scout requests now mention <@&${roleId}>.`);
   } else {
     const config = getGuildConfig(ctx.guildId);
     if (config.scoutRoleId) {
       setScoutRole(ctx.guildId, null);
-      await ctx.message.reply("Scout role mention has been cleared.");
+      await ctx.message.reply("✅ Scout role cleared.");
     } else {
-      await ctx.message.reply("Scout role is not configured.");
+      await ctx.message.reply("⚠️ **No scout role is set.**");
     }
   }
 
   await ctx.message.react("✅");
 }
 
-async function handleConfigureTimezoneCommandInner(
+async function handleSetupTimezoneCommandInner(
   ctx: CommandContext,
   value: string
 ): Promise<void> {
@@ -90,7 +91,7 @@ async function handleConfigureTimezoneCommandInner(
 
   if (trimmed.toLowerCase() === "clear") {
     setServerTimezone(ctx.guildId, null);
-    await ctx.message.reply("Server timezone cleared. Entered times will be treated as UTC.");
+    await ctx.message.reply("✅ Timezone cleared. Typed times are read as UTC.");
     await ctx.message.react("✅");
     return;
   }
@@ -101,12 +102,17 @@ async function handleConfigureTimezoneCommandInner(
   }
 
   setServerTimezone(ctx.guildId, trimmed);
-  await ctx.message.reply(`Server timezone set: \`${trimmed}\`. Entered times will be treated as local time in this timezone.`);
+  await ctx.message.reply(`✅ Timezone set to \`${trimmed}\`. Typed times are read as local time there.`);
   await ctx.message.react("✅");
 }
 
+async function handleSetupShowCommandInner(ctx: CommandContext): Promise<void> {
+  await ctx.message.reply({ content: buildSetupSummary(getGuildConfig(ctx.guildId)), allowedMentions: { parse: [] } });
+}
+
 // Wrap with admin checks
-export const handleConfigureServerCommand = requireAdminMiddleware(handleConfigureServerCommandInner);
-export const handleConfigureChannelCommand = requireAdminMiddleware(handleConfigureChannelCommandInner);
-export const handleConfigureScoutRoleCommand = requireAdminMiddleware(handleConfigureScoutRoleCommandInner);
-export const handleConfigureTimezoneCommand = requireAdminMiddleware(handleConfigureTimezoneCommandInner);
+export const handleSetupServerCommand = requireAdminMiddleware(handleSetupServerCommandInner);
+export const handleSetupChannelCommand = requireAdminMiddleware(handleSetupChannelCommandInner);
+export const handleSetupScoutRoleCommand = requireAdminMiddleware(handleSetupScoutRoleCommandInner);
+export const handleSetupTimezoneCommand = requireAdminMiddleware(handleSetupTimezoneCommandInner);
+export const handleSetupShowCommand = requireAdminMiddleware(handleSetupShowCommandInner);

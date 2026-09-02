@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { expireActionHistory } from "./history-expiry";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DEF_CALLS_FILE = path.join(DATA_DIR, "def-calls.json");
@@ -10,6 +11,8 @@ export interface DefCallContributor {
 }
 
 export interface DefCallRequest {
+  /** Stable per-guild id. Never changes, never reused. Shown to users as `#17`. */
+  id: number;
   x: number;
   y: number;
   landingAt: number;
@@ -27,6 +30,7 @@ export interface DefCallRequest {
 }
 
 export interface GuildDefCalls {
+  nextId: number;
   requests: DefCallRequest[];
   hubButtonMessageId?: string;
 }
@@ -44,8 +48,30 @@ function loadAllData(): AllGuildData {
   if (!fs.existsSync(DEF_CALLS_FILE)) {
     return {};
   }
-  const data = fs.readFileSync(DEF_CALLS_FILE, "utf-8");
-  return JSON.parse(data);
+  const data: AllGuildData = JSON.parse(fs.readFileSync(DEF_CALLS_FILE, "utf-8"));
+  if (migrateIds(data)) {
+    saveAllData(data);
+  }
+  return data;
+}
+
+function migrateIds(data: AllGuildData): boolean {
+  let changed = false;
+  for (const [guildId, guild] of Object.entries(data)) {
+    const missing = guild.requests.some((r) => r.id === undefined);
+    if (!missing && guild.nextId !== undefined) continue;
+    if (missing) {
+      let next = 1;
+      for (const request of guild.requests) {
+        request.id = next++;
+      }
+      expireActionHistory(guildId, "expired by id migration");
+    }
+    const maxId = guild.requests.reduce((max, r) => Math.max(max, r.id), 0);
+    guild.nextId = Math.max(guild.nextId ?? 1, maxId + 1);
+    changed = true;
+  }
+  return changed;
 }
 
 function saveAllData(data: AllGuildData): void {
@@ -54,7 +80,7 @@ function saveAllData(data: AllGuildData): void {
 }
 
 function getDefaultGuildData(): GuildDefCalls {
-  return { requests: [] };
+  return { nextId: 1, requests: [] };
 }
 
 export function getGuildDefCalls(guildId: string): GuildDefCalls {
@@ -66,6 +92,10 @@ function saveGuildData(guildId: string, data: GuildDefCalls): void {
   const allData = loadAllData();
   allData[guildId] = data;
   saveAllData(allData);
+}
+
+function findById(data: GuildDefCalls, requestId: number): DefCallRequest | undefined {
+  return data.requests.find((r) => r.id === requestId);
 }
 
 export interface AddDefCallResult {
@@ -86,6 +116,7 @@ export function addRequest(
   const data = getGuildDefCalls(guildId);
 
   const newRequest: DefCallRequest = {
+    id: data.nextId++,
     x,
     y,
     landingAt,
@@ -101,28 +132,22 @@ export function addRequest(
 
   data.requests.push(newRequest);
   saveGuildData(guildId, data);
-  return { request: newRequest, requestId: data.requests.length };
+  return { request: newRequest, requestId: newRequest.id };
 }
 
 export function getRequestById(
   guildId: string,
   requestId: number
 ): DefCallRequest | undefined {
-  const data = getGuildDefCalls(guildId);
-  return data.requests[requestId - 1];
+  return findById(getGuildDefCalls(guildId), requestId);
 }
 
 export function getRequestByChannelId(
   guildId: string,
   channelId: string
 ): { request: DefCallRequest; requestId: number } | undefined {
-  const data = getGuildDefCalls(guildId);
-  for (let i = 0; i < data.requests.length; i++) {
-    if (data.requests[i].channelId === channelId) {
-      return { request: data.requests[i], requestId: i + 1 };
-    }
-  }
-  return undefined;
+  const request = getGuildDefCalls(guildId).requests.find((r) => r.channelId === channelId);
+  return request ? { request, requestId: request.id } : undefined;
 }
 
 export interface ReportTroopsResult {
@@ -137,8 +162,7 @@ export function reportTroopsSent(
   troops: number
 ): ReportTroopsResult | { error: string } {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  const request = data.requests[index];
+  const request = findById(data, requestId);
   if (!request) {
     return { error: `Request #${requestId} not found.` };
   }
@@ -170,11 +194,10 @@ export function subtractTroops(
   troops: number
 ): SubtractTroopsResult {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  if (index < 0 || index >= data.requests.length) {
+  const request = findById(data, requestId);
+  if (!request) {
     return { success: false, error: "Request not found." };
   }
-  const request = data.requests[index];
   request.troopsSent = Math.max(0, request.troopsSent - troops);
   const contributor = request.contributors.find((c) => c.accountName === accountName);
   if (contributor) {
@@ -194,8 +217,7 @@ export function closeRequest(
   requestId: number
 ): DefCallRequest | { error: string } {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  const request = data.requests[index];
+  const request = findById(data, requestId);
   if (!request) {
     return { error: `Request #${requestId} not found.` };
   }
@@ -210,12 +232,13 @@ export function restoreRequest(
   state: DefCallRequest
 ): DefCallRequest | { error: string } {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  if (index < 0 || index >= data.requests.length) {
+  const index = data.requests.findIndex((r) => r.id === requestId);
+  if (index === -1) {
     return { error: `Request #${requestId} not found.` };
   }
   data.requests[index] = {
     ...state,
+    id: requestId,
     contributors: [...state.contributors],
   };
   saveGuildData(guildId, data);
@@ -229,10 +252,10 @@ export function updateChannelInfo(
   messageId: string
 ): void {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  if (index >= 0 && index < data.requests.length) {
-    data.requests[index].channelId = channelId;
-    data.requests[index].messageId = messageId;
+  const request = findById(data, requestId);
+  if (request) {
+    request.channelId = channelId;
+    request.messageId = messageId;
     saveGuildData(guildId, data);
   }
 }
@@ -243,9 +266,9 @@ export function updateMessageId(
   messageId: string
 ): void {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  if (index >= 0 && index < data.requests.length) {
-    data.requests[index].messageId = messageId;
+  const request = findById(data, requestId);
+  if (request) {
+    request.messageId = messageId;
     saveGuildData(guildId, data);
   }
 }
@@ -256,9 +279,9 @@ export function updateSummaryMessageId(
   summaryMessageId: string | undefined
 ): void {
   const data = getGuildDefCalls(guildId);
-  const index = requestId - 1;
-  if (index >= 0 && index < data.requests.length) {
-    data.requests[index].summaryMessageId = summaryMessageId;
+  const request = findById(data, requestId);
+  if (request) {
+    request.summaryMessageId = summaryMessageId;
     saveGuildData(guildId, data);
   }
 }
@@ -273,21 +296,15 @@ export function setHubButtonMessageId(
 }
 
 export function getHubButtonMessageId(guildId: string): string | undefined {
-  const data = getGuildDefCalls(guildId);
-  return data.hubButtonMessageId;
+  return getGuildDefCalls(guildId).hubButtonMessageId;
 }
 
 export function getActiveRequests(
   guildId: string
 ): { request: DefCallRequest; requestId: number }[] {
-  const data = getGuildDefCalls(guildId);
-  const result: { request: DefCallRequest; requestId: number }[] = [];
-  for (let i = 0; i < data.requests.length; i++) {
-    if (!data.requests[i].closed) {
-      result.push({ request: data.requests[i], requestId: i + 1 });
-    }
-  }
-  return result;
+  return getGuildDefCalls(guildId)
+    .requests.filter((r) => !r.closed)
+    .map((request) => ({ request, requestId: request.id }));
 }
 
 export function getAllRequests(guildId: string): DefCallRequest[] {

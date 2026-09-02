@@ -172,7 +172,7 @@ export async function handleDefCallSentButton(
   const requestData = getRequestByChannelId(guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This channel is not a defense request channel.",
+      content: errors.notInThread("defense"),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -220,7 +220,7 @@ export async function handleDefCallSentModal(
   const requestData = getRequestByChannelId(guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This channel is not a defense request channel.",
+      content: errors.notInThread("defense"),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -275,7 +275,7 @@ export async function handleDefCallCloseButton(
   const requestData = getRequestByChannelId(guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This channel is not a defense request channel.",
+      content: errors.notInThread("defense"),
       flags: MessageFlags.Ephemeral,
     });
     return;

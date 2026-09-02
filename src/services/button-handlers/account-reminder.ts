@@ -7,6 +7,7 @@ import {
   LabelBuilder,
   MessageFlags,
 } from "discord.js";
+import { cmd } from "../../actions/messages";
 import {
   getAccountForUser,
   isNotPlaying,
@@ -110,7 +111,7 @@ export async function handleAccountReminderSkipButton(
   if (isNotPlaying(guildId, interaction.user.id)) {
     await interaction.reply({
       content:
-        "You are already marked as not playing. If you are playing, press **Add** or use `/account set`.",
+        `You are already marked as not playing. If you are playing, press **Add** or use ${cmd("account link")}.`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -120,7 +121,7 @@ export async function handleAccountReminderSkipButton(
 
   await interaction.reply({
     content:
-      "Marked as not playing. If you change your mind, press **Add** or use `/account set`.",
+      `✅ Marked as not playing. If you change your mind, press **Add** or use ${cmd("account link")}.`,
     flags: MessageFlags.Ephemeral,
   });
 }

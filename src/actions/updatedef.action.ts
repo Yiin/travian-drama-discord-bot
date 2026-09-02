@@ -25,7 +25,7 @@ export async function executeUpdateDefAction(
   if (troopsSent === undefined && troopsNeeded === undefined && message === undefined) {
     return {
       success: false,
-      error: "Provide at least one field to update (troops_sent, troops_needed, or message).",
+      error: "⚠️ **Nothing to update.** Give at least one of troops_sent, troops_needed, or note.",
     };
   }
 
@@ -77,7 +77,7 @@ export async function executeUpdateDefAction(
   const updatedFields: string[] = [];
   if (troopsSent !== undefined) updatedFields.push(`troops sent: ${formatTroops(troopsSent)}`);
   if (troopsNeeded !== undefined) updatedFields.push(`needs troops: ${formatTroops(troopsNeeded)}`);
-  if (message !== undefined) updatedFields.push(`message: "${message}"`);
+  if (message !== undefined) updatedFields.push(`note: "${message}"`);
 
   // 10. Build action text
   const actionText = `<@${userId}> updated request #${requestId}: ${updatedFields.join(", ")}`;

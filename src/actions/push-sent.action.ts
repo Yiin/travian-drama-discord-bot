@@ -10,6 +10,7 @@ import { resolvePushTarget, validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushSentActionInput, PushSentActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 import { formatResources } from "../utils/format";
+import { errors } from "./messages";
 
 /**
  * Execute the "push sent" action - report resources sent to a push request.
@@ -22,11 +23,15 @@ export async function executePushSentAction(
   input: PushSentActionInput
 ): Promise<PushSentActionResult> {
   const { guildId, config, client, userId } = context;
-  const { target, resources } = input;
+  const { target, resources, creditUserId } = input;
 
-  // 1. Validate user has a linked account
-  const accountResult = validateUserHasAccount(guildId, userId);
+  // 1. Validate the credited user has a linked account
+  const creditedUserId = creditUserId ?? userId;
+  const accountResult = validateUserHasAccount(guildId, creditedUserId);
   if (!accountResult.valid) {
+    if (creditedUserId !== userId) {
+      return { success: false, error: errors.otherAccountNotLinked(creditedUserId) };
+    }
     return { success: false, error: accountResult.error };
   }
   const { accountName } = accountResult;

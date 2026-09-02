@@ -61,6 +61,8 @@ import {
   UNDO_BUTTON_PREFIX,
 } from "./services/button-handlers/index";
 import { cacheCommandIds } from "./actions/messages";
+import { handleHelpButton } from "./commands/help";
+import { HELP_BUTTON_PREFIX } from "./services/help";
 import { errors } from "./actions/messages";
 
 dotenv.config();
@@ -139,6 +141,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleStackCancelDelete(interaction);
       } else if (interaction.customId.startsWith(UNDO_BUTTON_PREFIX)) {
         await handleUndoButton(interaction);
+      } else if (interaction.customId.startsWith(HELP_BUTTON_PREFIX)) {
+        await handleHelpButton(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_ADD_BUTTON_ID) {
         await handleAccountReminderAddButton(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_SKIP_BUTTON_ID) {

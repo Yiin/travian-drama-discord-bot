@@ -14,17 +14,19 @@ import { getGuildConfig } from "../../config/guild-config";
 import {
   getRequestById,
   getAllRequests,
+  getRequestPosition,
   moveRequest,
   removeRequest,
   updateRequest,
 } from "../defense-requests";
-import { getVillageAt, formatVillageDisplay, getMapLink } from "../map-data";
+import { getVillageAt, formatVillageDisplay } from "../map-data";
 import { updateGlobalMessage } from "../defense-message";
 import { recordAction } from "../action-history";
 import { formatTroops } from "../../utils/format";
-import { errors } from "../../actions/messages";
+import { errors, confirmationEdit } from "../../actions/messages";
+import { getStackPanelUrl } from "../defense-message";
 
-// Button IDs (prefixes - actual IDs will be like "stack_up:3")
+// Button IDs (prefixes - actual IDs carry the stable request id, like "stack_up:41")
 export const STACK_UP_PREFIX = "stack_up";
 export const STACK_DOWN_PREFIX = "stack_down";
 export const STACK_EDIT_PREFIX = "stack_edit";
@@ -46,19 +48,20 @@ function parseRequestId(customId: string): number | null {
 
 export function buildStackEditButtons(
   requestId: number,
+  position: number,
   totalRequests: number
 ): ActionRowBuilder<ButtonBuilder> {
   const upButton = new ButtonBuilder()
     .setCustomId(`${STACK_UP_PREFIX}:${requestId}`)
     .setLabel("Up")
     .setStyle(ButtonStyle.Secondary)
-    .setDisabled(requestId === 1);
+    .setDisabled(position <= 1);
 
   const downButton = new ButtonBuilder()
     .setCustomId(`${STACK_DOWN_PREFIX}:${requestId}`)
     .setLabel("Down")
     .setStyle(ButtonStyle.Secondary)
-    .setDisabled(requestId === totalRequests);
+    .setDisabled(position >= totalRequests);
 
   const editButton = new ButtonBuilder()
     .setCustomId(`${STACK_EDIT_PREFIX}:${requestId}`)
@@ -97,15 +100,17 @@ function buildConfirmDeleteButtons(
   );
 }
 
-async function buildStackInfoContent(
+/** Ephemeral editor payload for one request: summary text plus Up/Down/Edit/Delete. */
+export async function buildStackEditor(
   guildId: string,
   requestId: number
-): Promise<string | null> {
+): Promise<{ content: string; components: ActionRowBuilder<ButtonBuilder>[] } | null> {
   const config = getGuildConfig(guildId);
   const request = getRequestById(guildId, requestId);
+  const position = getRequestPosition(guildId, requestId);
   const totalRequests = getAllRequests(guildId).length;
 
-  if (!request) {
+  if (!request || !position) {
     return null;
   }
 
@@ -113,8 +118,6 @@ async function buildStackInfoContent(
     ? await getVillageAt(config.serverKey, request.x, request.y)
     : null;
 
-  const villageName = village?.villageName || "Unknown";
-  const playerName = village?.playerName || "Unknown";
   const villageDisplay = village && config.serverKey
     ? formatVillageDisplay(config.serverKey, village)
     : `(${request.x}|${request.y})`;
@@ -124,43 +127,51 @@ async function buildStackInfoContent(
     : 0;
 
   const lines = [
-    `**#${requestId}/${totalRequests}** ${villageDisplay}`,
-    `**Village:** ${villageName}`,
-    `**Player:** ${playerName}`,
+    `**#${request.id}** · position ${position} of ${totalRequests} · ${villageDisplay}`,
+    `**Player:** ${village?.playerName ?? "Unknown"}`,
     `**Troops:** ${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)} (${progress}%)`,
   ];
 
   if (request.message) {
-    lines.push(`**Message:** ${request.message}`);
+    lines.push(`**Note:** ${request.message}`);
   }
 
-  return lines.join("\n");
+  return {
+    content: lines.join("\n"),
+    components: [buildStackEditButtons(request.id, position, totalRequests)],
+  };
 }
 
-export async function handleStackUpButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+async function guildIdOrReply(interaction: ButtonInteraction | ModalSubmitInteraction): Promise<string | null> {
+  if (interaction.guildId) return interaction.guildId;
+  await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
+  return null;
+}
 
+async function requestIdOrReply(interaction: ButtonInteraction | ModalSubmitInteraction): Promise<number | null> {
   const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
+  if (requestId) return requestId;
+  await interaction.reply({ content: errors.notFound("request"), flags: MessageFlags.Ephemeral });
+  return null;
+}
+
+async function moveByOffset(interaction: ButtonInteraction, offset: -1 | 1): Promise<void> {
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = await requestIdOrReply(interaction);
+  if (!requestId) return;
+
+  const position = getRequestPosition(guildId, requestId);
+  if (!position) {
+    await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  if (requestId === 1) {
+  const total = getAllRequests(guildId).length;
+  const target = position + offset;
+  if (target < 1 || target > total) {
     await interaction.reply({
-      content: "The request is already at the top.",
+      content: offset < 0 ? "The request is already at the top." : "The request is already at the bottom.",
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -168,137 +179,43 @@ export async function handleStackUpButton(
 
   await interaction.deferUpdate();
 
-  // Move up means swap with position above (requestId - 1)
-  const result = moveRequest(guildId, requestId, requestId - 1);
+  const result = moveRequest(guildId, requestId, target);
   if (!result.success) {
-    await interaction.followUp({
-      content: result.error || "Failed to move the request.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.followUp({ content: result.error ?? errors.generic(), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Update global defense message
   await updateGlobalMessage(interaction.client, guildId);
 
-  // Update the ephemeral message with new position info
-  const newRequestId = requestId - 1;
-  const totalRequests = getAllRequests(guildId).length;
-  const content = await buildStackInfoContent(guildId, newRequestId);
-
-  if (!content) {
-    await interaction.editReply({
-      content: "Request not found.",
-      components: [],
-    });
-    return;
-  }
-
-  await interaction.editReply({
-    content,
-    components: [buildStackEditButtons(newRequestId, totalRequests)],
-  });
+  const editor = await buildStackEditor(guildId, requestId);
+  await interaction.editReply(editor ?? { content: errors.notFound("request", requestId), components: [] });
 }
 
-export async function handleStackDownButton(
-  interaction: ButtonInteraction
-): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+export async function handleStackUpButton(interaction: ButtonInteraction): Promise<void> {
+  await moveByOffset(interaction, -1);
+}
 
-  const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const totalRequests = getAllRequests(guildId).length;
-
-  if (requestId === totalRequests) {
-    await interaction.reply({
-      content: "The request is already at the bottom.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  await interaction.deferUpdate();
-
-  // Move down means swap with position below (requestId + 1)
-  const result = moveRequest(guildId, requestId, requestId + 1);
-  if (!result.success) {
-    await interaction.followUp({
-      content: result.error || "Failed to move the request.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Update global defense message
-  await updateGlobalMessage(interaction.client, guildId);
-
-  // Update the ephemeral message with new position info
-  const newRequestId = requestId + 1;
-  const newTotalRequests = getAllRequests(guildId).length;
-  const content = await buildStackInfoContent(guildId, newRequestId);
-
-  if (!content) {
-    await interaction.editReply({
-      content: "Request not found.",
-      components: [],
-    });
-    return;
-  }
-
-  await interaction.editReply({
-    content,
-    components: [buildStackEditButtons(newRequestId, newTotalRequests)],
-  });
+export async function handleStackDownButton(interaction: ButtonInteraction): Promise<void> {
+  await moveByOffset(interaction, 1);
 }
 
 export async function handleStackEditButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = await requestIdOrReply(interaction);
+  if (!requestId) return;
 
   const request = getRequestById(guildId, requestId);
   if (!request) {
-    await interaction.reply({
-      content: `Request #${requestId} not found.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Build modal with pre-filled values
   const modal = new ModalBuilder()
     .setCustomId(`${STACK_EDIT_MODAL_PREFIX}:${requestId}`)
-    .setTitle(`Edit #${requestId}`);
+    .setTitle(`Edit request #${requestId}`);
 
   const troopsInput = new TextInputBuilder()
     .setCustomId(STACK_TROOPS_NEEDED_INPUT_ID)
@@ -309,7 +226,8 @@ export async function handleStackEditButton(
     .setMaxLength(10);
 
   const troopsLabel = new LabelBuilder()
-    .setLabel("How many troops are needed?")
+    .setLabel("Troops needed")
+    .setDescription(`Currently ${formatTroops(request.troopsSent)} sent`)
     .setTextInputComponent(troopsInput);
 
   const messageInput = new TextInputBuilder()
@@ -321,7 +239,7 @@ export async function handleStackEditButton(
     .setMaxLength(100);
 
   const messageLabel = new LabelBuilder()
-    .setLabel("Message (optional)")
+    .setLabel("Note (optional)")
     .setTextInputComponent(messageInput);
 
   modal.addLabelComponents(troopsLabel, messageLabel);
@@ -332,71 +250,34 @@ export async function handleStackEditButton(
 export async function handleStackEditModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = await requestIdOrReply(interaction);
+  if (!requestId) return;
 
   const request = getRequestById(guildId, requestId);
   if (!request) {
-    await interaction.reply({
-      content: `Request #${requestId} not found.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Extract values from modal
   const troopsInput = interaction.fields.getTextInputValue(STACK_TROOPS_NEEDED_INPUT_ID);
   const message = interaction.fields.getTextInputValue(STACK_MESSAGE_INPUT_ID) || "";
 
-  const troopsNeeded = parseInt(troopsInput, 10);
+  const troopsNeeded = parseInt(troopsInput.replace(/[,.\s]/g, ""), 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
-    await interaction.reply({
-      content: errors.invalidCount("troops"),
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: errors.invalidCount("troops"), flags: MessageFlags.Ephemeral });
     return;
   }
 
   await interaction.deferUpdate();
 
-  // Snapshot for undo
-  const previousState = {
-    troopsSent: request.troopsSent,
-    troopsNeeded: request.troopsNeeded,
-    message: request.message,
-  };
-
-  // Update the request
-  const result = updateRequest(guildId, requestId, {
-    troopsNeeded,
-    message,
-  });
-
+  const result = updateRequest(guildId, requestId, { troopsNeeded, message });
   if ("error" in result) {
-    await interaction.followUp({
-      content: result.error,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.followUp({ content: result.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Record action for undo
-  const config = getGuildConfig(guildId);
   recordAction(guildId, {
     type: "ADMIN_UPDATE",
     userId: interaction.user.id,
@@ -404,81 +285,47 @@ export async function handleStackEditModal(
     requestId,
     previousState: { ...request, contributors: [...request.contributors] },
     data: {
-      previousTroopsSent: previousState.troopsSent,
-      previousTroopsNeeded: previousState.troopsNeeded,
-      previousMessage: previousState.message,
-      didComplete: result.troopsSent >= result.troopsNeeded,
+      previousTroopsSent: request.troopsSent,
+      previousTroopsNeeded: request.troopsNeeded,
+      previousMessage: request.message,
+      adminDidComplete: result.troopsSent >= result.troopsNeeded,
     },
   });
 
-  // Update global defense message
   await updateGlobalMessage(interaction.client, guildId);
 
-  // Check if request was completed (auto-removed)
-  const updatedRequest = getRequestById(guildId, requestId);
-  if (!updatedRequest) {
+  const editor = await buildStackEditor(guildId, requestId);
+  if (!editor) {
     await interaction.editReply({
-      content: `Request #${requestId} completed (troops: ${result.troopsSent}/${troopsNeeded}).`,
-      components: [],
-    });
-    return;
-  }
-
-  // Update the ephemeral message
-  const totalRequests = getAllRequests(guildId).length;
-  const content = await buildStackInfoContent(guildId, requestId);
-
-  if (!content) {
-    await interaction.editReply({
-      content: "Request not found.",
+      content: `✅ Request #${requestId} is complete (${formatTroops(result.troopsSent)} / ${formatTroops(troopsNeeded)}).`,
       components: [],
     });
     return;
   }
 
   await interaction.editReply({
-    content: content + "\n\n*Updated*",
-    components: [buildStackEditButtons(requestId, totalRequests)],
+    content: editor.content + "\n\n✅ Updated.",
+    components: editor.components,
   });
 }
 
 export async function handleStackDeleteButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = await requestIdOrReply(interaction);
+  if (!requestId) return;
 
-  const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const request = getRequestById(guildId, requestId);
-  if (!request) {
-    await interaction.reply({
-      content: `Request #${requestId} not found.`,
-      flags: MessageFlags.Ephemeral,
-    });
+  const editor = await buildStackEditor(guildId, requestId);
+  if (!editor) {
+    await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
 
   await interaction.deferUpdate();
-
-  // Show confirmation buttons
-  const content = await buildStackInfoContent(guildId, requestId);
-
   await interaction.editReply({
-    content: content + "\n\n**Are you sure you want to delete this?**",
+    content: editor.content + "\n\n**Delete this request?**",
     components: [buildConfirmDeleteButtons(requestId)],
   });
 }
@@ -486,49 +333,26 @@ export async function handleStackDeleteButton(
 export async function handleStackConfirmDelete(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = await requestIdOrReply(interaction);
+  if (!requestId) return;
 
   const request = getRequestById(guildId, requestId);
   if (!request) {
-    await interaction.reply({
-      content: `Request #${requestId} has already been deleted.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
 
   await interaction.deferUpdate();
 
-  // Snapshot for undo
   const snapshot = { ...request, contributors: [...request.contributors] };
 
-  // Delete the request
-  const success = removeRequest(guildId, requestId);
-  if (!success) {
-    await interaction.followUp({
-      content: "Failed to delete the request.",
-      flags: MessageFlags.Ephemeral,
-    });
+  if (!removeRequest(guildId, requestId)) {
+    await interaction.followUp({ content: errors.generic(), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  // Record action for undo
   const actionId = recordAction(guildId, {
     type: "REQUEST_DELETED",
     userId: interaction.user.id,
@@ -538,10 +362,6 @@ export async function handleStackConfirmDelete(
     data: {},
   });
 
-  // Update global defense message
-  await updateGlobalMessage(interaction.client, guildId);
-
-  // Update the ephemeral message
   const config = getGuildConfig(guildId);
   const village = config.serverKey
     ? await getVillageAt(config.serverKey, request.x, request.y)
@@ -550,58 +370,29 @@ export async function handleStackConfirmDelete(
     ? formatVillageDisplay(config.serverKey, village)
     : `(${request.x}|${request.y})`;
 
-  await interaction.editReply({
-    content: `Deleted: ${villageDisplay}\n\nCancel: \`/undo ${actionId}\``,
-    components: [],
+  await updateGlobalMessage(interaction.client, guildId, {
+    text: `<@${interaction.user.id}> deleted request #${requestId}: ${villageDisplay}`,
+    undoId: actionId,
   });
+
+  await interaction.editReply(
+    confirmationEdit(`✅ Deleted request #${requestId}: ${villageDisplay}.`, {
+      actionId,
+      panelUrl: getStackPanelUrl(guildId),
+    })
+  );
 }
 
 export async function handleStackCancelDelete(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({
-      content: errors.guildOnly(),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const requestId = parseRequestId(interaction.customId);
-  if (!requestId) {
-    await interaction.reply({
-      content: "Error: invalid request ID.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const guildId = await guildIdOrReply(interaction);
+  if (!guildId) return;
+  const requestId = await requestIdOrReply(interaction);
+  if (!requestId) return;
 
   await interaction.deferUpdate();
 
-  const request = getRequestById(guildId, requestId);
-  if (!request) {
-    await interaction.editReply({
-      content: `Request #${requestId} not found.`,
-      components: [],
-    });
-    return;
-  }
-
-  // Restore original view
-  const totalRequests = getAllRequests(guildId).length;
-  const content = await buildStackInfoContent(guildId, requestId);
-
-  if (!content) {
-    await interaction.editReply({
-      content: "Request not found.",
-      components: [],
-    });
-    return;
-  }
-
-  await interaction.editReply({
-    content,
-    components: [buildStackEditButtons(requestId, totalRequests)],
-  });
+  const editor = await buildStackEditor(guildId, requestId);
+  await interaction.editReply(editor ?? { content: errors.notFound("request", requestId), components: [] });
 }

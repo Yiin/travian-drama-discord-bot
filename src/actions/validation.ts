@@ -54,22 +54,21 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
       };
     }
     if (matches.length > 1) {
-      // Multiple requests at same coordinates - require position ID
-      const ids = matches.map((m) => m.requestId).join(", ");
+      const ids = matches.map((m) => `#${m.requestId}`).join(", ");
       return {
         success: false,
-        error: `There are ${matches.length} requests at these coordinates. Use the queue number (${ids}).`,
+        error: `⚠️ **${matches.length} requests share these coordinates.** Use the request id instead: ${ids}.`,
       };
     }
     return { success: true, requestId: matches[0].requestId };
   }
 
   // Try as numeric ID
-  const parsed = parseInt(targetInput, 10);
+  const parsed = parseInt(targetInput.replace(/^#/, ""), 10);
   if (isNaN(parsed) || parsed < 1) {
     return {
       success: false,
-      error: "Invalid input. Provide a request ID (for example, 1) or coordinates (for example, 123|456).",
+      error: "⚠️ **That is not a request.** Give a request id (for example `41`) or coordinates (for example `123|456`).",
     };
   }
 

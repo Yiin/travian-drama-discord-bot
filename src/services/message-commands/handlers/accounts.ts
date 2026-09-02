@@ -1,6 +1,7 @@
 import { TextChannel } from "discord.js";
 import { CommandContext } from "../types";
 import { parseNames, replyError } from "../utils";
+import { cmd } from "../../../actions/messages";
 import {
   setAccount,
   deleteAccount,
@@ -10,7 +11,7 @@ import {
   getAllPlayers,
 } from "../../player-accounts";
 
-export async function handleAccountSetCommand(
+export async function handleAccountLinkCommand(
   ctx: CommandContext,
   inGameName: string,
   forUserId?: string
@@ -29,32 +30,34 @@ export async function handleAccountSetCommand(
 
   await ctx.message.react("✅");
   const who = isSelf ? "You are" : `<@${targetUserId}> is`;
-  if (previousName && previousName !== trimmedName) {
-    await ctx.message.reply(
-      isSelf
-        ? `Updated: **${previousName}** → **${trimmedName}**`
-        : `Updated <@${targetUserId}>: **${previousName}** → **${trimmedName}**`
-    );
-  } else if (previousName === trimmedName) {
-    await ctx.message.reply(`${who} already linked to **${trimmedName}**.`);
+  let content: string;
+  if (previousName === trimmedName) {
+    content = `✅ ${who} already linked to **${trimmedName}**.`;
+  } else if (previousName) {
+    content = `✅ ${who} now linked to **${trimmedName}** (was **${previousName}**).`;
   } else {
-    await ctx.message.reply(`${who} now linked to in-game account **${trimmedName}**.`);
+    content = `✅ ${who} now linked to **${trimmedName}**.`;
   }
+  await ctx.message.reply({ content, allowedMentions: { parse: [] } });
 }
 
-export async function handleAccountDelCommand(ctx: CommandContext): Promise<void> {
-  const userId = ctx.message.author.id;
+export async function handleAccountUnlinkCommand(ctx: CommandContext, forUserId?: string): Promise<void> {
+  const userId = forUserId || ctx.message.author.id;
+  const isSelf = userId === ctx.message.author.id;
 
   const previousName = getAccountForUser(ctx.guildId, userId);
 
   if (!previousName) {
-    await replyError(ctx, "⚠️ **You have no linked in-game account.**");
+    await replyError(ctx, isSelf ? "⚠️ **You have no linked in-game account.**" : `⚠️ **<@${userId}> has no linked in-game account.**`);
     return;
   }
 
   deleteAccount(ctx.guildId, userId);
   await ctx.message.react("✅");
-  await ctx.message.reply(`Unlinked **${previousName}**.`);
+  await ctx.message.reply({
+    content: isSelf ? `✅ Unlinked **${previousName}**.` : `✅ Unlinked **${previousName}** from <@${userId}>.`,
+    allowedMentions: { parse: [] },
+  });
 }
 
 export async function handleSitterSetCommand(
@@ -115,9 +118,7 @@ export async function handlePlayersCommand(ctx: CommandContext): Promise<void> {
   const players = getAllPlayers(ctx.guildId);
 
   if (players.length === 0) {
-    await ctx.message.reply(
-      "No registered players. Use `/account set` to link your in-game account."
-    );
+    await replyError(ctx, `⚠️ **No linked accounts yet.** Link yours with ${cmd("account link")}.`);
     return;
   }
 
@@ -161,11 +162,11 @@ export async function handlePlayersCommand(ctx: CommandContext): Promise<void> {
       chunks.push(currentChunk);
     }
 
-    await ctx.message.reply({ content: chunks[0] });
+    await ctx.message.reply({ content: chunks[0], allowedMentions: { parse: [] } });
     for (let i = 1; i < chunks.length; i++) {
-      await (ctx.message.channel as TextChannel).send({ content: chunks[i] });
+      await (ctx.message.channel as TextChannel).send({ content: chunks[i], allowedMentions: { parse: [] } });
     }
   } else {
-    await ctx.message.reply({ content: response });
+    await ctx.message.reply({ content: response, allowedMentions: { parse: [] } });
   }
 }

@@ -1,7 +1,7 @@
 import {
-  SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
+  PermissionFlagsBits,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -14,11 +14,13 @@ import {
 import { withRetry } from "../utils/retry";
 import { requireAdmin } from "../utils/permissions";
 import { errors } from "../actions/messages";
+import { guildCommand } from "./shared";
 
 export const reminderCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("reminder")
-    .setDescription("Manage repeating reminders")
+  topic: "admin",
+  summary: "Repeating reminders posted to a channel",
+  data: guildCommand("reminder", "Repeating reminders posted to this channel (admin)")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((subcommand) =>
       subcommand
         .setName("add")

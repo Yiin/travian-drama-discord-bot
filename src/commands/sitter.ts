@@ -1,12 +1,13 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, MessageFlags } from "discord.js";
+import { ChatInputCommandInteraction, AutocompleteInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
-import { addSitter, removeSitter } from "../services/player-accounts";
-import { errors } from "../actions/messages";
+import { addSitter, removeSitter, getAllPlayers } from "../services/player-accounts";
+import { guildCommand, requireGuild } from "./shared";
+import { filterChoices } from "../utils/choices";
 
 export const sitterCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("sitter")
-    .setDescription("Manage your sitter associations")
+  topic: "you",
+  summary: "Tell the bot which accounts you sit",
+  data: guildCommand("sitter", "Tell the bot which accounts you sit")
     .addSubcommand((subcommand) =>
       subcommand
         .setName("set")
@@ -14,36 +15,50 @@ export const sitterCommand: Command = {
         .addStringOption((option) =>
           option
             .setName("names")
-            .setDescription(
-              "Player names you sit for (comma-separated, e.g., Player1, Player2)"
-            )
+            .setDescription("Player names, comma-separated, for example: Player1, Player2")
             .setRequired(true)
+            .setAutocomplete(true)
         )
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("del")
-        .setDescription("Remove yourself as a sitter for one or more players")
+        .setDescription("Stop being a sitter for one or more players")
         .addStringOption((option) =>
           option
             .setName("names")
-            .setDescription(
-              "Player names to stop sitting (comma-separated, e.g., Player1, Player2)"
-            )
+            .setDescription("Player names, comma-separated, for example: Player1, Player2")
             .setRequired(true)
+            .setAutocomplete(true)
         )
     ),
 
-  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const guildId = interaction.guildId;
-
     if (!guildId) {
-      await interaction.reply({
-        content: errors.guildOnly(),
-        flags: MessageFlags.Ephemeral,
-      });
+      await interaction.respond([]);
       return;
     }
+    // Complete the last comma-separated token; keep the earlier ones as typed.
+    const typed = interaction.options.getFocused();
+    const parts = typed.split(",");
+    const last = parts.pop() ?? "";
+    const prefix = parts.map((p) => p.trim()).filter(Boolean);
+    const choices = getAllPlayers(guildId)
+      .map((p) => p.name)
+      .filter((name) => !prefix.includes(name))
+      .map((name) => ({ name, value: name }));
+    await interaction.respond(
+      filterChoices(choices, last).map((c) => {
+        const value = [...prefix, c.value].join(", ");
+        return { name: value.length > 100 ? c.name : value, value: value.slice(0, 100) };
+      })
+    );
+  },
+
+  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+    const guildId = await requireGuild(interaction);
+    if (!guildId) return;
 
     const subcommand = interaction.options.getSubcommand();
 
@@ -72,7 +87,7 @@ async function handleAddSitter(
 
   if (names.length === 0) {
     await interaction.reply({
-      content: "Please provide at least one valid player name.",
+      content: "⚠️ **Enter at least one player name.**",
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -109,7 +124,7 @@ async function handleRemoveSitter(
 
   if (names.length === 0) {
     await interaction.reply({
-      content: "Please provide at least one valid player name.",
+      content: "⚠️ **Enter at least one player name.**",
       flags: MessageFlags.Ephemeral,
     });
     return;

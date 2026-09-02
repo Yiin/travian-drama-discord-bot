@@ -4,7 +4,7 @@ import {
   executeSentAction,
   executeStackAction,
   executeDeleteDefAction,
-  executeUpdateDefAction,
+  executeMoveAction,
   executeUndoAction,
 } from "../../../actions";
 import { updateGlobalMessage } from "../../defense-message";
@@ -103,7 +103,7 @@ export async function handleStackCommand(
   await ctx.message.react("✅");
 }
 
-export async function handleDeleteDefCommand(
+export async function handleRemoveCommand(
   ctx: CommandContext,
   requestId: number
 ): Promise<void> {
@@ -136,67 +136,32 @@ export async function handleDeleteDefCommand(
   await ctx.message.react("✅");
 }
 
-export async function handleUpdateDefCommand(
+export async function handleMoveCommand(
   ctx: CommandContext,
   requestId: number,
-  paramsStr: string
+  toPosition: number
 ): Promise<void> {
-  // 1. Validate configuration
   const validation = validateDefenseConfig(ctx.guildId);
   if (!validation.valid) {
     await replyError(ctx, validation.error);
     return;
   }
 
-  // 2. Parse parameters: troops_sent: 500 troops_needed: 2000 message: some text
-  let troopsSent: number | undefined;
-  let troopsNeeded: number | undefined;
-  let updateMessage: string | undefined;
-
-  const troopsSentMatch = paramsStr.match(/troops_sent:\s*(\d+)/i);
-  if (troopsSentMatch) {
-    troopsSent = parseInt(troopsSentMatch[1], 10);
-  }
-
-  const troopsNeededMatch = paramsStr.match(/troops_needed:\s*(\d+)/i);
-  if (troopsNeededMatch) {
-    troopsNeeded = parseInt(troopsNeededMatch[1], 10);
-  }
-
-  const messageMatch = paramsStr.match(/message:\s*(.+?)(?:\s+(?:troops_sent|troops_needed):|$)/i);
-  if (messageMatch) {
-    updateMessage = messageMatch[1].trim();
-  }
-
-  if (troopsSent === undefined && troopsNeeded === undefined && updateMessage === undefined) {
-    await replyError(ctx, "⚠️ **Nothing to update.** Give at least one of `troops_sent: X`, `troops_needed: X`, or `message: text`.");
-    return;
-  }
-
-  // 3. Execute action
-  const result = await executeUpdateDefAction(
+  const result = await executeMoveAction(
     {
       guildId: validation.guildId,
       config: validation.config,
       client: ctx.client,
       userId: ctx.message.author.id,
     },
-    {
-      requestId,
-      troopsSent,
-      troopsNeeded,
-      message: updateMessage,
-    }
+    { requestId, toPosition }
   );
 
-  // 4. Handle response
   if (!result.success) {
     await replyError(ctx, result.error);
     return;
   }
 
-  // Success: react (the panel posts the audit line)
-  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
 }
 
@@ -204,7 +169,7 @@ export async function handleUndoCommand(
   ctx: CommandContext,
   actionId: number | undefined
 ): Promise<void> {
-  if (!ctx.config.defenseChannelId) {
+  if (!ctx.config.serverKey) {
     await replyError(ctx, errors.notSetUp());
     return;
   }
@@ -236,7 +201,7 @@ export async function handleUndoCommand(
   await ctx.message.reply(result.confirmText ?? result.actionText);
 }
 
-export async function handleStackinfoCommand(ctx: CommandContext): Promise<void> {
+export async function handleStackListCommand(ctx: CommandContext): Promise<void> {
   if (!ctx.config.serverKey || !ctx.config.defenseChannelId) {
     await replyError(ctx, errors.notSetUp());
     return;

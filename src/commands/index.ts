@@ -1,53 +1,41 @@
 import { Collection } from "discord.js";
 import { Command } from "../types";
-import { accountCommand } from "./account";
-import { addstatCommand } from "./addstat";
-import { configureCommand } from "./configure";
-import { stackCommand } from "./stack";
-import { deletedefCommand } from "./deletedef";
-import { dramaCommand } from "./drama";
-import { playersCommand } from "./players";
-import { scoutCommand } from "./scout";
-import { sitterCommand } from "./sitter";
-import { lookupCommand } from "./lookup";
-import { sentCommand } from "./sent";
-import { stackinfoCommand } from "./stackinfo";
-import { statsCommand } from "./stats";
-import { updatedefCommand } from "./updatedef";
-import { undoCommand } from "./undo";
-import { pushCommand } from "./push";
-import { reminderCommand } from "./reminder";
-import { penisCommand } from "./penis";
-import { moveCommand } from "./move";
-import { editCommand } from "./edit";
-import { defCommand } from "./def";
-import { closeCommand } from "./close";
 
+/**
+ * Command registry. `/help` is built from this at runtime: a command's `topic`
+ * decides where it appears, and its subcommand descriptions become the help lines.
+ */
 export const commands = new Collection<string, Command>();
 
 function registerCommand(command: Command): void {
   commands.set(command.data.name, command);
 }
 
-registerCommand(accountCommand);
-registerCommand(addstatCommand);
-registerCommand(configureCommand);
+// Imports come after the collection so `help.ts` can import `commands` without a cycle at load time.
+import { stackCommand } from "./stack";
+import { defCommand } from "./def";
+import { pushCommand } from "./push";
+import { scoutCommand } from "./scout";
+import { accountCommand } from "./account";
+import { sitterCommand } from "./sitter";
+import { lookupCommand } from "./lookup";
+import { statsCommand } from "./stats";
+import { undoCommand } from "./undo";
+import { helpCommand } from "./help";
+import { setupCommand } from "./setup";
+import { reminderCommand } from "./reminder";
+import { penisCommand } from "./penis";
+
 registerCommand(stackCommand);
-registerCommand(deletedefCommand);
-registerCommand(dramaCommand);
-registerCommand(playersCommand);
+registerCommand(defCommand);
+registerCommand(pushCommand);
 registerCommand(scoutCommand);
+registerCommand(accountCommand);
 registerCommand(sitterCommand);
 registerCommand(lookupCommand);
-registerCommand(sentCommand);
-registerCommand(stackinfoCommand);
 registerCommand(statsCommand);
-registerCommand(updatedefCommand);
 registerCommand(undoCommand);
-registerCommand(pushCommand);
+registerCommand(helpCommand);
+registerCommand(setupCommand);
 registerCommand(reminderCommand);
 registerCommand(penisCommand);
-registerCommand(moveCommand);
-registerCommand(editCommand);
-registerCommand(defCommand);
-registerCommand(closeCommand);

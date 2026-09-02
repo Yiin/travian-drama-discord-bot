@@ -1,6 +1,6 @@
 import {
-  SlashCommandBuilder,
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   Colors,
   ActionRowBuilder,
@@ -28,6 +28,7 @@ import {
 import { getPlayerHistoryByName, formatPopulationTrend } from "../services/population-history";
 import { withRetry } from "../utils/retry";
 import { errors } from "../actions/messages";
+import { guildCommand, requireGuild } from "./shared";
 
 // ============================================
 // Exported embed builders for reuse
@@ -125,27 +126,38 @@ export function buildPlayerEmbed(
 const PLAYER_SELECT_ID = "lookup_player_select";
 
 export const lookupCommand: Command = {
-  data: new SlashCommandBuilder()
-    .setName("lookup")
-    .setDescription("Find information by coordinates, player name, or profile URL")
+  topic: "info",
+  summary: "Look up a village by coordinates or a player by name",
+  data: guildCommand("lookup", "Look up a village by coordinates or a player by name")
     .addStringOption((option) =>
       option
         .setName("query")
-        .setDescription("Coordinates (for example, 123|456), player name, or profile URL")
+        .setDescription("Coordinates (123|456), a player name, or a profile URL")
         .setRequired(true)
+        .setAutocomplete(true)
     ),
+
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    const guildId = interaction.guildId;
+    const typed = interaction.options.getFocused().trim();
+    const config = guildId ? getGuildConfig(guildId) : {};
+    if (!config.serverKey || typed.length < 2 || parseCoords(typed) || /^https?:/i.test(typed)) {
+      await interaction.respond([]);
+      return;
+    }
+    const players = await searchPlayersByName(config.serverKey, typed, 25);
+    await interaction.respond(
+      players.map((p) => ({
+        name: `${p.playerName} · ${p.villageCount} villages · ${p.totalPopulation.toLocaleString("en-US")} pop`.slice(0, 100),
+        value: p.playerName.slice(0, 100),
+      }))
+    );
+  },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const queryInput = interaction.options.getString("query", true);
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      await interaction.reply({
-        content: errors.guildOnly(),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
+    const guildId = await requireGuild(interaction);
+    if (!guildId) return;
 
     const config = getGuildConfig(guildId);
 
