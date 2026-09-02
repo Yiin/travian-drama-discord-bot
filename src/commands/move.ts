@@ -1,10 +1,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { validateDefenseConfig, executeMoveAction } from "../actions";
 import { withRetry } from "../utils/retry";
+import { getStackPanelUrl } from "../services/defense-message";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const moveCommand: Command = {
   data: new SlashCommandBuilder()
@@ -29,7 +32,7 @@ export const moveCommand: Command = {
     // 1. Validate configuration
     const validation = validateDefenseConfig(interaction.guildId);
     if (!validation.valid) {
-      await interaction.reply({ content: validation.error, ephemeral: true });
+      await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -38,7 +41,7 @@ export const moveCommand: Command = {
     const toPosition = interaction.options.getInteger("to", true);
 
     // 3. Defer reply
-    await withRetry(() => interaction.deferReply());
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     // 4. Execute action
     const result = await executeMoveAction(
@@ -57,6 +60,10 @@ export const moveCommand: Command = {
       return;
     }
 
-    await interaction.editReply({ content: result.actionText });
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+        panelUrl: getStackPanelUrl(validation.guildId),
+      })
+    );
   },
 };

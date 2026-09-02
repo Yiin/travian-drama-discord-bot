@@ -17,6 +17,7 @@ import {
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, ScoutActionInput, ScoutActionResult, ActionError } from "./types";
 import { SCOUT_GOING_BUTTON_ID, SCOUT_DONE_BUTTON_ID } from "../services/button-handlers/index";
+import { errors } from "./messages";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.
@@ -43,7 +44,7 @@ export async function executeScoutAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Failed to load map data. Try again later.",
+      error: errors.mapUnavailable(),
     };
   }
 

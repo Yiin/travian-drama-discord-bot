@@ -1,11 +1,14 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { executeDefCallRequestAction } from "../actions";
 import { withRetry } from "../utils/retry";
+import { errors } from "../actions/messages";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const defCommand: Command = {
   data: new SlashCommandBuilder()
@@ -41,8 +44,8 @@ export const defCommand: Command = {
     const guildId = interaction.guildId;
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -52,7 +55,7 @@ export const defCommand: Command = {
     const comment = interaction.options.getString("comment") || undefined;
     const troopsNeeded = interaction.options.getInteger("troops") ?? undefined;
 
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     const config = getGuildConfig(guildId);
     const result = await executeDefCallRequestAction(
@@ -70,6 +73,12 @@ export const defCommand: Command = {
       return;
     }
 
-    await interaction.editReply({ content: result.actionText });
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+        actionId: result.actionId,
+        panelUrl: channelUrl(guildId, result.channelId),
+        panelLabel: "Open thread",
+      })
+    );
   },
 };

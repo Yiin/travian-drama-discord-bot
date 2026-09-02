@@ -7,6 +7,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   LabelBuilder,
+  MessageFlags,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { getGuildDefenseData } from "../defense-requests";
@@ -16,6 +17,9 @@ import {
   executeSentAction,
   executeStackAction,
 } from "../../actions";
+import { errors } from "../../actions/messages";
+import { getStackPanelUrl } from "../defense-message";
+import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
 // Defense button/modal IDs
 export const SENT_BUTTON_ID = "sent_troops_button";
@@ -35,8 +39,8 @@ export async function handleSentButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -44,8 +48,8 @@ export async function handleSentButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: "Travian server is not configured.",
-      ephemeral: true,
+      content: errors.notSetUp(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -54,7 +58,7 @@ export async function handleSentButton(
   if (data.requests.length === 0) {
     await interaction.reply({
       content: "There are no active defense requests.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -90,7 +94,7 @@ export async function handleSentButton(
   // Build modal with target dropdown and troop input
   const modal = new ModalBuilder()
     .setCustomId(SENT_MODAL_ID)
-    .setTitle("Sent karius");
+    .setTitle("Report sent troops");
 
   const targetSelect = new StringSelectMenuBuilder()
     .setCustomId(TARGET_SELECT_ID)
@@ -99,7 +103,7 @@ export async function handleSentButton(
     .addOptions(options);
 
   const targetLabel = new LabelBuilder()
-    .setLabel("Tikslas")
+    .setLabel("Target")
     .setStringSelectMenuComponent(targetSelect);
 
   const troopsInput = new TextInputBuilder()
@@ -125,7 +129,7 @@ export async function handleSentModal(
   // 1. Validate configuration
   const validation = validateDefenseConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -134,7 +138,7 @@ export async function handleSentModal(
   if (!selectedValues || selectedValues.length === 0) {
     await interaction.reply({
       content: "Error: failed to identify the target.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -143,7 +147,7 @@ export async function handleSentModal(
   if (isNaN(requestId) || requestId < 1) {
     await interaction.reply({
       content: "Error: invalid target ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -153,14 +157,14 @@ export async function handleSentModal(
   const troops = parseInt(troopsInput, 10);
   if (isNaN(troops) || troops < 1) {
     await interaction.reply({
-      content: "Invalid troop count. Enter a positive number.",
-      ephemeral: true,
+      content: errors.invalidCount("troops"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   // 4. Defer reply
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   // 5. Execute action
   const result = await executeSentAction(
@@ -183,8 +187,12 @@ export async function handleSentModal(
     return;
   }
 
-  // Success: delete reply (info is in global message)
-  await interaction.deleteReply();
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+      actionId: result.actionId,
+      panelUrl: getStackPanelUrl(validation.guildId),
+    })
+  );
 }
 
 export async function handleRequestDefButton(
@@ -193,8 +201,8 @@ export async function handleRequestDefButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -202,8 +210,8 @@ export async function handleRequestDefButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: "Travian server is not configured.",
-      ephemeral: true,
+      content: errors.notSetUp(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -237,7 +245,7 @@ export async function handleRequestDefButton(
 
   const messageInput = new TextInputBuilder()
     .setCustomId(MESSAGE_INPUT_ID)
-    .setPlaceholder("Pvz.: anti cav")
+    .setPlaceholder("e.g. anti cav")
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
     .setMaxLength(100);
@@ -257,7 +265,7 @@ export async function handleRequestDefModal(
   // 1. Validate configuration
   const validation = validateDefenseConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -270,14 +278,14 @@ export async function handleRequestDefModal(
   const troopsNeeded = parseInt(troopsInput, 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
     await interaction.reply({
-      content: "Invalid troop count. Enter a positive number.",
-      ephemeral: true,
+      content: errors.invalidCount("troops"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   // 4. Defer reply
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   // 5. Execute action
   const result = await executeStackAction(
@@ -300,5 +308,10 @@ export async function handleRequestDefModal(
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+      actionId: result.actionId,
+      panelUrl: getStackPanelUrl(validation.guildId),
+    })
+  );
 }

@@ -25,7 +25,8 @@ export type ConfigValidation =
 export interface ActionSuccess {
   success: true;
   actionId: number; // For undo reference
-  actionText: string; // Human-readable action description
+  actionText: string; // Public audit line, e.g. "<@user> sent **200** to Village"
+  confirmText?: string; // Ephemeral confirmation for the actor, "✅ What changed. New state."
 }
 
 /**
@@ -215,6 +216,7 @@ export interface MoveActionInput {
 export interface MoveActionSuccess {
   success: true;
   actionText: string;
+  confirmText?: string;
   fromPosition: number;
   toPosition: number;
 }

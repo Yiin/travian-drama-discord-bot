@@ -1,6 +1,6 @@
 import { TextChannel } from "discord.js";
 import { CommandContext } from "../types";
-import { parseNames } from "../utils";
+import { parseNames, replyError } from "../utils";
 import {
   setAccount,
   deleteAccount,
@@ -20,7 +20,7 @@ export async function handleAccountSetCommand(
   const trimmedName = inGameName.trim();
 
   if (!trimmedName) {
-    await ctx.message.reply("Provide a valid in-game name.");
+    await replyError(ctx, "⚠️ **Enter a valid in-game name.**");
     return;
   }
 
@@ -36,9 +36,9 @@ export async function handleAccountSetCommand(
         : `Updated <@${targetUserId}>: **${previousName}** → **${trimmedName}**`
     );
   } else if (previousName === trimmedName) {
-    await ctx.message.reply(`${who} already associated with **${trimmedName}**.`);
+    await ctx.message.reply(`${who} already linked to **${trimmedName}**.`);
   } else {
-    await ctx.message.reply(`${who} now associated with in-game account **${trimmedName}**.`);
+    await ctx.message.reply(`${who} now linked to in-game account **${trimmedName}**.`);
   }
 }
 
@@ -48,13 +48,13 @@ export async function handleAccountDelCommand(ctx: CommandContext): Promise<void
   const previousName = getAccountForUser(ctx.guildId, userId);
 
   if (!previousName) {
-    await ctx.message.reply("You do not have an in-game account associated.");
+    await replyError(ctx, "⚠️ **You have no linked in-game account.**");
     return;
   }
 
   deleteAccount(ctx.guildId, userId);
   await ctx.message.react("✅");
-  await ctx.message.reply(`Removed association with **${previousName}**.`);
+  await ctx.message.reply(`Unlinked **${previousName}**.`);
 }
 
 export async function handleSitterSetCommand(
@@ -65,7 +65,7 @@ export async function handleSitterSetCommand(
   const names = parseNames(namesInput);
 
   if (names.length === 0) {
-    await ctx.message.reply("Provide at least one player name.");
+    await replyError(ctx, "⚠️ **Enter at least one player name.**");
     return;
   }
 
@@ -92,7 +92,7 @@ export async function handleSitterDelCommand(
   const names = parseNames(namesInput);
 
   if (names.length === 0) {
-    await ctx.message.reply("Provide at least one player name.");
+    await replyError(ctx, "⚠️ **Enter at least one player name.**");
     return;
   }
 
@@ -116,7 +116,7 @@ export async function handlePlayersCommand(ctx: CommandContext): Promise<void> {
 
   if (players.length === 0) {
     await ctx.message.reply(
-      "No registered players. Use `/account set` to associate yourself with an in-game account."
+      "No registered players. Use `/account set` to link your in-game account."
     );
     return;
   }
@@ -136,7 +136,7 @@ export async function handlePlayersCommand(ctx: CommandContext): Promise<void> {
     }
 
     if (player.sitters.length > 0) {
-      line += ` (siteriai: ${sitterMentions})`;
+      line += ` (sitters: ${sitterMentions})`;
     }
 
     lines.push(line);

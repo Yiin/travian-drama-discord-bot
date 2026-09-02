@@ -9,6 +9,7 @@ import { recordPushContribution } from "../services/push-stats";
 import { resolvePushTarget, validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushSentActionInput, PushSentActionResult } from "./types";
 import { recordAction } from "../services/action-history";
+import { formatResources } from "../utils/format";
 
 /**
  * Execute the "push sent" action - report resources sent to a push request.
@@ -70,10 +71,14 @@ export async function executePushSentAction(
   // 7. Build action text
   let actionText: string;
   if (result.isComplete && !result.wasAlreadyComplete) {
-    actionText = `**${accountName}** completed push to ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
+    actionText = `**${accountName}** completed push to ${villageDisplay} - **${formatResources(result.request.resourcesSent)}/${formatResources(result.request.resourcesNeeded)}**`;
   } else {
-    actionText = `**${accountName}** sent **${formatNumber(resources)}** to ${villageDisplay} - **${formatNumber(result.request.resourcesSent)}/${formatNumber(result.request.resourcesNeeded)}**`;
+    actionText = `**${accountName}** sent **${formatResources(resources)}** to ${villageDisplay} - **${formatResources(result.request.resourcesSent)}/${formatResources(result.request.resourcesNeeded)}**`;
   }
+
+  const confirmText = result.isComplete && !result.wasAlreadyComplete
+    ? `✅ Push to ${villageDisplay} is complete: **${formatResources(result.request.resourcesSent)} / ${formatResources(result.request.resourcesNeeded)}**.`
+    : `✅ Added **${formatResources(resources)}** resources to ${villageDisplay}. Now **${formatResources(result.request.resourcesSent)} / ${formatResources(result.request.resourcesNeeded)}**.`;
 
   // 8. Record action for undo
   const actionId = recordAction(guildId, {
@@ -90,7 +95,7 @@ export async function executePushSentAction(
   });
 
   // 9. Post contribution message in the push channel
-  const contributionText = `**${accountName}** sent **${formatNumber(resources)}** resources`;
+  const contributionText = `**${accountName}** sent **${formatResources(resources)}** resources`;
   await postContributionMessage(client, result.request, contributionText);
 
   // 10. Update the channel embed or mark complete
@@ -104,6 +109,7 @@ export async function executePushSentAction(
     success: true,
     actionId,
     actionText,
+    confirmText,
     villageName,
     resourcesSent: result.request.resourcesSent,
     resourcesNeeded: result.request.resourcesNeeded,
@@ -112,12 +118,3 @@ export async function executePushSentAction(
   };
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}

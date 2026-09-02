@@ -6,6 +6,7 @@ import {
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { ActionContext, UpdateDefActionInput, UpdateDefActionResult } from "./types";
+import { formatTroops } from "../utils/format";
 
 /**
  * Execute the "updatedef" action - update a defense request (admin).
@@ -72,22 +73,24 @@ export async function executeUpdateDefAction(
     },
   });
 
-  // 8. Update the global message
-  await updateGlobalMessage(client, guildId);
-
-  // 9. Build updated fields list
+  // 8. Build updated fields list
   const updatedFields: string[] = [];
-  if (troopsSent !== undefined) updatedFields.push(`troops sent: ${troopsSent}`);
-  if (troopsNeeded !== undefined) updatedFields.push(`needs troops: ${troopsNeeded}`);
+  if (troopsSent !== undefined) updatedFields.push(`troops sent: ${formatTroops(troopsSent)}`);
+  if (troopsNeeded !== undefined) updatedFields.push(`needs troops: ${formatTroops(troopsNeeded)}`);
   if (message !== undefined) updatedFields.push(`message: "${message}"`);
 
   // 10. Build action text
-  const actionText = `<@${userId}> updated request #${requestId}: ${updatedFields.join(", ")}. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> updated request #${requestId}: ${updatedFields.join(", ")}`;
+  const confirmText = `✅ Updated request #${requestId}: ${updatedFields.join(", ")}.`;
+
+  // 11. Update the global message and post the audit line
+  await updateGlobalMessage(client, guildId, { text: actionText, undoId: actionId });
 
   return {
     success: true,
     actionId,
     actionText,
+    confirmText,
     requestId,
     updatedFields,
     wasCompleted: willComplete,

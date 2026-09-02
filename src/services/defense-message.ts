@@ -7,6 +7,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } from "discord.js";
 import {
   getGuildDefenseData,
@@ -22,6 +23,7 @@ import {
   formatVillageDisplay,
 } from "./map-data";
 import { REQUEST_DEF_BUTTON_ID, SENT_BUTTON_ID } from "./button-handlers/index";
+import { messageUrl } from "../actions/messages";
 
 export interface LastActionInfo {
   text: string;
@@ -132,6 +134,14 @@ export function buildActionButtons(
   );
 }
 
+/** Link to the live stack panel, when one has been posted. */
+export function getStackPanelUrl(guildId: string): string | undefined {
+  const config = getGuildConfig(guildId);
+  const messageId = getGlobalMessageId(guildId);
+  if (!config.defenseChannelId || !messageId) return undefined;
+  return messageUrl(guildId, config.defenseChannelId, messageId);
+}
+
 export async function updateGlobalMessage(
   client: Client,
   guildId: string,
@@ -162,7 +172,10 @@ export async function updateGlobalMessage(
   if (lastAction) {
     const undoPart =
       lastAction.undoId > 0 ? ` (\`/undo ${lastAction.undoId}\`)` : "";
-    await channel.send(`${lastAction.text}${undoPart}`);
+    await channel.send({
+      content: `${lastAction.text}${undoPart}`,
+      flags: MessageFlags.SuppressNotifications,
+    });
   }
 
   const data = getGuildDefenseData(guildId);

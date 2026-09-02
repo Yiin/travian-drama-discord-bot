@@ -11,13 +11,15 @@ import {
   PlayerSearchResult,
 } from "../../map-data";
 import { buildVillageEmbed, buildPlayerEmbed } from "../../../commands/lookup";
+import { errors } from "../../../actions/messages";
+import { replyError, rememberAction } from "../utils";
 
 export async function handleLookupCommand(
   ctx: CommandContext,
   queryInput: string
 ): Promise<void> {
   if (!ctx.config.serverKey) {
-    await ctx.message.reply("Travian server is not configured.");
+    await replyError(ctx, errors.notSetUp());
     return;
   }
 
@@ -38,7 +40,7 @@ async function handleCoordinateLookup(
 ): Promise<void> {
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
-    await message.reply("Failed to load map data.");
+    await message.reply(errors.mapUnavailable());
     return;
   }
 
@@ -62,7 +64,7 @@ async function handlePlayerLookup(
 ): Promise<void> {
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
-    await message.reply("Failed to load map data.");
+    await message.reply(errors.mapUnavailable());
     return;
   }
 

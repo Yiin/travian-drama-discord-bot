@@ -61,16 +61,16 @@ export async function executeDeleteDefAction(
     data: {},
   });
 
-  // 6. Update the global message
-  await updateGlobalMessage(client, guildId);
-
-  // 7. Build action text
-  const actionText = `<@${userId}> deleted request #${requestId}: ${villageDisplay}. (\`/undo ${actionId}\`)`;
+  // 6. Build action text, update the global message, post the audit line
+  const actionText = `<@${userId}> deleted request #${requestId}: ${villageDisplay}`;
+  const confirmText = `✅ Deleted request #${requestId}: ${villageDisplay}.`;
+  await updateGlobalMessage(client, guildId, { text: actionText, undoId: actionId });
 
   return {
     success: true,
     actionId,
     actionText,
+    confirmText,
     requestId,
     villageName,
     playerName,

@@ -4,6 +4,7 @@ import { updatePushChannelEmbed, postContributionMessage } from "../services/pus
 import { transferContributionStats } from "../services/push-stats";
 import { ActionContext, PushTransferActionInput, PushTransferActionResult } from "./types";
 import { recordAction } from "../services/action-history";
+import { formatResources } from "../utils/format";
 
 /**
  * Execute the "push transfer" action - transfer contribution from one player to another.
@@ -57,13 +58,13 @@ export async function executePushTransferAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> transferred **${formatNumber(transferredAmount)}** from **${fromAccount}** to **${toAccount}** (${villageDisplay})`;
+  const actionText = `<@${userId}> transferred **${formatResources(transferredAmount)}** from **${fromAccount}** to **${toAccount}** (${villageDisplay})`;
 
   // 7. Post transfer notification in the channel and update embed
   await postContributionMessage(
     client,
     result.request!,
-    `🔄 Transferred contribution: **${fromAccount}** -> **${toAccount}** (**${formatNumber(transferredAmount)}**)`
+    `🔄 Transferred contribution: **${fromAccount}** → **${toAccount}** (**${formatResources(transferredAmount)}**)`
   );
   await updatePushChannelEmbed(client, guildId, result.request!);
 
@@ -79,12 +80,3 @@ export async function executePushTransferAction(
   };
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}

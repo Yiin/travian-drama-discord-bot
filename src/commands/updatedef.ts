@@ -1,10 +1,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { validateDefenseConfig, executeUpdateDefAction } from "../actions";
 import { withRetry } from "../utils/retry";
+import { getStackPanelUrl } from "../services/defense-message";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const updatedefCommand: Command = {
   data: new SlashCommandBuilder()
@@ -42,7 +45,7 @@ export const updatedefCommand: Command = {
     // 1. Validate configuration
     const validation = validateDefenseConfig(interaction.guildId);
     if (!validation.valid) {
-      await interaction.reply({ content: validation.error, ephemeral: true });
+      await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -56,13 +59,13 @@ export const updatedefCommand: Command = {
     if (troopsSent === null && troopsNeeded === null && message === null) {
       await interaction.reply({
         content: "Provide at least one field to update (troops_sent, troops_needed, or message).",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     // 4. Defer reply
-    await withRetry(() => interaction.deferReply());
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     // 5. Execute action
     const result = await executeUpdateDefAction(
@@ -86,6 +89,11 @@ export const updatedefCommand: Command = {
       return;
     }
 
-    await interaction.editReply({ content: result.actionText });
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+        actionId: result.actionId,
+        panelUrl: getStackPanelUrl(validation.guildId),
+      })
+    );
   },
 };

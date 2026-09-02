@@ -106,11 +106,14 @@ export async function executeUndoAction(
 
   // 6. Build action text
   const actionText = `<@${userId}> undid action #${actionId}: ${description}`;
+  const detail = result.message.replace(/^Undone:\s*/i, "");
+  const confirmText = `✅ Undone #${actionId}: ${description}. ${detail}`;
 
   return {
     success: true,
     actionId, // Using the same actionId for reference
     actionText,
+    confirmText,
     description,
   };
 }

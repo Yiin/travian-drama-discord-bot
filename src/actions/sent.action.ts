@@ -9,6 +9,7 @@ import { updateGlobalMessage, LastActionInfo } from "../services/defense-message
 import { recordContribution } from "../services/stats";
 import { resolveTarget } from "./validation";
 import { ActionContext, SentActionInput, SentActionResult } from "./types";
+import { formatTroops } from "../utils/format";
 
 /**
  * Execute the "sent" action - report troops sent to a defense request.
@@ -76,12 +77,16 @@ export async function executeSentAction(
 
   // 7. Build action text
   const creditUser = `<@${creditUserId}>`;
+  const progress = `${formatTroops(result.request.troopsSent)} / ${formatTroops(result.request.troopsNeeded)}`;
   let actionText: string;
   if (result.isComplete) {
-    actionText = `${creditUser} completed ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} completed ${villageDisplay} - **${progress}**`;
   } else {
-    actionText = `${creditUser} sent **${troops}** to ${villageDisplay} - **${result.request.troopsSent}/${result.request.troopsNeeded}**`;
+    actionText = `${creditUser} sent **${formatTroops(troops)}** to ${villageDisplay} - **${progress}**`;
   }
+  const confirmText = result.isComplete
+    ? `✅ ${villageDisplay} is complete: **${progress}**.`
+    : `✅ Added **${formatTroops(troops)}** troops to ${villageDisplay}. Now **${progress}**.`;
 
   // 8. Update global message
   const lastAction: LastActionInfo = { text: actionText, undoId: actionId };
@@ -91,6 +96,7 @@ export async function executeSentAction(
     success: true,
     actionId,
     actionText,
+    confirmText,
     villageName,
     troopsSent: result.request.troopsSent,
     troopsNeeded: result.request.troopsNeeded,

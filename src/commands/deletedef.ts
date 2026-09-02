@@ -1,10 +1,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { validateDefenseConfig, executeDeleteDefAction } from "../actions";
 import { withRetry } from "../utils/retry";
+import { getStackPanelUrl } from "../services/defense-message";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const deletedefCommand: Command = {
   data: new SlashCommandBuilder()
@@ -22,7 +25,7 @@ export const deletedefCommand: Command = {
     // 1. Validate configuration
     const validation = validateDefenseConfig(interaction.guildId);
     if (!validation.valid) {
-      await interaction.reply({ content: validation.error, ephemeral: true });
+      await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -30,7 +33,7 @@ export const deletedefCommand: Command = {
     const requestId = interaction.options.getInteger("id", true);
 
     // 3. Defer reply
-    await withRetry(() => interaction.deferReply());
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     // 4. Execute action
     const result = await executeDeleteDefAction(
@@ -49,6 +52,11 @@ export const deletedefCommand: Command = {
       return;
     }
 
-    await interaction.editReply({ content: result.actionText });
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+        actionId: result.actionId,
+        panelUrl: getStackPanelUrl(validation.guildId),
+      })
+    );
   },
 };

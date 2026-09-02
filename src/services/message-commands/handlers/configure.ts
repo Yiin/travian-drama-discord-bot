@@ -1,6 +1,6 @@
 import { CommandContext } from "../types";
 import { requireAdminMiddleware } from "../middleware";
-import { normalizeServerKey, isValidServerKey } from "../utils";
+import { normalizeServerKey, isValidServerKey, replyError } from "../utils";
 import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setPushChannelId, setServerTimezone } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
 import { isValidTimezone } from "../../../utils/time";
@@ -12,7 +12,7 @@ async function handleConfigureServerCommandInner(
   const serverKey = normalizeServerKey(serverInput);
 
   if (!isValidServerKey(serverKey)) {
-    await ctx.message.reply("Invalid server. Use this format: ts31.x3.europe");
+    await replyError(ctx, "⚠️ **That is not a Travian server key.** Use the form `ts31.x3.europe`.");
     return;
   }
 
@@ -96,7 +96,7 @@ async function handleConfigureTimezoneCommandInner(
   }
 
   if (!isValidTimezone(trimmed)) {
-    await ctx.message.reply(`Unrecognized timezone: \`${value}\`. Use an IANA name, for example \`Europe/Vilnius\`.`);
+    await replyError(ctx, `⚠️ **Unrecognized timezone \`${value}\`.** Use an IANA name, for example \`Europe/Vilnius\`.`);
     return;
   }
 

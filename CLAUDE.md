@@ -66,7 +66,13 @@ Short form only: `ts31.x3.europe`. The full URL is built by `getFullServerUrl()`
 
 ## User-facing language
 
-UI strings (replies, embed labels, error messages) are in **English** (e.g. `"An error occurred!"`, `SEND`). Match the existing tone and language when adding new messages.
+UI strings are in **English**. A vitest (`src/__tests__/no-lithuanian.test.ts`) fails the build on Lithuanian leftovers.
+
+- **Errors and confirmations** live only in `src/actions/messages.ts`. Errors read `⚠️ **What went wrong.** How to fix it.` and name the fix as a clickable command mention via `cmd("stack sent")`. Successes read `✅ What changed. New state.` Slash and modal replies use `confirmation()` / `confirmationEdit()`, which add an **Undo** button (`undo:<actionId>`) and a jump link. Never write a new error string inline.
+- **Numbers** are formatted only through `src/utils/format.ts`: `formatTroops()` → `1,200`, `formatResources()` → `500k` / `1.2M`, arrows are `ARROW` (`→`).
+- **Replies to the actor are ephemeral.** Public output goes to the live panels and the audit line the panel posts (with `SuppressNotifications`).
+- **Text commands** use the `!` prefix in docs and help (`/`-prefixed plain text is still accepted). Each message owns the actions it produced (`messageActions` in action history): editing a message undoes them and re-runs the new content. Failures react ❌ and reply with a message that deletes itself after 30 s; nothing fails silently.
+- Vocabulary: accounts are **linked / unlinked**, never "associated". The free-text field on a request is a **note**.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->

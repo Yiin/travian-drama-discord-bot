@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials, MessageFlags } from "discord.js";
 import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
@@ -57,7 +57,11 @@ import {
   STACK_CONFIRM_DELETE_PREFIX,
   STACK_CANCEL_DELETE_PREFIX,
   STACK_EDIT_MODAL_PREFIX,
+  handleUndoButton,
+  UNDO_BUTTON_PREFIX,
 } from "./services/button-handlers/index";
+import { cacheCommandIds } from "./actions/messages";
+import { errors } from "./actions/messages";
 
 dotenv.config();
 
@@ -70,10 +74,12 @@ const client = new Client({
   partials: [Partials.Message],
 });
 
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Bot is ready! Logged in as ${readyClient.user.tag}`);
 
-  // Start the map data scheduler
+  // Cache slash command IDs so error messages can link commands
+  await cacheCommandIds(readyClient, process.env.DISCORD_GUILD_ID);
+// Start the map data scheduler
   startScheduler();
 
   // Load and reschedule any pending scout notifications
@@ -91,8 +97,10 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-client.on(Events.MessageUpdate, async (_oldMessage, newMessage) => {
+client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
   try {
+    // Embed resolution and pins also fire this event; only content changes matter
+    if (!oldMessage.partial && !newMessage.partial && oldMessage.content === newMessage.content) return;
     // Fetch full message if partial
     const message = newMessage.partial ? await newMessage.fetch() : newMessage;
     await handleTextCommand(client, message);
@@ -129,6 +137,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleStackConfirmDelete(interaction);
       } else if (interaction.customId.startsWith(STACK_CANCEL_DELETE_PREFIX)) {
         await handleStackCancelDelete(interaction);
+      } else if (interaction.customId.startsWith(UNDO_BUTTON_PREFIX)) {
+        await handleUndoButton(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_ADD_BUTTON_ID) {
         await handleAccountReminderAddButton(interaction);
       } else if (interaction.customId === ACCOUNT_REMINDER_SKIP_BUTTON_ID) {
@@ -145,8 +155,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
-            content: "An error occurred!",
-            ephemeral: true,
+            content: errors.generic(),
+            flags: MessageFlags.Ephemeral,
           });
         }
       } catch {
@@ -181,8 +191,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
-            content: "An error occurred!",
-            ephemeral: true,
+            content: errors.generic(),
+            flags: MessageFlags.Ephemeral,
           });
         }
       } catch {
@@ -222,8 +232,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
       const reply = {
-        content: "There was an error while executing this command!",
-        ephemeral: true,
+        content: errors.generic(),
+        flags: MessageFlags.Ephemeral as const,
       };
 
       if (interaction.replied || interaction.deferred) {

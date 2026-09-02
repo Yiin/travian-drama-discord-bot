@@ -5,6 +5,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   LabelBuilder,
+  MessageFlags,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { requireAdmin } from "../../utils/permissions";
@@ -15,6 +16,9 @@ import {
   executePushSentAction,
 } from "../../actions";
 import { deletePushChannel } from "../push-message";
+import { formatResources } from "../../utils/format";
+import { errors } from "../../actions/messages";
+import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
 // Button IDs (defined in push-message.ts)
 export { PUSH_SENT_BUTTON_ID, PUSH_DELETE_BUTTON_ID } from "../push-message";
@@ -23,24 +27,14 @@ export { PUSH_SENT_BUTTON_ID, PUSH_DELETE_BUTTON_ID } from "../push-message";
 export const PUSH_SENT_MODAL_ID = "push_sent_modal";
 export const PUSH_RESOURCES_INPUT_ID = "push_resources_input";
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}
-
 export async function handlePushSentButton(
   interaction: ButtonInteraction
 ): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -50,7 +44,7 @@ export async function handlePushSentButton(
   if (!accountResult.valid) {
     await interaction.reply({
       content: accountResult.error,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -58,8 +52,8 @@ export async function handlePushSentButton(
   const config = getGuildConfig(guildId);
   if (!config.serverKey) {
     await interaction.reply({
-      content: "Travian server is not configured.",
-      ephemeral: true,
+      content: errors.notSetUp(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -70,7 +64,7 @@ export async function handlePushSentButton(
   if (!requestInfo) {
     await interaction.reply({
       content: "No active push request was found in this channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -89,7 +83,7 @@ export async function handlePushSentButton(
 
   const resourcesLabel = new LabelBuilder()
     .setLabel("How many resources did you send?")
-    .setDescription(`Tikslas: ${formatNumber(requestInfo.request.resourcesNeeded)}`)
+    .setDescription(`Target: ${formatResources(requestInfo.request.resourcesNeeded)}`)
     .setTextInputComponent(resourcesInput);
 
   modal.addLabelComponents(resourcesLabel);
@@ -103,7 +97,7 @@ export async function handlePushSentModal(
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -112,7 +106,7 @@ export async function handlePushSentModal(
   if (!channelId) {
     await interaction.reply({
       content: "Failed to identify the channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -121,7 +115,7 @@ export async function handlePushSentModal(
   if (!requestInfo) {
     await interaction.reply({
       content: "No active push request was found in this channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -131,14 +125,14 @@ export async function handlePushSentModal(
   const resources = parseInt(resourcesInput.replace(/[,.\s]/g, ""), 10);
   if (isNaN(resources) || resources < 1) {
     await interaction.reply({
-      content: "Invalid resource count. Enter a positive number.",
-      ephemeral: true,
+      content: errors.invalidCount("resources"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   // 4. Defer reply
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   // 5. Execute action using the request ID from channel lookup
   const result = await executePushSentAction(
@@ -160,8 +154,9 @@ export async function handlePushSentModal(
     return;
   }
 
-  // Success: delete the reply (info is shown in the channel)
-  await interaction.deleteReply();
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 export async function handlePushDeleteButton(
@@ -170,8 +165,8 @@ export async function handlePushDeleteButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -185,13 +180,13 @@ export async function handlePushDeleteButton(
   if (!requestInfo) {
     await interaction.reply({
       content: "No active push request was found in this channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   // Defer reply before deleting
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     // Delete the channel

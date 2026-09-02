@@ -4,6 +4,7 @@ import { updatePushChannelEmbed, postContributionMessage } from "../services/pus
 import { adjustContributionStats } from "../services/push-stats";
 import { ActionContext, PushEditContributionActionInput, PushEditContributionActionResult } from "./types";
 import { recordAction } from "../services/action-history";
+import { formatResources } from "../utils/format";
 
 /**
  * Execute the "push edit contribution" action - edit a contributor's resource amount.
@@ -58,13 +59,13 @@ export async function executePushEditContributionAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> changed **${accountName}** contribution (${villageDisplay}): ${formatNumber(oldAmount)} -> ${formatNumber(newAmount)}`;
+  const actionText = `<@${userId}> changed **${accountName}** contribution (${villageDisplay}): ${formatResources(oldAmount)} → ${formatResources(newAmount)}`;
 
   // 7. Post edit notification in the channel and update embed
   await postContributionMessage(
     client,
     result.request!,
-    `📝 Changed **${accountName}** contribution: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`
+    `📝 Changed **${accountName}** contribution: **${formatResources(oldAmount)}** → **${formatResources(newAmount)}**`
   );
   await updatePushChannelEmbed(client, guildId, result.request!);
 
@@ -80,12 +81,3 @@ export async function executePushEditContributionAction(
   };
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}

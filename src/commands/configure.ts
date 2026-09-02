@@ -2,6 +2,7 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   ChannelType,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { setServerKey, setDefenseChannel, setScoutChannel, setPushChannelId, setScoutRole, setDefCallsChannelId, setServerTimezone, getGuildConfig } from "../config/guild-config";
@@ -9,6 +10,7 @@ import { updateMapData } from "../services/map-data";
 import { withRetry } from "../utils/retry";
 import { isValidTimezone } from "../utils/time";
 import { requireAdmin } from "../utils/permissions";
+import { errors } from "../actions/messages";
 
 function normalizeServerKey(input: string): string {
   let key = input.trim().toLowerCase();
@@ -98,8 +100,8 @@ export const configureCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -131,7 +133,7 @@ async function handleTimezoneConfig(
     setServerTimezone(guildId, null);
     await interaction.reply({
       content: "Server timezone cleared. Entered times will be treated as UTC.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -139,7 +141,7 @@ async function handleTimezoneConfig(
   if (!isValidTimezone(trimmed)) {
     await interaction.reply({
       content: `Unrecognized timezone: \`${value}\`. Use an IANA name, for example \`Europe/Vilnius\`.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -147,7 +149,7 @@ async function handleTimezoneConfig(
   setServerTimezone(guildId, trimmed);
   await interaction.reply({
     content: `Server timezone set: \`${trimmed}\`. Entered times will be treated as local time in this timezone.`,
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -161,13 +163,13 @@ async function handleServerConfig(
   if (!isValidServerKey(serverKey)) {
     await interaction.reply({
       content: "Invalid server. Please provide a valid Travian server (e.g., ts31.x3.europe)",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   // Defer reply as download may take time
-  await withRetry(() => interaction.deferReply({ ephemeral: true }));
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   try {
     // Save the server key (short form)
@@ -199,25 +201,25 @@ async function handleChannelConfig(
     setDefenseChannel(guildId, channel.id);
     await interaction.reply({
       content: `Defense requests will now be sent to <#${channel.id}>`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else if (type === "scout") {
     setScoutChannel(guildId, channel.id);
     await interaction.reply({
       content: `Scout requests will now be sent to <#${channel.id}>`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else if (type === "defcalls") {
     setDefCallsChannelId(guildId, channel.id);
     await interaction.reply({
       content: `Def-call hub set to <#${channel.id}>`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else if (type === "push") {
     setPushChannelId(guildId, channel.id);
     await interaction.reply({
       content: `Push request threads will be created in <#${channel.id}>`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }
@@ -232,7 +234,7 @@ async function handleScoutRoleConfig(
     setScoutRole(guildId, role.id);
     await interaction.reply({
       content: `Scout requests will now mention <@&${role.id}>`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else {
     const config = getGuildConfig(guildId);
@@ -240,12 +242,12 @@ async function handleScoutRoleConfig(
       setScoutRole(guildId, null);
       await interaction.reply({
         content: "Scout role mention has been cleared.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     } else {
       await interaction.reply({
         content: "No scout role is currently configured.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
   }

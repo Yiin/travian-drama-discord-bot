@@ -1,10 +1,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { validateDefenseConfig, executeStackAction } from "../actions";
 import { withRetry } from "../utils/retry";
+import { getStackPanelUrl } from "../services/defense-message";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const stackCommand: Command = {
   data: new SlashCommandBuilder()
@@ -34,7 +37,7 @@ export const stackCommand: Command = {
     // 1. Validate configuration
     const validation = validateDefenseConfig(interaction.guildId);
     if (!validation.valid) {
-      await interaction.reply({ content: validation.error, ephemeral: true });
+      await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -44,7 +47,7 @@ export const stackCommand: Command = {
     const message = interaction.options.getString("message") || "";
 
     // 3. Defer reply
-    await withRetry(() => interaction.deferReply());
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     // 4. Execute action
     const result = await executeStackAction(
@@ -67,6 +70,11 @@ export const stackCommand: Command = {
       return;
     }
 
-    await interaction.editReply({ content: result.actionText });
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+        actionId: result.actionId,
+        panelUrl: getStackPanelUrl(validation.guildId),
+      })
+    );
   },
 };

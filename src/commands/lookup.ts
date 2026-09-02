@@ -7,6 +7,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   ComponentType,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { parseCoords, parsePlayerUrl } from "../utils/parse-coords";
@@ -26,6 +27,7 @@ import {
 } from "../services/map-data";
 import { getPlayerHistoryByName, formatPopulationTrend } from "../services/population-history";
 import { withRetry } from "../utils/retry";
+import { errors } from "../actions/messages";
 
 // ============================================
 // Exported embed builders for reuse
@@ -139,8 +141,8 @@ export const lookupCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -158,8 +160,8 @@ export const lookupCommand: Command = {
     // For other lookups, require guild server config
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian server is not configured. An admin must use `/configure`.",
-        ephemeral: true,
+        content: errors.notSetUp(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -185,7 +187,7 @@ async function handleCoordinateLookup(
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
     await interaction.editReply({
-      content: "Failed to load map data. Try again later.",
+      content: errors.mapUnavailable(),
     });
     return;
   }
@@ -216,7 +218,7 @@ async function handlePlayerLookup(
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
     await interaction.editReply({
-      content: "Failed to load map data. Try again later.",
+      content: errors.mapUnavailable(),
     });
     return;
   }
@@ -242,7 +244,7 @@ async function handlePlayerLookup(
     new StringSelectMenuOptionBuilder()
       .setLabel(player.playerName)
       .setDescription(
-        `${player.totalPopulation.toLocaleString()} pop, ${player.villageCount} miestai`
+        `${player.totalPopulation.toLocaleString()} pop, ${player.villageCount} villages`
       )
       .setValue(player.playerId.toString())
   );
@@ -319,7 +321,7 @@ async function handlePlayerIdLookup(
   const dataReady = await ensureMapData(serverKey);
   if (!dataReady) {
     await interaction.editReply({
-      content: "Failed to load map data. Try again later.",
+      content: errors.mapUnavailable(),
     });
     return;
   }

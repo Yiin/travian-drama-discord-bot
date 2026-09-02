@@ -5,6 +5,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   LabelBuilder,
+  MessageFlags,
 } from "discord.js";
 import {
   getAccountForUser,
@@ -12,6 +13,7 @@ import {
   markNotPlaying,
   setAccount,
 } from "../player-accounts";
+import { errors } from "../../actions/messages";
 
 export const ACCOUNT_REMINDER_ADD_BUTTON_ID = "account_reminder_add_button";
 export const ACCOUNT_REMINDER_SKIP_BUTTON_ID = "account_reminder_skip_button";
@@ -24,8 +26,8 @@ export async function handleAccountReminderAddButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -62,8 +64,8 @@ export async function handleAccountReminderModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -75,7 +77,7 @@ export async function handleAccountReminderModal(
   if (!inGameName) {
     await interaction.reply({
       content: "Enter a valid player name.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -90,7 +92,7 @@ export async function handleAccountReminderModal(
         ? `You are already linked to **${inGameName}**.`
         : `You are linked to in-game account **${inGameName}**.`;
 
-  await interaction.reply({ content: message, ephemeral: true });
+  await interaction.reply({ content: message, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAccountReminderSkipButton(
@@ -99,8 +101,8 @@ export async function handleAccountReminderSkipButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -109,7 +111,7 @@ export async function handleAccountReminderSkipButton(
     await interaction.reply({
       content:
         "You are already marked as not playing. If you are playing, press **Add** or use `/account set`.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -119,6 +121,6 @@ export async function handleAccountReminderSkipButton(
   await interaction.reply({
     content:
       "Marked as not playing. If you change your mind, press **Add** or use `/account set`.",
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }

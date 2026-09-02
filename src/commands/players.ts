@@ -1,6 +1,7 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
 import { getAllPlayers } from "../services/player-accounts";
+import { errors } from "../actions/messages";
 
 export const playersCommand: Command = {
   data: new SlashCommandBuilder()
@@ -12,8 +13,8 @@ export const playersCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -23,8 +24,8 @@ export const playersCommand: Command = {
     if (players.length === 0) {
       await interaction.reply({
         content:
-          "No players registered yet. Use `/account set` to associate yourself with an in-game account.",
-        ephemeral: true,
+          "No players registered yet. Use `/account set` to link your in-game account.",
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

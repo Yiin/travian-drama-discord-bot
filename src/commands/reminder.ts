@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../services/reminder-scheduler";
 import { withRetry } from "../utils/retry";
 import { requireAdmin } from "../utils/permissions";
+import { errors } from "../actions/messages";
 
 export const reminderCommand: Command = {
   data: new SlashCommandBuilder()
@@ -71,8 +73,8 @@ export const reminderCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -107,7 +109,7 @@ async function handleAddReminder(
   if (fromMinutes === null) {
     await interaction.reply({
       content: `Invalid start time format: \`${fromTimeStr}\`. Use 24h format like \`10:00\` or \`09:30\`.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -115,12 +117,12 @@ async function handleAddReminder(
   if (toMinutes === null) {
     await interaction.reply({
       content: `Invalid end time format: \`${toTimeStr}\`. Use 24h format like \`23:00\` or \`22:30\`.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  await withRetry(() => interaction.deferReply({ ephemeral: true }));
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   try {
     const reminder = addReminder(interaction.client, {
@@ -158,7 +160,7 @@ async function handleListReminders(
   if (reminders.length === 0) {
     await interaction.reply({
       content: "No active reminders in this server.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -174,7 +176,7 @@ async function handleListReminders(
 
   await interaction.reply({
     content: `**Active Reminders:**\n\n${lines.join("\n\n")}`,
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -191,7 +193,7 @@ async function handleDeleteReminder(
   if (!reminder) {
     await interaction.reply({
       content: `Reminder **#${id}** not found in this server.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -201,12 +203,12 @@ async function handleDeleteReminder(
   if (deleted) {
     await interaction.reply({
       content: `Reminder **#${id}** deleted.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else {
     await interaction.reply({
       content: `Failed to delete reminder **#${id}**.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }

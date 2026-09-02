@@ -1,12 +1,21 @@
 import { CommandContext } from "../types";
 import { executeScoutAction, sendScoutMessage } from "../../../actions";
+import { replyError, rememberAction } from "../utils";
+import { errors } from "../../../actions/messages";
 
 export async function handleScoutCommand(
   ctx: CommandContext,
   coordsInput: string,
   scoutMessage: string
 ): Promise<void> {
-  if (!ctx.config.serverKey || !ctx.config.scoutChannelId) return;
+  if (!ctx.config.serverKey) {
+    await replyError(ctx, errors.notSetUp());
+    return;
+  }
+  if (!ctx.config.scoutChannelId) {
+    await replyError(ctx, errors.channelMissing("scout"));
+    return;
+  }
 
   // Execute the scout action
   const result = await executeScoutAction(
@@ -25,7 +34,7 @@ export async function handleScoutCommand(
   );
 
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
@@ -38,7 +47,7 @@ export async function handleScoutCommand(
   });
 
   if (!sent) {
-    await ctx.message.reply("Configured scout channel was not found.");
+    await replyError(ctx, errors.channelGone("scout"));
     return;
   }
 

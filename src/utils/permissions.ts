@@ -4,10 +4,12 @@ import {
   ChatInputCommandInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
+  MessageFlags,
 } from "discord.js";
 import { isBotOwner } from "../config/owners";
+import { errors } from "../actions/messages";
 
-export const ADMIN_ONLY_MESSAGE = "Only administrators can use this command.";
+export const ADMIN_ONLY_MESSAGE = errors.adminOnly();
 
 /**
  * Check if a member has admin permissions (Administrator or ManageChannels).
@@ -36,7 +38,7 @@ export async function requireAdmin(interaction: RepliableInteraction): Promise<b
 
   await interaction.reply({
     content: ADMIN_ONLY_MESSAGE,
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
   return false;
 }

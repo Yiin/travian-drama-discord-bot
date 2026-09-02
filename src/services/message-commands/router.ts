@@ -3,6 +3,19 @@ import * as patterns from "./patterns";
 import * as handlers from "./handlers";
 import { getRequestByChannelId } from "../def-calls";
 import { parseTroopCount } from "../../utils/parse-number";
+import { errors } from "../../actions/messages";
+import { replyError } from "./utils";
+
+/** Slash command to suggest when a stack-queue text command is typed outside the defense channel. */
+function stackCommandTypedElsewhere(content: string): string | undefined {
+  if (patterns.SENT_PATTERN.test(content) || patterns.SENT_VERBOSE_PATTERN.test(content)) return "sent";
+  if (patterns.STACK_PATTERN.test(content)) return "stack";
+  if (patterns.DELETEDEF_PATTERN.test(content)) return "deletedef";
+  if (patterns.STACKINFO_PATTERN.test(content)) return "stackinfo";
+  if (patterns.UPDATEDEF_PATTERN.test(content)) return "updatedef";
+  if (patterns.UNDO_PATTERN.test(content)) return "undo";
+  return undefined;
+}
 
 /**
  * Process a single command line
@@ -185,6 +198,20 @@ export async function processSingleCommand(
   const isDefenseChannel = ctx.channelId === ctx.config.defenseChannelId;
   const isScoutChannel = ctx.channelId === ctx.config.scoutChannelId;
 
+  if (!isDefenseChannel) {
+    const slash = stackCommandTypedElsewhere(content);
+    if (slash) {
+      await replyError(ctx, errors.wrongChannel("defense", ctx.config.defenseChannelId, slash));
+      return;
+    }
+  }
+  if (!isScoutChannel) {
+    if (patterns.SCOUT_PATTERN.test(content) || patterns.SCOUT_VERBOSE_PATTERN.test(content)) {
+      await replyError(ctx, errors.wrongChannel("scout", ctx.config.scoutChannelId, "scout"));
+      return;
+    }
+  }
+
   if (!isDefenseChannel && !isScoutChannel) return;
 
   // Defense channel commands
@@ -228,7 +255,7 @@ export async function processSingleCommand(
     // Undo command
     match = content.match(patterns.UNDO_PATTERN);
     if (match) {
-      await handlers.handleUndoCommand(ctx, parseInt(match[1], 10));
+      await handlers.handleUndoCommand(ctx, match[1] ? parseInt(match[1], 10) : undefined);
       return;
     }
   }

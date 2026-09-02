@@ -19,14 +19,15 @@ export async function executeMoveAction(
   }
 
   // 2. Update the global message
-  await updateGlobalMessage(client, guildId);
-
-  // 3. Build action text
-  const actionText = `<@${userId}> transferred request #${fromPosition} to position #${toPosition}.`;
+  // 3. Build action text, update the global message, post the audit line
+  const actionText = `<@${userId}> moved request #${fromPosition} to position #${toPosition}`;
+  const confirmText = `✅ Moved request #${fromPosition} to position #${toPosition}.`;
+  await updateGlobalMessage(client, guildId, { text: actionText, undoId: 0 });
 
   return {
     success: true,
     actionText,
+    confirmText,
     fromPosition,
     toPosition,
   };

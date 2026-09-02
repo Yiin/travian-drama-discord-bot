@@ -19,12 +19,14 @@ import {
   getLastResetTime,
 } from "../../stats";
 import { getVillageAt, getMapLink, getPlayerByExactName } from "../../map-data";
+import { errors } from "../../../actions/messages";
+import { replyError, rememberAction } from "../utils";
 
 async function handleStatsLeaderboardCommandInner(ctx: CommandContext): Promise<void> {
   const leaderboard = getLeaderboard(ctx.guildId);
 
   if (leaderboard.length === 0) {
-    await ctx.message.reply("No stats have been recorded yet.");
+    await replyError(ctx, "⚠️ **No stats recorded yet.**");
     return;
   }
 
@@ -101,9 +103,9 @@ async function handleStatsUserCommandInner(
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`Statistika: ${userName}`)
+    .setTitle(`Stats for ${userName}`)
     .setDescription(
-      `**Total:** ${formatNumber(userStats.totalTroops)} troops to ${userStats.villages.length} kaimus\n\n${lines.join("\n")}`
+      `**Total:** ${formatNumber(userStats.totalTroops)} troops to ${userStats.villages.length} villages\n\n${lines.join("\n")}`
     )
     .setColor(0x5865f2);
 
@@ -122,14 +124,14 @@ async function handleStatsPlayerCommandInner(
   const serverKey = config.serverKey;
 
   if (!serverKey) {
-    await ctx.message.reply("Server is not configured. Use `/configure server` first.");
+    await replyError(ctx, errors.notSetUp());
     return;
   }
 
   const playerData = await getPlayerByExactName(serverKey, playerName);
 
   if (!playerData) {
-    await ctx.message.reply(`Player "${playerName}" was not found.`);
+    await replyError(ctx, errors.notFound(`player "${playerName}"`));
     return;
   }
 
@@ -150,11 +152,11 @@ async function handleStatsPlayerCommandInner(
   const allianceStr = player.allianceName ? ` [${player.allianceName}]` : "";
 
   const embed = new EmbedBuilder()
-    .setTitle(`Kaimai: ${player.playerName}${allianceStr}`)
+    .setTitle(`Villages of ${player.playerName}${allianceStr}`)
     .setDescription(
       `**Total collected:** ${formatNumber(totalCollected)} troops\n\n${lines.join("\n")}`
     )
-    .setFooter({ text: `${villages.length} villages • ${formatNumber(player.totalPopulation)} populiacija` })
+    .setFooter({ text: `${villages.length} villages • ${formatNumber(player.totalPopulation)} population` })
     .setColor(0x5865f2);
 
   await ctx.message.reply({ embeds: [embed] });
@@ -166,7 +168,7 @@ async function handleStatsVillageCommandInner(
 ): Promise<void> {
   const coords = parseCoords(coordsInput);
   if (!coords) {
-    await ctx.message.reply("Invalid coordinates. Use `123|456` or `-45|89`.");
+    await replyError(ctx, errors.invalidCoords());
     return;
   }
 
@@ -176,7 +178,7 @@ async function handleStatsVillageCommandInner(
   const villageStats = getVillageStats(ctx.guildId, coords.x, coords.y);
 
   if (!villageStats) {
-    await ctx.message.reply(`No stats recorded at coordinates (${coords.x}|${coords.y}).`);
+    await replyError(ctx, `⚠️ **No stats recorded at (${coords.x}|${coords.y}).**`);
     return;
   }
 
@@ -202,7 +204,7 @@ async function handleStatsVillageCommandInner(
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`Gynyba: ${villageName}${playerInfo}`)
+    .setTitle(`Defense at ${villageName}${playerInfo}`)
     .setDescription(
       `**Total:** ${formatNumber(villageStats.totalTroops)} troops from ${villageStats.contributors.length} defenders\n\n${lines.join("\n")}`
     )
@@ -215,7 +217,7 @@ async function handleStatsStacksCommandInner(ctx: CommandContext): Promise<void>
   const allVillages = getAllVillageStats(ctx.guildId);
 
   if (allVillages.length === 0) {
-    await ctx.message.reply("No stats have been recorded yet.");
+    await replyError(ctx, "⚠️ **No stats recorded yet.**");
     return;
   }
 
@@ -250,7 +252,7 @@ async function handleStatsStacksCommandInner(ctx: CommandContext): Promise<void>
   const totalTroops = allVillages.reduce((sum, v) => sum + v.totalTroops, 0);
 
   const embed = new EmbedBuilder()
-    .setTitle("Daugiausiai apginti villages")
+    .setTitle("Most Defended Villages")
     .setDescription(lines.join("\n"))
     .setFooter({ text: `${allVillages.length} villages • ${formatNumber(totalTroops)} total troops` })
     .setColor(0x5865f2);

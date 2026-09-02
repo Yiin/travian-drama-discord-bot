@@ -17,6 +17,7 @@ import {
   DefCallRequestActionInput,
   DefCallRequestActionResult,
 } from "./types";
+import { errors } from "./messages";
 
 export async function executeDefCallRequestAction(
   context: ActionContext,
@@ -28,7 +29,7 @@ export async function executeDefCallRequestAction(
   if (troopsNeeded !== undefined && (!Number.isFinite(troopsNeeded) || troopsNeeded < 1)) {
     return {
       success: false,
-      error: "Troop limit must be a positive integer.",
+      error: errors.invalidCount("troops for the limit"),
     };
   }
 
@@ -36,7 +37,7 @@ export async function executeDefCallRequestAction(
     return {
       success: false,
       error:
-        "Travian server is not configured. An admin must use `/configure server`.",
+        errors.notSetUp(),
     };
   }
 
@@ -44,7 +45,7 @@ export async function executeDefCallRequestAction(
     return {
       success: false,
       error:
-        "Def-calls channel is not configured. An administrator must run `/configure channel type:DefCalls`.",
+        errors.channelMissing("defcalls"),
     };
   }
 
@@ -72,7 +73,7 @@ export async function executeDefCallRequestAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Failed to load map data. Try again later.",
+      error: errors.mapUnavailable(),
     };
   }
 
@@ -128,6 +129,7 @@ export async function executeDefCallRequestAction(
     success: true,
     actionId,
     actionText,
+    confirmText: `✅ Defense request created for ${villageDisplay}, lands ${formatRelativeWithRaw(landingAt, config.serverTimezone)}. Report in <#${channelId}>.`,
     requestId: result.requestId,
     villageName: village?.villageName ?? "Unknown",
     playerName: village?.playerName ?? "Unknown",

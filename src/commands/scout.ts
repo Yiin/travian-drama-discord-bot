@@ -1,8 +1,10 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
 import { executeScoutAction, sendScoutMessage } from "../actions";
+import { errors } from "../actions/messages";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const scoutCommand: Command = {
   data: new SlashCommandBuilder()
@@ -28,8 +30,8 @@ export const scoutCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -38,8 +40,8 @@ export const scoutCommand: Command = {
     if (!config.serverKey) {
       await interaction.reply({
         content:
-          "Travian server is not configured. An admin must use `/setserver`.",
-        ephemeral: true,
+          errors.notSetUp(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -47,14 +49,14 @@ export const scoutCommand: Command = {
     if (!config.scoutChannelId) {
       await interaction.reply({
         content:
-          "Scout channel is not configured. An admin must use `/setchannel type:Scout`.",
-        ephemeral: true,
+          errors.channelMissing("scout"),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     // Defer reply as map data lookup may take time
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     // Execute the scout action
     const result = await executeScoutAction(
@@ -87,12 +89,16 @@ export const scoutCommand: Command = {
 
     if (!sent) {
       await interaction.editReply({
-        content: "Configured scout channel was not found.",
+        content: errors.channelGone("scout"),
       });
       return;
     }
 
-    // Delete the deferred reply since the scout request is posted to the channel
-    await interaction.deleteReply();
+    await interaction.editReply(
+      confirmationEdit(`✅ Scout request posted for ${result.villageDisplay}.`, {
+        panelUrl: channelUrl(guildId, config.scoutChannelId),
+        panelLabel: "Open channel",
+      })
+    );
   },
 };

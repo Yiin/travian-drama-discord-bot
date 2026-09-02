@@ -1,6 +1,8 @@
 import { CommandContext } from "../types";
 import { parseCoords } from "../../../utils/parse-coords";
 import { recordContribution } from "../../stats";
+import { errors } from "../../../actions/messages";
+import { replyError, rememberAction } from "../utils";
 
 export async function handleAddstatCommand(
   ctx: CommandContext,
@@ -10,12 +12,12 @@ export async function handleAddstatCommand(
 ): Promise<void> {
   const coords = parseCoords(coordsInput);
   if (!coords) {
-    await ctx.message.reply("Invalid coordinates. Use `123|456` or `-45|89`.");
+    await replyError(ctx, errors.invalidCoords());
     return;
   }
 
   if (troops === 0) {
-    await ctx.message.reply("Troop count cannot be 0.");
+    await replyError(ctx, errors.countIsZero("troop"));
     return;
   }
 

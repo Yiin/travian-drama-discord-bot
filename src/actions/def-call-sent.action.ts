@@ -16,16 +16,8 @@ import {
   DefCallSentActionInput,
   DefCallSentActionResult,
 } from "./types";
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}
+import { formatTroops } from "../utils/format";
+import { errors } from "./messages";
 
 export async function executeDefCallSentAction(
   context: ActionContext,
@@ -40,7 +32,7 @@ export async function executeDefCallSentAction(
     if (creditUserId && creditUserId !== userId) {
       return {
         success: false,
-        error: `<@${creditUserId}> does not have a linked in-game account.`,
+        error: errors.otherAccountNotLinked(creditUserId),
       };
     }
     return { success: false, error: accountResult.error };
@@ -84,17 +76,18 @@ export async function executeDefCallSentAction(
   await postDefCallContributionMessage(
     client,
     result.request,
-    `**${accountName}** sent **${formatNumber(troops)}** troops`
+    `**${accountName}** sent **${formatTroops(troops)}** troops`
   );
   await updateDefCallChannelEmbed(client, guildId, result.request);
   await refreshHubChannel(client, guildId);
 
-  const actionText = `**${accountName}** sent **${formatNumber(troops)}** troops to (${result.request.x}|${result.request.y})`;
+  const actionText = `**${accountName}** sent **${formatTroops(troops)}** troops to (${result.request.x}|${result.request.y})`;
 
   return {
     success: true,
     actionId,
     actionText,
+    confirmText: `✅ Added **${formatTroops(troops)}** troops. Total now **${formatTroops(result.request.troopsSent)}**${result.request.troopsNeeded ? ` / ${formatTroops(result.request.troopsNeeded)}` : ""}.`,
     requestId,
     troopsSent: troops,
     totalTroops: result.request.troopsSent,

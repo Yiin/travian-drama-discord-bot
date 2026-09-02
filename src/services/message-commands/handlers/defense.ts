@@ -1,5 +1,4 @@
 import { CommandContext } from "../types";
-import { requireAdminMiddleware } from "../middleware";
 import {
   validateDefenseConfig,
   executeSentAction,
@@ -9,6 +8,9 @@ import {
   executeUndoAction,
 } from "../../../actions";
 import { updateGlobalMessage } from "../../defense-message";
+import { errors } from "../../../actions/messages";
+import { replyError, rememberAction } from "../utils";
+import { getLatestUndoableActionId } from "../../action-history";
 
 export async function handleSentCommand(
   ctx: CommandContext,
@@ -19,13 +21,13 @@ export async function handleSentCommand(
   // 1. Validate configuration
   const validation = validateDefenseConfig(ctx.guildId);
   if (!validation.valid) {
-    // For text commands, silently ignore if config is missing
+    await replyError(ctx, validation.error);
     return;
   }
 
   // 2. Validate troops
   if (troops < 1) {
-    await ctx.message.reply("Troop count must be at least 1.");
+    await replyError(ctx, errors.invalidCount("troops"));
     return;
   }
 
@@ -47,11 +49,12 @@ export async function handleSentCommand(
 
   // 4. Handle response
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
-  // Success: react with checkmark
+  // Success: react with checkmark (the panel posts the audit line)
+  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
 }
 
@@ -64,13 +67,13 @@ export async function handleStackCommand(
   // 1. Validate configuration
   const validation = validateDefenseConfig(ctx.guildId);
   if (!validation.valid) {
-    // For text commands, silently ignore if config is missing
+    await replyError(ctx, validation.error);
     return;
   }
 
   // 2. Validate troops
   if (troops < 1) {
-    await ctx.message.reply("Troop count must be at least 1.");
+    await replyError(ctx, errors.invalidCount("troops"));
     return;
   }
 
@@ -91,13 +94,13 @@ export async function handleStackCommand(
 
   // 4. Handle response
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
-  // Success: react and reply with confirmation
+  // Success: react (the panel posts the audit line)
+  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
-  await ctx.message.reply(result.actionText);
 }
 
 export async function handleDeleteDefCommand(
@@ -107,7 +110,7 @@ export async function handleDeleteDefCommand(
   // 1. Validate configuration
   const validation = validateDefenseConfig(ctx.guildId);
   if (!validation.valid) {
-    // For text commands, silently ignore if config is missing
+    await replyError(ctx, validation.error);
     return;
   }
 
@@ -124,16 +127,16 @@ export async function handleDeleteDefCommand(
 
   // 3. Handle response
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
-  // Success: react and reply with confirmation
+  // Success: react (the panel posts the audit line)
+  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
-  await ctx.message.reply(result.actionText);
 }
 
-async function handleUpdateDefCommandInner(
+export async function handleUpdateDefCommand(
   ctx: CommandContext,
   requestId: number,
   paramsStr: string
@@ -141,7 +144,7 @@ async function handleUpdateDefCommandInner(
   // 1. Validate configuration
   const validation = validateDefenseConfig(ctx.guildId);
   if (!validation.valid) {
-    // For text commands, silently ignore if config is missing
+    await replyError(ctx, validation.error);
     return;
   }
 
@@ -166,7 +169,7 @@ async function handleUpdateDefCommandInner(
   }
 
   if (troopsSent === undefined && troopsNeeded === undefined && updateMessage === undefined) {
-    await ctx.message.reply("Provide at least one field to update (troops_sent: X, troops_needed: X, or message: text).");
+    await replyError(ctx, "⚠️ **Nothing to update.** Give at least one of `troops_sent: X`, `troops_needed: X`, or `message: text`.");
     return;
   }
 
@@ -188,24 +191,28 @@ async function handleUpdateDefCommandInner(
 
   // 4. Handle response
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
-  // Success: react and reply with confirmation
+  // Success: react (the panel posts the audit line)
+  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
-  await ctx.message.reply(result.actionText);
 }
-
-// Wrap with admin check
-export const handleUpdateDefCommand = requireAdminMiddleware(handleUpdateDefCommandInner);
 
 export async function handleUndoCommand(
   ctx: CommandContext,
-  actionId: number
+  actionId: number | undefined
 ): Promise<void> {
-  // Undo only needs defenseChannelId
-  if (!ctx.config.defenseChannelId) return;
+  if (!ctx.config.defenseChannelId) {
+    await replyError(ctx, errors.notSetUp());
+    return;
+  }
+  actionId ??= getLatestUndoableActionId(ctx.guildId);
+  if (!actionId) {
+    await replyError(ctx, errors.notFound("undoable action"));
+    return;
+  }
 
   // Execute action
   const result = await executeUndoAction(
@@ -220,17 +227,20 @@ export async function handleUndoCommand(
 
   // Handle response
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
-  // Success: react and reply with confirmation
+  // Success: react and reply with what was undone (this reply is not itself undoable)
   await ctx.message.react("✅");
-  await ctx.message.reply(result.actionText);
+  await ctx.message.reply(result.confirmText ?? result.actionText);
 }
 
 export async function handleStackinfoCommand(ctx: CommandContext): Promise<void> {
-  if (!ctx.config.serverKey || !ctx.config.defenseChannelId) return;
+  if (!ctx.config.serverKey || !ctx.config.defenseChannelId) {
+    await replyError(ctx, errors.notSetUp());
+    return;
+  }
 
   await updateGlobalMessage(ctx.client, ctx.guildId);
 

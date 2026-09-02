@@ -5,6 +5,8 @@ import { parseAndValidateCoords } from "./validation";
 import { validateUserHasAccount } from "./push-validation";
 import { ActionContext, PushRequestActionInput, PushRequestActionResult } from "./types";
 import { recordAction } from "../services/action-history";
+import { formatResources } from "../utils/format";
+import { errors } from "./messages";
 
 /**
  * Execute the "push request" action - create a push request.
@@ -38,7 +40,7 @@ export async function executePushRequestAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Failed to load map data. Try again later.",
+      error: errors.mapUnavailable(),
     };
   }
 
@@ -72,12 +74,13 @@ export async function executePushRequestAction(
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${x}|${y}) Unknown/new village`;
   const allianceInfo = village?.allianceName ? ` [${village.allianceName}]` : "";
-  const actionText = `**${accountName}** created a push request: ${villageDisplay}${allianceInfo} - needs ${formatNumber(resourcesNeeded)} resources. <#${channelResult.channelId}>`;
+  const actionText = `**${accountName}** created a push request: ${villageDisplay}${allianceInfo} - needs ${formatResources(resourcesNeeded)} resources. <#${channelResult.channelId}>`;
 
   return {
     success: true,
     actionId,
     actionText,
+    confirmText: `✅ Push request created for ${villageDisplay}${allianceInfo}. Needs **${formatResources(resourcesNeeded)}** resources. Report in <#${channelResult.channelId}>.`,
     requestId: result.requestId,
     villageName: village?.villageName ?? "Unknown/new village",
     playerName: village?.playerName ?? "Unknown",
@@ -88,12 +91,3 @@ export async function executePushRequestAction(
   };
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}

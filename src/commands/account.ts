@@ -6,6 +6,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   TextChannel,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -26,11 +27,12 @@ import {
   ACCOUNT_REMINDER_SKIP_BUTTON_ID,
 } from "../services/button-handlers/index";
 import { requireAdmin } from "../utils/permissions";
+import { errors } from "../actions/messages";
 
 export const accountCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("account")
-    .setDescription("Manage in-game account associations")
+    .setDescription("Link your Discord user to an in-game account")
     .addSubcommand((subcommand) =>
       subcommand
         .setName("set")
@@ -51,7 +53,7 @@ export const accountCommand: Command = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("del")
-        .setDescription("Remove your in-game account association")
+        .setDescription("Unlink your in-game account")
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -99,8 +101,8 @@ export const accountCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -129,7 +131,7 @@ async function handlePostReminder(
   if (!channel || !(channel instanceof TextChannel)) {
     await interaction.reply({
       content: "Use this command in a text channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -177,7 +179,7 @@ async function handlePostReminder(
 
   await interaction.reply({
     content: "Reminder posted.",
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -193,7 +195,7 @@ async function handleSetAccount(
   if (!inGameName) {
     await interaction.reply({
       content: "Please provide a valid in-game name.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -204,35 +206,35 @@ async function handleSetAccount(
   if (isSelf) {
     if (previousName && previousName !== inGameName) {
       await interaction.reply({
-        content: `Updated your account from **${previousName}** to **${inGameName}**.`,
-        ephemeral: true,
+        content: `Changed your linked account from **${previousName}** to **${inGameName}**.`,
+        flags: MessageFlags.Ephemeral,
       });
     } else if (previousName === inGameName) {
       await interaction.reply({
-        content: `You are already associated with **${inGameName}**.`,
-        ephemeral: true,
+        content: `You are already linked to **${inGameName}**.`,
+        flags: MessageFlags.Ephemeral,
       });
     } else {
       await interaction.reply({
-        content: `You are now associated with in-game account **${inGameName}**.`,
-        ephemeral: true,
+        content: `You are now linked to in-game account **${inGameName}**.`,
+        flags: MessageFlags.Ephemeral,
       });
     }
   } else {
     if (previousName && previousName !== inGameName) {
       await interaction.reply({
         content: `Updated <@${userId}> account from **${previousName}** to **${inGameName}**.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     } else if (previousName === inGameName) {
       await interaction.reply({
-        content: `<@${userId}> is already associated with **${inGameName}**.`,
-        ephemeral: true,
+        content: `<@${userId}> is already linked to **${inGameName}**.`,
+        flags: MessageFlags.Ephemeral,
       });
     } else {
       await interaction.reply({
-        content: `<@${userId}> is now associated with in-game account **${inGameName}**.`,
-        ephemeral: true,
+        content: `<@${userId}> is now linked to in-game account **${inGameName}**.`,
+        flags: MessageFlags.Ephemeral,
       });
     }
   }
@@ -247,16 +249,16 @@ async function handleDeleteAccount(
 
   if (!previousName) {
     await interaction.reply({
-      content: "You don't have an in-game account associated.",
-      ephemeral: true,
+      content: "You have no linked in-game account.",
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   deleteAccount(guildId, userId);
   await interaction.reply({
-    content: `Removed your association with **${previousName}**.`,
-    ephemeral: true,
+    content: `Unlinked **${previousName}**.`,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -270,7 +272,7 @@ async function handleRenameAccount(
   if (!oldName || !newName) {
     await interaction.reply({
       content: "Please provide valid account names.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -278,7 +280,7 @@ async function handleRenameAccount(
   if (oldName === newName) {
     await interaction.reply({
       content: "Old and new names are the same.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -295,7 +297,7 @@ async function handleRenameAccount(
   if (!accountRenamed && pushUpdates === 0 && statsUpdates === 0) {
     await interaction.reply({
       content: `Account **${oldName}** not found.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -315,6 +317,6 @@ async function handleRenameAccount(
 
   await interaction.reply({
     content: parts.join("\n"),
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }

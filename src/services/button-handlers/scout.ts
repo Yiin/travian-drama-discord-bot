@@ -58,7 +58,7 @@ export async function handleScoutGoingModal(
   if (!messageId) {
     await interaction.reply({
       content: "Failed to update the message.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -70,7 +70,7 @@ export async function handleScoutGoingModal(
   if (!channel) {
     await interaction.reply({
       content: "Failed to find the channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -81,7 +81,7 @@ export async function handleScoutGoingModal(
   } catch {
     await interaction.reply({
       content: "Failed to find the message.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -91,7 +91,7 @@ export async function handleScoutGoingModal(
   if (existingComponents.length < 2) {
     await interaction.reply({
       content: "Failed to update the message.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -102,7 +102,7 @@ export async function handleScoutGoingModal(
   if (!("components" in containerData) || !Array.isArray(containerData.components)) {
     await interaction.reply({
       content: "Failed to update the message.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -230,7 +230,7 @@ export async function handleScoutDoneButton(
   if (!success) {
     await interaction.reply({
       content: "Failed to update the message.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

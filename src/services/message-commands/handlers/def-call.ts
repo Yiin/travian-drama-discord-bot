@@ -7,6 +7,8 @@ import {
 } from "../../../actions";
 import { getRequestByChannelId } from "../../def-calls";
 import { isAdmin } from "../../../utils/permissions";
+import { errors } from "../../../actions/messages";
+import { replyError, rememberAction } from "../utils";
 
 export async function handleDefCommand(
   ctx: CommandContext,
@@ -26,12 +28,13 @@ export async function handleDefCommand(
   );
 
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
+  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
-  await ctx.message.reply(result.actionText);
+  await ctx.message.reply(result.confirmText ?? result.actionText);
 }
 
 export async function handleDefCallSentCommand(
@@ -41,7 +44,7 @@ export async function handleDefCallSentCommand(
   forUserId: string | undefined
 ): Promise<void> {
   if (troops < 1) {
-    await ctx.message.reply("Troop count must be at least 1.");
+    await replyError(ctx, errors.invalidCount("troops"));
     return;
   }
 
@@ -56,17 +59,18 @@ export async function handleDefCallSentCommand(
   );
 
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
 
+  rememberAction(ctx, result.actionId);
   await ctx.message.react("✅");
 }
 
 export async function handleCloseCommand(ctx: CommandContext): Promise<void> {
   const requestData = getRequestByChannelId(ctx.guildId, ctx.channelId);
   if (!requestData) {
-    await ctx.message.reply("This channel is not a defense request channel.");
+    await replyError(ctx, errors.notInThread("defense request"));
     return;
   }
 
@@ -84,7 +88,7 @@ export async function handleCloseCommand(ctx: CommandContext): Promise<void> {
   );
 
   if (!result.success) {
-    await ctx.message.reply(result.error);
+    await replyError(ctx, result.error);
     return;
   }
   // channel is being deleted; nothing else

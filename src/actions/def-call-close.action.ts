@@ -59,11 +59,13 @@ export async function executeDefCallCloseAction(
   });
 
   const actionText = `Request (${request.x}|${request.y}) closed.`;
+  const confirmText = "✅ Request closed. The thread is being deleted.";
 
   return {
     success: true,
     actionId,
     actionText,
+    confirmText,
     requestId,
     coords: { x: request.x, y: request.y },
   };

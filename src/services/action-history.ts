@@ -21,6 +21,7 @@ import {
   restoreRequest as restoreDefCallRequest,
   closeRequest as closeDefCallRequestById,
 } from "./def-calls";
+import { formatResources, formatTroops } from "../utils/format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const HISTORY_FILE = path.join(DATA_DIR, "action-history.json");
@@ -90,6 +91,14 @@ export interface Action {
 export interface GuildActionHistory {
   nextId: number;
   actions: Action[];
+  /** Text-command messages that produced actions, keyed by message ID. */
+  messageActions?: Record<string, MessageActions>;
+}
+
+/** Actions a single text-command message produced, plus the content that produced them. */
+export interface MessageActions {
+  content: string;
+  actionIds: number[];
 }
 
 type AllHistoryData = Record<string, GuildActionHistory>;
@@ -189,6 +198,58 @@ export function getAction(guildId: string, actionId: number): Action | undefined
 export function getRecentActions(guildId: string, limit: number = 10): Action[] {
   const history = getGuildHistory(guildId);
   return history.actions.slice(-limit).reverse();
+}
+
+/** The most recent action that has not been undone yet. */
+export function getLatestUndoableActionId(guildId: string): number | undefined {
+  const history = getGuildHistory(guildId);
+  for (let i = history.actions.length - 1; i >= 0; i--) {
+    if (!history.actions[i].undone) return history.actions[i].id;
+  }
+  return undefined;
+}
+
+// --- Text-command message links ---
+// Each message owns its own actions. Editing a message undoes those actions before the new content runs.
+
+export function linkActionToMessage(
+  guildId: string,
+  messageId: string,
+  content: string,
+  actionId: number
+): void {
+  const history = getGuildHistory(guildId);
+  history.messageActions ??= {};
+  const entry = history.messageActions[messageId] ?? { content, actionIds: [] };
+  entry.content = content;
+  if (!entry.actionIds.includes(actionId)) entry.actionIds.push(actionId);
+  history.messageActions[messageId] = entry;
+  pruneMessageLinks(history);
+  saveGuildHistory(guildId, history);
+}
+
+export function getMessageActions(guildId: string, messageId: string): MessageActions | undefined {
+  return getGuildHistory(guildId).messageActions?.[messageId];
+}
+
+export function setMessageContent(guildId: string, messageId: string, content: string): void {
+  const history = getGuildHistory(guildId);
+  history.messageActions ??= {};
+  const entry = history.messageActions[messageId] ?? { content, actionIds: [] };
+  entry.content = content;
+  history.messageActions[messageId] = entry;
+  pruneMessageLinks(history);
+  saveGuildHistory(guildId, history);
+}
+
+/** Drop links whose actions have all been trimmed from history. */
+function pruneMessageLinks(history: GuildActionHistory): void {
+  if (!history.messageActions) return;
+  const live = new Set(history.actions.map((a) => a.id));
+  for (const [messageId, entry] of Object.entries(history.messageActions)) {
+    entry.actionIds = entry.actionIds.filter((id) => live.has(id));
+    if (entry.actionIds.length === 0) delete history.messageActions[messageId];
+  }
 }
 
 export function markUndone(guildId: string, actionId: number): boolean {
@@ -513,14 +574,14 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (subtractResult.success && subtractResult.request) {
         return {
           success: true,
-          message: `Undone: ${formatNumber(resources)} resources subtracted from ${coordsStr}. Progress: ${subtractResult.request.resourcesSent}/${subtractResult.request.resourcesNeeded}.`,
+          message: `Undone: ${formatResources(resources)} resources subtracted from ${coordsStr}. Progress: ${subtractResult.request.resourcesSent}/${subtractResult.request.resourcesNeeded}.`,
           requestId: action.requestId,
         };
       }
 
       return {
         success: true,
-        message: `Undone: ${formatNumber(resources)} resources cancellation.`,
+        message: `Undone: ${formatResources(resources)} resources cancellation.`,
       };
     }
 
@@ -672,7 +733,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       markUndone(guildId, actionId);
       return {
         success: true,
-        message: `Undone: ${formatNumber(troops)} troops subtracted from ${coordsStr}.`,
+        message: `Undone: ${formatTroops(troops)} troops subtracted from ${coordsStr}.`,
         requestId: action.requestId,
       };
     }
@@ -700,19 +761,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     }
 
     default:
-      return { success: false, message: `Unknown veiksmo tipas: ${action.type}` };
+      return { success: false, message: `Unknown action type: ${action.type}` };
   }
-}
-
-// Helper function for formatting numbers
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
 }
 
 /**
@@ -732,24 +782,24 @@ export function getActionDescription(action: Action): string {
     case "REQUEST_DELETED":
       return `Deleted request ${coordsStr}`;
     case "ADMIN_UPDATE":
-      return `Admin atnaujino ${coordsStr}`;
+      return `Admin updated ${coordsStr}`;
     // Push actions
     case "PUSH_REQUEST_ADD":
-      return `Created push request ${coordsStr} (${formatNumber(action.data.resourcesNeeded || 0)} resources)`;
+      return `Created push request ${coordsStr} (${formatResources(action.data.resourcesNeeded || 0)} resources)`;
     case "PUSH_RESOURCES_SENT":
-      return `Sent ${formatNumber(action.data.resources || 0)} resources to ${coordsStr}${action.data.pushDidComplete ? " (completed)" : ""}`;
+      return `Sent ${formatResources(action.data.resources || 0)} resources to ${coordsStr}${action.data.pushDidComplete ? " (completed)" : ""}`;
     case "PUSH_REQUEST_DELETED":
       return `Deleted push request ${coordsStr}`;
     case "PUSH_REQUEST_EDIT":
-      return `Changed push request ${coordsStr} (${formatNumber(action.data.previousResourcesNeeded || 0)} → ${formatNumber(action.data.resourcesNeeded || 0)})`;
+      return `Changed push request ${coordsStr} (${formatResources(action.data.previousResourcesNeeded || 0)} → ${formatResources(action.data.resourcesNeeded || 0)})`;
     case "PUSH_CONTRIBUTION_EDIT":
-      return `Changed ${action.data.accountName} contribution ${coordsStr} (${formatNumber(action.data.oldAmount || 0)} → ${formatNumber(action.data.newAmount || 0)})`;
+      return `Changed ${action.data.accountName} contribution ${coordsStr} (${formatResources(action.data.oldAmount || 0)} → ${formatResources(action.data.newAmount || 0)})`;
     case "PUSH_CONTRIBUTION_TRANSFER":
-      return `Transferred contribution ${coordsStr}: ${action.data.fromAccount} → ${action.data.toAccount} (${formatNumber(action.data.transferredAmount || 0)})`;
+      return `Transferred contribution ${coordsStr}: ${action.data.fromAccount} → ${action.data.toAccount} (${formatResources(action.data.transferredAmount || 0)})`;
     case "DEF_CALL_REQUEST_ADD":
-      return `Createds defense request ${coordsStr}`;
+      return `Created defense request ${coordsStr}`;
     case "DEF_CALL_TROOPS_SENT":
-      return `Sent ${formatNumber(action.data.troops || 0)} troops to ${coordsStr}`;
+      return `Sent ${formatTroops(action.data.troops || 0)} troops to ${coordsStr}`;
     case "DEF_CALL_CLOSED":
       return `Closed defense request ${coordsStr}`;
     default:

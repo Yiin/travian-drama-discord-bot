@@ -1,11 +1,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { updateGlobalMessage } from "../services/defense-message";
 import { withRetry } from "../utils/retry";
+import { errors } from "../actions/messages";
 
 export const stackinfoCommand: Command = {
   data: new SlashCommandBuilder()
@@ -17,8 +19,8 @@ export const stackinfoCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -26,21 +28,21 @@ export const stackinfoCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.serverKey) {
       await interaction.reply({
-        content: "Travian server is not configured. An admin must use `/setserver`.",
-        ephemeral: true,
+        content: errors.notSetUp(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     if (!config.defenseChannelId) {
       await interaction.reply({
-        content: "Defense channel is not configured. An admin must use `/setchannel type:Defense`.",
-        ephemeral: true,
+        content: errors.channelMissing("defense"),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     await updateGlobalMessage(interaction.client, guildId);
 

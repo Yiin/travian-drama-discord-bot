@@ -3,6 +3,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   Colors,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 
@@ -126,8 +127,8 @@ export const commandDocs: CommandDoc[] = [
   {
     name: "/account del",
     description: {
-      lt: "Remove your in-game account association",
-      en: "Remove your in-game account association",
+      lt: "Unlink your in-game account",
+      en: "Unlink your in-game account",
     },
     usage: "/account del",
     example: "!account del",
@@ -253,8 +254,8 @@ export function buildDramaEmbed(lang: "lt" | "en"): EmbedBuilder {
     .setColor(Colors.Blue)
     .setDescription(
       isLt
-        ? "Drama: Travian defense and scout coordination bot\n\n**All commands work with `/` or `!`** (e.g., `/def` = `!def`)"
-        : "Drama: Travian defense and scout coordination bot\n\n**All commands work with `/` or `!`** (e.g., `/def` = `!def`)"
+        ? "Drama: Travian defense and scout coordination bot\n\n**Text shortcuts use `!`** (e.g. `!def 12|-45 14:30`)"
+        : "Drama: Travian defense and scout coordination bot\n\n**Text shortcuts use `!`** (e.g. `!def 12|-45 14:30`)"
     );
 
   // Helper to format a command
@@ -337,7 +338,7 @@ export const dramaCommand: Command = {
 
     await interaction.reply({
       embeds: [embed],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   },
 };

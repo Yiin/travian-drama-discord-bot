@@ -6,6 +6,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
@@ -21,6 +22,7 @@ import {
 import { getVillageAt, getMapLink, getPlayerByExactName } from "../services/map-data";
 import { parseCoords } from "../utils/parse-coords";
 import { formatNumber } from "../utils/format";
+import { errors } from "../actions/messages";
 
 export const statsCommand: Command = {
   data: new SlashCommandBuilder()
@@ -80,8 +82,8 @@ export const statsCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -123,7 +125,7 @@ async function handleLeaderboard(
   if (leaderboard.length === 0) {
     await interaction.reply({
       content: "No stats recorded yet.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -168,7 +170,7 @@ async function handleUser(
   if (!userStats) {
     await interaction.reply({
       content: `<@${user.id}> has no recorded contributions.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -216,8 +218,8 @@ async function handlePlayer(
 
   if (!serverKey) {
     await interaction.reply({
-      content: "Server not configured. Use `/configure server` first.",
-      ephemeral: true,
+      content: errors.notSetUp(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -269,8 +271,8 @@ async function handleVillage(
 
   if (!coords) {
     await interaction.reply({
-      content: "Invalid coordinates. Use format like `123|456` or `-45|89`.",
-      ephemeral: true,
+      content: errors.invalidCoords(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -283,7 +285,7 @@ async function handleVillage(
   if (!villageStats) {
     await interaction.reply({
       content: `No stats recorded for (${coords.x}|${coords.y}).`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -330,7 +332,7 @@ async function handleStacks(
   if (allVillages.length === 0) {
     await interaction.reply({
       content: "No stats recorded yet.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -398,7 +400,7 @@ async function handleReset(
   const response = await interaction.reply({
     content: "Are you sure you want to reset all stats? This cannot be undone.",
     components: [row],
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 
   try {

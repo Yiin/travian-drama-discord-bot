@@ -8,6 +8,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import {
@@ -20,6 +21,8 @@ import {
 import { getVillageAt, formatVillageDisplay, getMapLink } from "../map-data";
 import { updateGlobalMessage } from "../defense-message";
 import { recordAction } from "../action-history";
+import { formatTroops } from "../../utils/format";
+import { errors } from "../../actions/messages";
 
 // Button IDs (prefixes - actual IDs will be like "stack_up:3")
 export const STACK_UP_PREFIX = "stack_up";
@@ -80,7 +83,7 @@ function buildConfirmDeleteButtons(
 ): ActionRowBuilder<ButtonBuilder> {
   const confirmButton = new ButtonBuilder()
     .setCustomId(`${STACK_CONFIRM_DELETE_PREFIX}:${requestId}`)
-    .setLabel("Patvirtinti")
+    .setLabel("Confirm")
     .setStyle(ButtonStyle.Danger);
 
   const cancelButton = new ButtonBuilder()
@@ -124,7 +127,7 @@ async function buildStackInfoContent(
     `**#${requestId}/${totalRequests}** ${villageDisplay}`,
     `**Village:** ${villageName}`,
     `**Player:** ${playerName}`,
-    `**Kariai:** ${request.troopsSent}/${request.troopsNeeded} (${progress}%)`,
+    `**Troops:** ${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)} (${progress}%)`,
   ];
 
   if (request.message) {
@@ -140,8 +143,8 @@ export async function handleStackUpButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -150,7 +153,7 @@ export async function handleStackUpButton(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -158,7 +161,7 @@ export async function handleStackUpButton(
   if (requestId === 1) {
     await interaction.reply({
       content: "The request is already at the top.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -170,7 +173,7 @@ export async function handleStackUpButton(
   if (!result.success) {
     await interaction.followUp({
       content: result.error || "Failed to move the request.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -203,8 +206,8 @@ export async function handleStackDownButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -213,7 +216,7 @@ export async function handleStackDownButton(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -223,7 +226,7 @@ export async function handleStackDownButton(
   if (requestId === totalRequests) {
     await interaction.reply({
       content: "The request is already at the bottom.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -235,7 +238,7 @@ export async function handleStackDownButton(
   if (!result.success) {
     await interaction.followUp({
       content: result.error || "Failed to move the request.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -268,8 +271,8 @@ export async function handleStackEditButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -278,7 +281,7 @@ export async function handleStackEditButton(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -287,7 +290,7 @@ export async function handleStackEditButton(
   if (!request) {
     await interaction.reply({
       content: `Request #${requestId} not found.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -295,7 +298,7 @@ export async function handleStackEditButton(
   // Build modal with pre-filled values
   const modal = new ModalBuilder()
     .setCustomId(`${STACK_EDIT_MODAL_PREFIX}:${requestId}`)
-    .setTitle(`Redaguoti #${requestId}`);
+    .setTitle(`Edit #${requestId}`);
 
   const troopsInput = new TextInputBuilder()
     .setCustomId(STACK_TROOPS_NEEDED_INPUT_ID)
@@ -311,7 +314,7 @@ export async function handleStackEditButton(
 
   const messageInput = new TextInputBuilder()
     .setCustomId(STACK_MESSAGE_INPUT_ID)
-    .setPlaceholder("Pvz.: anti cav")
+    .setPlaceholder("e.g. anti cav")
     .setValue(request.message || "")
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
@@ -332,8 +335,8 @@ export async function handleStackEditModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -342,7 +345,7 @@ export async function handleStackEditModal(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -351,7 +354,7 @@ export async function handleStackEditModal(
   if (!request) {
     await interaction.reply({
       content: `Request #${requestId} not found.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -363,8 +366,8 @@ export async function handleStackEditModal(
   const troopsNeeded = parseInt(troopsInput, 10);
   if (isNaN(troopsNeeded) || troopsNeeded < 1) {
     await interaction.reply({
-      content: "Invalid troop count. Enter a positive number.",
-      ephemeral: true,
+      content: errors.invalidCount("troops"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -387,7 +390,7 @@ export async function handleStackEditModal(
   if ("error" in result) {
     await interaction.followUp({
       content: result.error,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -445,8 +448,8 @@ export async function handleStackDeleteButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -455,7 +458,7 @@ export async function handleStackDeleteButton(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -464,7 +467,7 @@ export async function handleStackDeleteButton(
   if (!request) {
     await interaction.reply({
       content: `Request #${requestId} not found.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -486,8 +489,8 @@ export async function handleStackConfirmDelete(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -496,7 +499,7 @@ export async function handleStackConfirmDelete(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -505,7 +508,7 @@ export async function handleStackConfirmDelete(
   if (!request) {
     await interaction.reply({
       content: `Request #${requestId} has already been deleted.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -520,7 +523,7 @@ export async function handleStackConfirmDelete(
   if (!success) {
     await interaction.followUp({
       content: "Failed to delete the request.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -559,8 +562,8 @@ export async function handleStackCancelDelete(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -569,7 +572,7 @@ export async function handleStackCancelDelete(
   if (!requestId) {
     await interaction.reply({
       content: "Error: invalid request ID.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

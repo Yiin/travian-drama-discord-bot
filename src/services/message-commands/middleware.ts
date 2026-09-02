@@ -1,6 +1,7 @@
 import { GuildMember } from "discord.js";
 import { CommandContext } from "./types";
 import { isAdmin, ADMIN_ONLY_MESSAGE } from "../../utils/permissions";
+import { replyError } from "./utils";
 
 /**
  * Wraps a command handler with an admin permission check.
@@ -11,7 +12,7 @@ export function requireAdminMiddleware<T extends unknown[]>(
 ): (ctx: CommandContext, ...args: T) => Promise<void> {
   return async (ctx: CommandContext, ...args: T) => {
     if (!isAdmin(ctx.message.member as GuildMember)) {
-      await ctx.message.reply(ADMIN_ONLY_MESSAGE);
+      await replyError(ctx, ADMIN_ONLY_MESSAGE);
       return;
     }
     return handler(ctx, ...args);

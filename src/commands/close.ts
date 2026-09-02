@@ -2,6 +2,7 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   GuildMember,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
@@ -9,6 +10,8 @@ import { getRequestByChannelId } from "../services/def-calls";
 import { executeDefCallCloseAction } from "../actions";
 import { isAdmin } from "../utils/permissions";
 import { withRetry } from "../utils/retry";
+import { errors } from "../actions/messages";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const closeCommand: Command = {
   data: new SlashCommandBuilder()
@@ -19,8 +22,8 @@ export const closeCommand: Command = {
     const guildId = interaction.guildId;
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -30,12 +33,12 @@ export const closeCommand: Command = {
     if (!requestData) {
       await interaction.reply({
         content: "This channel is not a defense request channel.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await withRetry(() => interaction.deferReply({ ephemeral: true }));
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     const config = getGuildConfig(guildId);
     const userIsAdmin = isAdmin(interaction.member as GuildMember | null);
@@ -61,7 +64,7 @@ export const closeCommand: Command = {
     }
 
     try {
-      await interaction.editReply({ content: "Request closed, deleting channel." });
+      await interaction.editReply(confirmationEdit(result.confirmText ?? asConfirm(result.actionText)));
     } catch {
       // channel might be gone already
     }

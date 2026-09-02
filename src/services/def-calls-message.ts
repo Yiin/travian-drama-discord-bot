@@ -25,16 +25,7 @@ import {
   DEFCALL_SENT_BUTTON_ID,
   DEFCALL_CLOSE_BUTTON_ID,
 } from "./button-handlers/def-call-ids";
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}
+import { formatTroops } from "../utils/format";
 
 function pad2(n: number): string {
   return n.toString().padStart(2, "0");
@@ -108,7 +99,7 @@ export async function buildPerCallEmbed(
   lines.push(`🕒 Lands ${formatRelativeWithRaw(request.landingAt, serverTimezone)}`);
 
   if (request.troopsNeeded) {
-    lines.push(`🎯 Troop limit: **${formatNumber(request.troopsNeeded)}**`);
+    lines.push(`🎯 Troop limit: **${formatTroops(request.troopsNeeded)}**`);
   }
 
   if (request.comment) {
@@ -120,13 +111,13 @@ export async function buildPerCallEmbed(
   embed.setDescription(lines.join("\n"));
 
   const sentSuffix = request.troopsNeeded
-    ? ` / ${formatNumber(request.troopsNeeded)}`
+    ? ` / ${formatTroops(request.troopsNeeded)}`
     : "";
-  const sentHeader = `Sent (${formatNumber(request.troopsSent)}${sentSuffix})`;
+  const sentHeader = `Sent (${formatTroops(request.troopsSent)}${sentSuffix})`;
   if (request.contributors.length > 0) {
     const sorted = [...request.contributors].sort((a, b) => b.troops - a.troops);
     const contribLines = sorted.map(
-      (c) => `• ${c.accountName}: ${formatNumber(c.troops)}`
+      (c) => `• ${c.accountName}: ${formatTroops(c.troops)}`
     );
     embed.addFields({
       name: sentHeader,

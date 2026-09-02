@@ -8,6 +8,8 @@ import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, DefActionInput, DefActionResult } from "./types";
+import { errors } from "./messages";
+import { formatTroops } from "../utils/format";
 
 /**
  * Execute the "stack" action - create a stack defense request.
@@ -34,7 +36,7 @@ export async function executeStackAction(
   if (!dataReady) {
     return {
       success: false,
-      error: "Failed to load map data. Try again later.",
+      error: errors.mapUnavailable(),
     };
   }
 
@@ -66,22 +68,24 @@ export async function executeStackAction(
     },
   });
 
-  // 6. Update the global message
-  await updateGlobalMessage(client, guildId);
-
-  // 7. Build action text
+  // 6. Build action text
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${x}|${y}) Unknown/new village`;
   const allianceInfo = village?.allianceName
     ? ` [${village.allianceName}]`
     : "";
-  const actionText = `<@${userId}> created request #${result.requestId}: ${villageDisplay}${allianceInfo} - needs ${troopsNeeded} troops. (\`/undo ${actionId}\`)`;
+  const actionText = `<@${userId}> created request #${result.requestId}: ${villageDisplay}${allianceInfo} - needs ${formatTroops(troopsNeeded)} troops`;
+  const confirmText = `✅ Created request #${result.requestId}: ${villageDisplay}${allianceInfo}. Needs **${formatTroops(troopsNeeded)}** troops.`;
+
+  // 7. Update the global message and post the audit line
+  await updateGlobalMessage(client, guildId, { text: actionText, undoId: actionId });
 
   return {
     success: true,
     actionId,
     actionText,
+    confirmText,
     requestId: result.requestId,
     villageName: village?.villageName ?? "Unknown/new village",
     playerName: village?.playerName ?? "Unknown",

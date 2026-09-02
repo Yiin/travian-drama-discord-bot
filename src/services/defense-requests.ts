@@ -377,11 +377,11 @@ export function moveRequest(
   }
 
   if (toIndex < 0 || toIndex >= data.requests.length) {
-    return { success: false, error: `Pozicija #${toPosition} neegzistuoja.` };
+    return { success: false, error: `Position #${toPosition} does not exist.` };
   }
 
   if (fromIndex === toIndex) {
-    return { success: false, error: "Abi pozicijos yra vienodos." };
+    return { success: false, error: "Both positions are the same." };
   }
 
   // Remove the request from its current position

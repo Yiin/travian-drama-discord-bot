@@ -66,6 +66,9 @@ export {
   DEFCALL_TROOPS_INPUT_ID,
 } from "./def-call";
 
+// Undo button on ephemeral confirmations
+export { handleUndoButton, UNDO_BUTTON_PREFIX } from "./undo";
+
 // Stack edit handlers and IDs
 export {
   handleStackUpButton,

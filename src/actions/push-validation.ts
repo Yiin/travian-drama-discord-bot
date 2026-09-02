@@ -2,6 +2,7 @@ import { getGuildConfig, GuildConfig } from "../config/guild-config";
 import { getPushRequestById, getPushRequestsByCoords } from "../services/push-requests";
 import { getAccountForUser } from "../services/player-accounts";
 import { parseCoords } from "../utils/parse-coords";
+import { errors } from "./messages";
 
 /**
  * Result from push config validation - either valid context or error
@@ -16,7 +17,7 @@ export type PushConfigValidation =
  */
 export function validatePushConfig(guildId: string | null): PushConfigValidation {
   if (!guildId) {
-    return { valid: false, error: "This command can only be used in a server." };
+    return { valid: false, error: errors.guildOnly() };
   }
 
   const config = getGuildConfig(guildId);
@@ -24,14 +25,14 @@ export function validatePushConfig(guildId: string | null): PushConfigValidation
   if (!config.serverKey) {
     return {
       valid: false,
-      error: "Travian server is not configured. An admin must use `/configure server`.",
+      error: errors.notSetUp(),
     };
   }
 
   if (!config.pushChannelId) {
     return {
       valid: false,
-      error: "Push channel is not configured. An admin must use `/configure channel type:Push`.",
+      error: errors.channelMissing("push"),
     };
   }
 
@@ -54,7 +55,7 @@ export function validateUserHasAccount(guildId: string, userId: string): Account
   if (!accountName) {
     return {
       valid: false,
-      error: "You must link your in-game account before using push commands. Use `/account set [name]`.",
+      error: errors.accountNotLinked(),
     };
   }
 
@@ -104,7 +105,7 @@ export function resolvePushTarget(guildId: string, targetInput: string): PushTar
 
   const existingRequest = getPushRequestById(guildId, parsed);
   if (!existingRequest) {
-    return { success: false, error: `Push request #${parsed} not found.` };
+    return { success: false, error: errors.notFound("push request", parsed) };
   }
 
   return { success: true, requestId: parsed };

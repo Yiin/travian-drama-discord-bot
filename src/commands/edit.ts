@@ -1,12 +1,14 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { validateDefenseConfig } from "../actions";
 import { getRequestById, getAllRequests } from "../services/defense-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { buildStackEditButtons } from "../services/button-handlers/stack-edit";
+import { formatTroops } from "../utils/format";
 
 export const editCommand: Command = {
   data: new SlashCommandBuilder()
@@ -40,7 +42,7 @@ async function handleStackEdit(
   // 1. Validate configuration
   const validation = validateDefenseConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -52,7 +54,7 @@ async function handleStackEdit(
   if (!request) {
     await interaction.reply({
       content: `Request #${requestId} not found.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -78,7 +80,7 @@ async function handleStackEdit(
     `**#${requestId}/${totalRequests}** ${villageDisplay}`,
     `**Village:** ${villageName}`,
     `**Player:** ${playerName}`,
-    `**Kariai:** ${request.troopsSent}/${request.troopsNeeded} (${progress}%)`,
+    `**Troops:** ${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)} (${progress}%)`,
   ];
 
   if (request.message) {
@@ -89,6 +91,6 @@ async function handleStackEdit(
   await interaction.reply({
     content: lines.join("\n"),
     components: [buildStackEditButtons(requestId, totalRequests)],
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }

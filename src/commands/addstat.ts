@@ -1,10 +1,12 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { parseCoords } from "../utils/parse-coords";
 import { recordContribution } from "../services/stats";
+import { errors } from "../actions/messages";
 
 export const addstatCommand: Command = {
   data: new SlashCommandBuilder()
@@ -34,8 +36,8 @@ export const addstatCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -47,16 +49,16 @@ export const addstatCommand: Command = {
     const coords = parseCoords(coordsInput);
     if (!coords) {
       await interaction.reply({
-        content: "Invalid coordinates. Use `123|456` or `-45|89`.",
-        ephemeral: true,
+        content: errors.invalidCoords(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     if (troops === 0) {
       await interaction.reply({
-        content: "Troop count cannot be 0.",
-        ephemeral: true,
+        content: errors.countIsZero("troop"),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -70,7 +72,7 @@ export const addstatCommand: Command = {
 
     await interaction.reply({
       content: `${action}: **${Math.abs(troops).toLocaleString()}** troops ${troops > 0 ? "to" : "from"} (${coords.x}|${coords.y}) stats${userMention}.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   },
 };

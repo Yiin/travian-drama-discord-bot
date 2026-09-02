@@ -44,7 +44,7 @@ export const STACKINFO_PATTERN = /^[\/!]stackinfo\s*$/i;
 export const UPDATEDEF_PATTERN = /^[\/!]updatedef\s+(\d+)(?:\s+(.+))?$/i;
 
 // Pattern: /undo or !undo followed by action ID
-export const UNDO_PATTERN = /^[\/!]undo\s+(\d+)\s*$/i;
+export const UNDO_PATTERN = /^[\/!]undo(?:\s+(\d+))?\s*$/i;
 
 // Pattern: /drama or !drama with optional language (en/lt)
 export const DRAMA_PATTERN = /^[\/!]drama(?:\s+(en|lt))?\s*$/i;

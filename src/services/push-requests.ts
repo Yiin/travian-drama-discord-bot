@@ -373,7 +373,7 @@ export function updateContributorResources(
   const contributor = request.contributors.find((c) => c.accountName === accountName);
 
   if (!contributor) {
-    return { success: false, error: `Dalyvis "${accountName}" was not found.` };
+    return { success: false, error: `Contributor "${accountName}" was not found.` };
   }
 
   const previousAmount = contributor.resources;
@@ -461,7 +461,7 @@ export function transferContribution(
   const fromContributor = request.contributors.find((c) => c.accountName === fromAccount);
 
   if (!fromContributor) {
-    return { success: false, error: `Dalyvis "${fromAccount}" was not found.` };
+    return { success: false, error: `Contributor "${fromAccount}" was not found.` };
   }
 
   if (fromAccount === toAccount) {

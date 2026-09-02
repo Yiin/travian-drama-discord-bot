@@ -1,21 +1,26 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig } from "../config/guild-config";
 import { executeUndoAction } from "../actions";
 import { withRetry } from "../utils/retry";
+import { errors } from "../actions/messages";
+import { getLatestUndoableActionId } from "../services/action-history";
+import { getStackPanelUrl } from "../services/defense-message";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const undoCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("undo")
-    .setDescription("Undo a previous action")
+    .setDescription("Undo an action (the most recent one if no ID is given)")
     .addIntegerOption((option) =>
       option
         .setName("id")
-        .setDescription("The action ID to undo (shown after each command)")
-        .setRequired(true)
+        .setDescription("Action ID from the confirmation or the channel log (default: most recent)")
+        .setRequired(false)
         .setMinValue(1)
     ),
 
@@ -25,8 +30,8 @@ export const undoCommand: Command = {
     // 1. Basic validation (undo only needs defenseChannelId)
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -34,17 +39,21 @@ export const undoCommand: Command = {
     const config = getGuildConfig(guildId);
     if (!config.defenseChannelId && !config.pushChannelId) {
       await interaction.reply({
-        content: "Neither a defense channel nor a push channel is configured. An admin must use `/configure`.",
-        ephemeral: true,
+        content: errors.notSetUp(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     // 2. Parse inputs
-    const actionId = interaction.options.getInteger("id", true);
+    const actionId = interaction.options.getInteger("id") ?? getLatestUndoableActionId(guildId);
+    if (!actionId) {
+      await interaction.reply({ content: errors.notFound("undoable action"), flags: MessageFlags.Ephemeral });
+      return;
+    }
 
     // 3. Defer reply
-    await withRetry(() => interaction.deferReply());
+    await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     // 4. Execute action
     const result = await executeUndoAction(
@@ -63,6 +72,10 @@ export const undoCommand: Command = {
       return;
     }
 
-    await interaction.editReply({ content: result.actionText });
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+        panelUrl: getStackPanelUrl(guildId),
+      })
+    );
   },
 };

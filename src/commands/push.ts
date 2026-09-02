@@ -4,6 +4,7 @@ import {
   AutocompleteInteraction,
   EmbedBuilder,
   Colors,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -20,6 +21,9 @@ import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
+import { formatResources } from "../utils/format";
+import { errors } from "../actions/messages";
+import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 
 export const pushCommand: Command = {
   data: new SlashCommandBuilder()
@@ -237,7 +241,7 @@ export const pushCommand: Command = {
         .filter((entry) => entry.accountName.toLowerCase().includes(searchValue))
         .slice(0, 25)
         .map((entry) => ({
-          name: `${entry.accountName} (${formatNumber(entry.totalResources)})`,
+          name: `${entry.accountName} (${formatResources(entry.totalResources)})`,
           value: entry.accountName,
         }));
 
@@ -266,7 +270,7 @@ export const pushCommand: Command = {
         .filter((c) => c.accountName.toLowerCase().includes(searchValue))
         .slice(0, 25)
         .map((c) => ({
-          name: `${c.accountName} (${formatNumber(c.resources)})`,
+          name: `${c.accountName} (${formatResources(c.resources)})`,
           value: c.accountName,
         }));
 
@@ -279,7 +283,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -288,7 +292,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
   const resourcesNeeded = interaction.options.getInteger("amount", true);
 
   // 3. Defer reply
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   // 4. Execute action
   const result = await executePushRequestAction(
@@ -310,14 +314,20 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+      actionId: result.actionId,
+      panelUrl: result.channelId ? channelUrl(validation.guildId, result.channelId) : undefined,
+      panelLabel: "Open thread",
+    })
+  );
 }
 
 async function handleSent(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -326,8 +336,8 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This command can only be used in a push channel.",
-      ephemeral: true,
+      content: errors.notInThread("push"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -336,7 +346,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
   const resources = interaction.options.getInteger("amount", true);
 
   // 4. Defer reply
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   // 5. Execute action
   const result = await executePushSentAction(
@@ -358,15 +368,16 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
-  // Delete reply since info is shown in channel embed
-  await interaction.deleteReply();
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -375,14 +386,14 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This command can only be used in a push channel.",
-      ephemeral: true,
+      content: errors.notInThread("push"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   // 3. Defer reply
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   // 4. Execute action
   const result = await executePushDeleteAction(
@@ -403,14 +414,20 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     return;
   }
 
-  // Channel will be deleted by the action, no need to reply
+  try {
+    await interaction.editReply(
+      confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+    );
+  } catch {
+    // the thread is being deleted; the reply may already be gone
+  }
 }
 
 async function handleEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -419,8 +436,8 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This command can only be used in a push channel.",
-      ephemeral: true,
+      content: errors.notInThread("push"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -429,7 +446,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
   const resourcesNeeded = interaction.options.getInteger("amount", true);
 
   // 4. Defer reply
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   // 5. Execute action
   const result = await executePushEditAction(
@@ -451,14 +468,16 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 async function handleContributorEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -467,8 +486,8 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This command can only be used in a push channel.",
-      ephemeral: true,
+      content: errors.notInThread("push"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -478,7 +497,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
   const newAmount = interaction.options.getInteger("amount", true);
 
   // 4. Defer reply
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   // 5. Execute action
   const result = await executePushEditContributionAction(
@@ -501,14 +520,16 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 async function handleContributorTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
-    await interaction.reply({ content: validation.error, ephemeral: true });
+    await interaction.reply({ content: validation.error, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -517,8 +538,8 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
   const requestData = getPushRequestByChannelId(validation.guildId, channelId);
   if (!requestData) {
     await interaction.reply({
-      content: "This command can only be used in a push channel.",
-      ephemeral: true,
+      content: errors.notInThread("push"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -528,7 +549,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
   const toAccount = interaction.options.getString("to", true);
 
   // 4. Defer reply
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   // 5. Execute action
   const result = await executePushTransferAction(
@@ -551,13 +572,15 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -580,7 +603,7 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
     const entry = leaderboard[i];
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `**${i + 1}.**`;
     lines.push(
-      `${medal} **${entry.accountName}** - ${formatNumber(entry.totalResources)} (${entry.villageCount} villages)`
+      `${medal} **${entry.accountName}** - ${formatResources(entry.totalResources)} (${entry.villageCount} villages)`
     );
   }
 
@@ -592,7 +615,7 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
 async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -615,9 +638,9 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
     .setTimestamp();
 
   const lines: string[] = [];
-  lines.push(`**Total sent:** ${formatNumber(stats.totalResources)}`);
+  lines.push(`**Total sent:** ${formatResources(stats.totalResources)}`);
   lines.push("");
-  lines.push("**Kaimai:**");
+  lines.push("**Villages:**");
 
   for (const village of stats.villages.slice(0, 10)) {
     let villageLine = `(${village.x}|${village.y})`;
@@ -627,7 +650,7 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
         villageLine = formatVillageDisplay(config.serverKey, villageInfo);
       }
     }
-    lines.push(`• ${villageLine} - ${formatNumber(village.resources)}`);
+    lines.push(`• ${villageLine} - ${formatResources(village.resources)}`);
   }
 
   if (stats.villages.length > 10) {
@@ -642,14 +665,14 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
 async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
 
   const playerName = interaction.options.getString("player", true);
   const newAmount = interaction.options.getInteger("amount", true);
 
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   const result = editGlobalStats(guildId, playerName, newAmount);
 
@@ -660,21 +683,21 @@ async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promis
 
   const oldAmount = result.previousAmount!;
   await interaction.editReply({
-    content: `<@${interaction.user.id}> changed **${playerName}** global stats: **${formatNumber(oldAmount)}** -> **${formatNumber(newAmount)}**`,
+    content: `✅ Changed **${playerName}** global stats: **${formatResources(oldAmount)}** → **${formatResources(newAmount)}**.`,
   });
 }
 
 async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
 
   const fromAccount = interaction.options.getString("from", true);
   const toAccount = interaction.options.getString("to", true);
 
-  await withRetry(() => interaction.deferReply());
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
   const result = transferGlobalStats(guildId, fromAccount, toAccount);
 
@@ -684,16 +707,7 @@ async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Pr
   }
 
   await interaction.editReply({
-    content: `<@${interaction.user.id}> transferred **${fromAccount}** stats to **${toAccount}** (**${formatNumber(result.transferredAmount!)}**)`,
+    content: `✅ Transferred **${fromAccount}** stats to **${toAccount}** (**${formatResources(result.transferredAmount!)}**).`,
   });
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}

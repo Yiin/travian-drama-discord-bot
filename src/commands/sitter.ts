@@ -1,6 +1,7 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
 import { addSitter, removeSitter } from "../services/player-accounts";
+import { errors } from "../actions/messages";
 
 export const sitterCommand: Command = {
   data: new SlashCommandBuilder()
@@ -38,8 +39,8 @@ export const sitterCommand: Command = {
 
     if (!guildId) {
       await interaction.reply({
-        content: "This command can only be used in a server.",
-        ephemeral: true,
+        content: errors.guildOnly(),
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -72,7 +73,7 @@ async function handleAddSitter(
   if (names.length === 0) {
     await interaction.reply({
       content: "Please provide at least one valid player name.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -82,18 +83,18 @@ async function handleAddSitter(
   if (added.length === 0) {
     await interaction.reply({
       content: `You are already a sitter for: **${names.join("**, **")}**`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else if (added.length === names.length) {
     await interaction.reply({
       content: `You are now a sitter for: **${added.join("**, **")}**`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else {
     const alreadySitting = names.filter((n) => !added.includes(n));
     await interaction.reply({
       content: `Added as sitter for: **${added.join("**, **")}**\nAlready sitting: **${alreadySitting.join("**, **")}**`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }
@@ -109,7 +110,7 @@ async function handleRemoveSitter(
   if (names.length === 0) {
     await interaction.reply({
       content: "Please provide at least one valid player name.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -119,18 +120,18 @@ async function handleRemoveSitter(
   if (removed.length === 0) {
     await interaction.reply({
       content: `You are not a sitter for any of: **${names.join("**, **")}**`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else if (removed.length === names.length) {
     await interaction.reply({
       content: `Removed as sitter for: **${removed.join("**, **")}**`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   } else {
     const notSitting = names.filter((n) => !removed.includes(n));
     await interaction.reply({
       content: `Removed as sitter for: **${removed.join("**, **")}**\nWasn't sitting: **${notSitting.join("**, **")}**`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }

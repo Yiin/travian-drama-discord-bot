@@ -2,6 +2,7 @@ import { getGuildConfig, GuildConfig } from "../config/guild-config";
 import { getRequestById, getRequestsByCoords } from "../services/defense-requests";
 import { parseCoords } from "../utils/parse-coords";
 import { ConfigValidation } from "./types";
+import { errors } from "./messages";
 
 /**
  * Validates guild configuration for defense actions.
@@ -9,7 +10,7 @@ import { ConfigValidation } from "./types";
  */
 export function validateDefenseConfig(guildId: string | null): ConfigValidation {
   if (!guildId) {
-    return { valid: false, error: "This command can only be used in a server." };
+    return { valid: false, error: errors.guildOnly() };
   }
 
   const config = getGuildConfig(guildId);
@@ -17,14 +18,14 @@ export function validateDefenseConfig(guildId: string | null): ConfigValidation 
   if (!config.serverKey) {
     return {
       valid: false,
-      error: "Travian server is not configured. An admin must use `/setserver`.",
+      error: errors.notSetUp(),
     };
   }
 
   if (!config.defenseChannelId) {
     return {
       valid: false,
-      error: "Defense channel is not configured. An admin must use `/setchannel type:Defense`.",
+      error: errors.channelMissing("defense"),
     };
   }
 
@@ -74,7 +75,7 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
 
   const existingRequest = getRequestById(guildId, parsed);
   if (!existingRequest) {
-    return { success: false, error: `Request #${parsed} not found.` };
+    return { success: false, error: errors.notFound("request", parsed) };
   }
 
   return { success: true, requestId: parsed };
@@ -95,7 +96,7 @@ export function parseAndValidateCoords(coordsInput: string): CoordsValidation {
   if (!coords) {
     return {
       success: false,
-      error: "Invalid coordinates. Use 123|456.",
+      error: errors.invalidCoords(),
     };
   }
   return { success: true, x: coords.x, y: coords.y };

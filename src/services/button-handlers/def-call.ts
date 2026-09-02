@@ -6,6 +6,7 @@ import {
   TextInputStyle,
   LabelBuilder,
   GuildMember,
+  MessageFlags,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
 import { isAdmin } from "../../utils/permissions";
@@ -26,6 +27,8 @@ import {
   DEFCALL_NEEDED_INPUT_ID,
   DEFCALL_TROOPS_INPUT_ID,
 } from "./def-call-ids";
+import { errors } from "../../actions/messages";
+import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 
 export {
   DEFCALL_REQUEST_BUTTON_ID,
@@ -46,8 +49,8 @@ export async function handleDefCallRequestButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -107,8 +110,8 @@ export async function handleDefCallRequestModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -120,11 +123,11 @@ export async function handleDefCallRequestModal(
   const neededRaw = interaction.fields.getTextInputValue(DEFCALL_NEEDED_INPUT_ID);
   const troopsNeeded = parseTroopCount(neededRaw) ?? undefined;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (neededRaw.trim() && troopsNeeded === undefined) {
     await interaction.editReply({
-      content: "Troop limit must be a positive number.",
+      content: errors.invalidCount("troops for the limit"),
     });
     return;
   }
@@ -144,7 +147,13 @@ export async function handleDefCallRequestModal(
     return;
   }
 
-  await interaction.editReply({ content: result.actionText });
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+      actionId: result.actionId,
+      panelUrl: channelUrl(guildId, result.channelId),
+      panelLabel: "Open thread",
+    })
+  );
 }
 
 export async function handleDefCallSentButton(
@@ -153,8 +162,8 @@ export async function handleDefCallSentButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -164,7 +173,7 @@ export async function handleDefCallSentButton(
   if (!requestData) {
     await interaction.reply({
       content: "This channel is not a defense request channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -193,8 +202,8 @@ export async function handleDefCallSentModal(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -203,7 +212,7 @@ export async function handleDefCallSentModal(
   if (!channelId) {
     await interaction.reply({
       content: "Failed to identify the channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -212,7 +221,7 @@ export async function handleDefCallSentModal(
   if (!requestData) {
     await interaction.reply({
       content: "This channel is not a defense request channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -221,14 +230,14 @@ export async function handleDefCallSentModal(
   const troops = parseTroopCount(troopsInput);
   if (troops === null) {
     await interaction.reply({
-      content: "Invalid troop count. Enter a positive number.",
-      ephemeral: true,
+      content: errors.invalidCount("troops"),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   const config = getGuildConfig(guildId);
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await executeDefCallSentAction(
     {
@@ -245,7 +254,9 @@ export async function handleDefCallSentModal(
     return;
   }
 
-  await interaction.deleteReply();
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
 }
 
 export async function handleDefCallCloseButton(
@@ -254,8 +265,8 @@ export async function handleDefCallCloseButton(
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: "This command can only be used in a server.",
-      ephemeral: true,
+      content: errors.guildOnly(),
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -265,13 +276,13 @@ export async function handleDefCallCloseButton(
   if (!requestData) {
     await interaction.reply({
       content: "This channel is not a defense request channel.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   const config = getGuildConfig(guildId);
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const userIsAdmin = isAdmin(interaction.member as GuildMember | null);
 
@@ -296,7 +307,7 @@ export async function handleDefCallCloseButton(
   }
 
   try {
-    await interaction.editReply({ content: "Request closed, deleting channel." });
+    await interaction.editReply(confirmationEdit(result.confirmText ?? asConfirm(result.actionText)));
   } catch {
     // channel deleted before reply lands; that's fine
   }

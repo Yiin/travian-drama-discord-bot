@@ -3,6 +3,7 @@ import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { updatePushChannelEmbed, postContributionMessage } from "../services/push-message";
 import { ActionContext, PushEditActionInput, PushEditActionResult } from "./types";
 import { recordAction } from "../services/action-history";
+import { formatResources } from "../utils/format";
 
 /**
  * Execute the "push edit" action - edit a push request's amount.
@@ -52,10 +53,10 @@ export async function executePushEditAction(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey!, village)
     : `(${request.x}|${request.y})`;
-  const actionText = `<@${userId}> changed push request (${villageDisplay}): ${formatNumber(oldAmount)} → ${formatNumber(resourcesNeeded)}`;
+  const actionText = `<@${userId}> changed push request (${villageDisplay}): ${formatResources(oldAmount)} → ${formatResources(resourcesNeeded)}`;
 
   // 6. Post edit notification in the channel and update embed
-  await postContributionMessage(client, result, `📝 Changed tikslas: **${formatNumber(oldAmount)}** → **${formatNumber(resourcesNeeded)}**`);
+  await postContributionMessage(client, result, `📝 Changed target: **${formatResources(oldAmount)}** → **${formatResources(resourcesNeeded)}**`);
   await updatePushChannelEmbed(client, guildId, result);
 
   return {
@@ -69,12 +70,3 @@ export async function executePushEditAction(
   };
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
-}

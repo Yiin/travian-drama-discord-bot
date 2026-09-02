@@ -14,6 +14,7 @@ import {
 } from "./push-requests";
 import { getGuildConfig } from "../config/guild-config";
 import { getVillageAt, getMapLink, formatVillageDisplay } from "./map-data";
+import { formatResources } from "../utils/format";
 
 // Button IDs for push channels
 export const PUSH_SENT_BUTTON_ID = "push_sent_button";
@@ -22,16 +23,6 @@ export const PUSH_DELETE_BUTTON_ID = "push_delete_button";
 export interface CreatePushChannelResult {
   channelId: string;
   messageId: string;
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "k";
-  }
-  return num.toString();
 }
 
 function sanitizeChannelName(playerName: string): string {
@@ -80,7 +71,7 @@ export async function buildSinglePushEmbed(
     100,
     Math.round((request.resourcesSent / request.resourcesNeeded) * 100)
   );
-  lines.push(`📊 **${formatNumber(request.resourcesSent)}/${formatNumber(request.resourcesNeeded)}** (${progressPercent}%)`);
+  lines.push(`📊 **${formatResources(request.resourcesSent)}/${formatResources(request.resourcesNeeded)}** (${progressPercent}%)`);
   lines.push(buildProgressBar(progressPercent));
 
   // Contributors (sorted by resources, highest first)
@@ -89,7 +80,7 @@ export async function buildSinglePushEmbed(
     lines.push("📋 **Contributors:**");
     const sortedContributors = [...request.contributors].sort((a, b) => b.resources - a.resources);
     for (const contributor of sortedContributors) {
-      lines.push(`• ${contributor.accountName}: ${formatNumber(contributor.resources)}`);
+      lines.push(`• ${contributor.accountName}: ${formatResources(contributor.resources)}`);
     }
   }
 
@@ -146,7 +137,7 @@ export async function createPushThread(
   const villageDisplay = village
     ? formatVillageDisplay(config.serverKey, village)
     : `(${request.x}|${request.y})`;
-  const starterContent = `**${request.requesterAccount}** push: ${villageDisplay} — needs ${formatNumber(request.resourcesNeeded)}`;
+  const starterContent = `**${request.requesterAccount}** push: ${villageDisplay} — needs ${formatResources(request.resourcesNeeded)}`;
   const starter = await parent.send({
     content: starterContent,
     allowedMentions: { parse: [] },
