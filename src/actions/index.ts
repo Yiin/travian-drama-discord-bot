@@ -31,3 +31,4 @@ export { executePushTransferAction } from "./push-transfer.action";
 export { executeDefCallRequestAction } from "./def-call-request.action";
 export { executeDefCallSentAction } from "./def-call-sent.action";
 export { executeDefCallCloseAction } from "./def-call-close.action";
+export { executeStatsAdjustAction } from "./stats-adjust.action";

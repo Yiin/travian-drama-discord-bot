@@ -184,15 +184,18 @@ export async function handlePushCloseButton(interaction: ButtonInteraction): Pro
   const result = await executePushCloseAction(
     { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
     { requestId: ctx.requestId },
-    { isAdmin: isAdmin(interaction.member as GuildMember | null) }
+    {
+      isAdmin: isAdmin(interaction.member as GuildMember | null),
+      onClosed: async (closed) => {
+        await interaction.editReply(
+          confirmationEdit(closed.confirmText ?? asConfirm(closed.actionText), { actionId: closed.actionId })
+        );
+      },
+    }
   );
   if (!result.success) {
     await interaction.editReply(failEdit(result.error, interaction));
-    return;
   }
-  await interaction.editReply(
-    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
-  );
 }
 
 /** Ephemeral full list of senders when the card only shows the top few. */

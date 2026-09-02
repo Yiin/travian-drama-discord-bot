@@ -492,6 +492,8 @@ export async function handleSetupTimezoneModal(interaction: ModalSubmitInteracti
 export async function handleSetupReminderButton(interaction: ButtonInteraction): Promise<void> {
   const guildId = await requireSetupAdmin(interaction);
   if (!guildId) return;
+  // Several REST calls follow; answer within 3 s first
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const config = getGuildConfig(guildId);
   let channel: TextChannel | null = null;
   if (config.defenseChannelId) {
@@ -499,11 +501,11 @@ export async function handleSetupReminderButton(interaction: ButtonInteraction):
   }
   if (!channel && interaction.channel instanceof TextChannel) channel = interaction.channel;
   if (!channel) {
-    await interaction.reply({ content: "⚠️ **No text channel to post in.** Pick a stack requests channel first.", flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: "⚠️ **No text channel to post in.** Pick a stack requests channel first." });
     return;
   }
   await postAccountReminder(interaction.client, guildId, channel);
-  await interaction.reply({ content: `✅ Account-link reminder posted in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ content: `✅ Account-link reminder posted in <#${channel.id}>.` });
 }
 
 export async function handleSetupFinishButton(interaction: ButtonInteraction): Promise<void> {

@@ -8,7 +8,7 @@ import {
 import { getRequestByChannelId } from "../../def-calls";
 import { isAdmin } from "../../../utils/permissions";
 import { errors } from "../../../actions/messages";
-import { replyError, rememberAction } from "../utils";
+import { replyError, rememberAction, reactOk } from "../utils";
 
 export async function handleDefCommand(
   ctx: CommandContext,
@@ -33,7 +33,7 @@ export async function handleDefCommand(
   }
 
   rememberAction(ctx, result.actionId);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
   await ctx.message.reply(result.confirmText ?? result.actionText);
 }
 
@@ -64,7 +64,7 @@ export async function handleDefCallSentCommand(
   }
 
   rememberAction(ctx, result.actionId);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 export async function handleCloseCommand(ctx: CommandContext): Promise<void> {
@@ -93,7 +93,7 @@ export async function handleCloseCommand(ctx: CommandContext): Promise<void> {
   }
   rememberAction(ctx, result.actionId);
   try {
-    await ctx.message.react("✅");
+    await reactOk(ctx);
   } catch {
     // the thread may already be archived
   }

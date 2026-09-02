@@ -55,6 +55,23 @@ describe("upsertPanel", () => {
     expect(save).toHaveBeenCalledWith("new");
   });
 
+  it("clears legacy content and embeds when editing", async () => {
+    const { channel, edited } = fakeChannel("p", { id: "p" });
+    await upsertPanel({ channel, storedMessageId: "p", payload: { components: [panel()] }, save: vi.fn() });
+    expect(edited.mock.calls[0][0]).toMatchObject({ content: null, embeds: [] });
+  });
+
+  it("re-posts when the edit is rejected", async () => {
+    const { channel, edited, sent, deleted } = fakeChannel("p", { id: "p" });
+    edited.mockRejectedValueOnce(new Error("Cannot add the components v2 flag while embeds exist"));
+    const save = vi.fn();
+    const result = await upsertPanel({ channel, storedMessageId: "p", payload: { components: [panel()] }, save });
+    expect(result.edited).toBe(false);
+    expect(deleted).toHaveBeenCalledOnce();
+    expect(sent).toHaveBeenCalledOnce();
+    expect(save).toHaveBeenCalledWith("new");
+  });
+
   it("posts a fresh panel when the stored one is gone", async () => {
     const { channel, sent } = fakeChannel("later");
     const save = vi.fn();

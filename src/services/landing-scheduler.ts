@@ -7,13 +7,14 @@ import {
   setLanded,
 } from "./def-calls";
 import { refreshHubChannel, updateDefCallCard } from "./def-calls-message";
+import { scheduleAt } from "../utils/time";
 
 /**
  * At landing time a def-call card flips to "Landed". Nothing is posted and nobody
  * is pinged; the card and the hub message are edited in place.
  */
 
-const timers = new Map<string, NodeJS.Timeout>();
+const timers = new Map<string, () => void>();
 
 function key(guildId: string, requestId: number): string {
   return `${guildId}:${requestId}`;
@@ -23,18 +24,17 @@ export function scheduleLanding(client: Client, guildId: string, request: DefCal
   cancelLanding(guildId, request.id);
   if (request.closed || request.landed) return;
 
-  const delayMs = request.landingAt * 1000 - Date.now();
-  const timer = setTimeout(() => {
+  const cancel = scheduleAt(request.landingAt * 1000, () => {
     timers.delete(key(guildId, request.id));
     void fireLanding(client, guildId, request.id);
-  }, Math.max(0, delayMs));
-  timers.set(key(guildId, request.id), timer);
+  });
+  timers.set(key(guildId, request.id), cancel);
 }
 
 export function cancelLanding(guildId: string, requestId: number): void {
-  const timer = timers.get(key(guildId, requestId));
-  if (timer) {
-    clearTimeout(timer);
+  const cancel = timers.get(key(guildId, requestId));
+  if (cancel) {
+    cancel();
     timers.delete(key(guildId, requestId));
   }
 }

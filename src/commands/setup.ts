@@ -18,6 +18,7 @@ import { ChannelKind } from "../actions/messages";
 import { applyChannel, applyServerKey, applyTimezone } from "../actions/setup.action";
 import { buildSetupSummary, setupPanelPayload } from "../services/setup-panel";
 import { guildCommand, requireGuild } from "./shared";
+import { requireAdmin } from "../utils/permissions";
 
 export { buildSetupSummary };
 
@@ -118,6 +119,8 @@ export const setupCommand: Command = {
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const guildId = await requireGuild(interaction);
     if (!guildId) return;
+    // Same gate as the text form and the panel; default_member_permissions only hides the command
+    if (!(await requireAdmin(interaction))) return;
 
     switch (interaction.options.getSubcommand()) {
       case "server":

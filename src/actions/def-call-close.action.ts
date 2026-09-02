@@ -14,12 +14,23 @@ import {
   ActionContext,
   DefCallCloseActionInput,
   DefCallCloseActionResult,
+  DefCallCloseActionSuccess,
 } from "./types";
+
+export interface CloseOptions {
+  isAdmin: boolean;
+  /**
+   * Runs after the state changed and before the thread is archived. Callers use
+   * it to send their reply: Discord rejects interaction edits and reactions in
+   * an archived thread.
+   */
+  onClosed?: (result: DefCallCloseActionSuccess) => Promise<void>;
+}
 
 export async function executeDefCallCloseAction(
   context: ActionContext,
   input: DefCallCloseActionInput,
-  options: { isAdmin: boolean }
+  options: CloseOptions
 ): Promise<DefCallCloseActionResult> {
   const { guildId, client, userId } = context;
   const { requestId } = input;
@@ -48,8 +59,6 @@ export async function executeDefCallCloseAction(
 
   cancelLanding(guildId, requestId);
   await updateDefCallCard(client, guildId, closed);
-  await archiveDefCallThread(client, closed);
-  await refreshHubChannel(client, guildId);
 
   const actionId = recordAction(guildId, {
     type: "DEF_CALL_CLOSED",
@@ -62,15 +71,24 @@ export async function executeDefCallCloseAction(
     },
   });
 
-  const actionText = `Request (${request.x}|${request.y}) closed.`;
-  const confirmText = "✅ Request closed. The thread is archived; undo reopens it.";
-
-  return {
+  const result: DefCallCloseActionSuccess = {
     success: true,
     actionId,
-    actionText,
-    confirmText,
+    actionText: `Request (${request.x}|${request.y}) closed.`,
+    confirmText: "✅ Request closed. The thread is archived; undo reopens it.",
     requestId,
     coords: { x: request.x, y: request.y },
   };
+
+  if (options.onClosed) {
+    try {
+      await options.onClosed(result);
+    } catch (error) {
+      console.error("[DefCallClose] Reply before archive failed:", error);
+    }
+  }
+  await archiveDefCallThread(client, closed);
+  await refreshHubChannel(client, guildId);
+
+  return result;
 }

@@ -332,6 +332,32 @@ export function subtractResources(
   return { success: true, request };
 }
 
+/**
+ * Replaces a push request's data in place (undo of an edit). The request keeps
+ * its id and position. Returns false when the id is not active.
+ */
+export function replacePushRequest(
+  guildId: string,
+  requestId: number,
+  state: PushRequest
+): boolean {
+  const data = getGuildPushData(guildId);
+  const index = data.requests.findIndex((r) => r.id === requestId);
+  if (index === -1) return false;
+  data.requests[index] = {
+    ...state,
+    id: requestId,
+    contributors: [...state.contributors],
+  };
+  saveGuildData(guildId, data);
+  return true;
+}
+
+/** Read the store once so id migration runs at boot, before any command. */
+export function ensureMigrated(): void {
+  loadAllData();
+}
+
 export interface RestorePushRequestResult {
   success: boolean;
   requestId?: number;

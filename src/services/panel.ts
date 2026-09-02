@@ -51,8 +51,13 @@ export async function upsertPanel(options: UpsertPanelOptions): Promise<UpsertPa
 
     if (existing) {
       if (isLastMessage(channel, existing)) {
-        const message = await existing.edit(body);
-        return { message, edited: true };
+        try {
+          // Older panels were embeds; the V2 flag needs content and embeds cleared in the same edit
+          const message = await existing.edit({ ...body, content: null, embeds: [] });
+          return { message, edited: true };
+        } catch (error) {
+          console.warn("[Panel] Edit failed, re-posting the panel:", error);
+        }
       }
       try {
         await existing.delete();

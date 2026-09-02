@@ -220,3 +220,33 @@ export function formatRelativeWithRaw(
 ): string {
   return `<t:${timestamp}:R> (${formatRawTime(timestamp, timezone)})`;
 }
+
+/** Largest delay Node's setTimeout accepts; longer delays would fire at once. */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/**
+ * Run `fn` at `whenMs` (epoch milliseconds). Delays past Node's 24.8-day
+ * setTimeout limit are chained. Returns a cancel function.
+ */
+export function scheduleAt(whenMs: number, fn: () => void | Promise<void>): () => void {
+  let timer: NodeJS.Timeout | undefined;
+  let cancelled = false;
+  const arm = () => {
+    if (cancelled) return;
+    const remaining = whenMs - Date.now();
+    if (remaining > MAX_TIMEOUT_MS) {
+      timer = setTimeout(arm, MAX_TIMEOUT_MS);
+      return;
+    }
+    timer = setTimeout(() => {
+      timer = undefined;
+      if (!cancelled) void fn();
+    }, Math.max(0, remaining));
+  };
+  arm();
+  return () => {
+    cancelled = true;
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+  };
+}

@@ -81,6 +81,11 @@ function saveAllData(data: AllGuildData): void {
   fs.writeFileSync(DEF_CALLS_FILE, JSON.stringify(data, null, 2));
 }
 
+/** Read the store once so id migration runs at boot, before any command. */
+export function ensureMigrated(): void {
+  loadAllData();
+}
+
 function getDefaultGuildData(): GuildDefCalls {
   return { nextId: 1, requests: [] };
 }

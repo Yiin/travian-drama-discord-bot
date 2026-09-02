@@ -113,6 +113,77 @@ export function buildActionButtons(hasRequests: boolean): ActionRowBuilder<Butto
   return new ActionRowBuilder<ButtonBuilder>().addComponents(sentButton, requestButton, editButton);
 }
 
+/** One queue row, ready to render. */
+export interface StackEntry {
+  /** Section text (three lines). */
+  section: string;
+  /** Compact text for rows past MAX_STACK_SECTIONS (two lines). */
+  compact: string;
+  accessory: { label: string; url: string };
+}
+
+/** Discord's total text budget across the Text Display components of one message. */
+export const PANEL_TEXT_BUDGET = 4000;
+/** Room kept for the "… and N more" line. */
+const MORE_LINE_RESERVE = 40;
+
+/**
+ * Compose the panel from prepared rows. Pure: no Discord or map lookups, so it
+ * can be tested for the 40-component and 4000-character limits.
+ * Rows are added in order while they fit; the rest become one "… and N more" line.
+ */
+export function composeStackPanel(
+  entries: StackEntry[],
+  header: string,
+  footer: string,
+): ContainerBuilder {
+  const panel = new ContainerBuilder().setAccentColor(STACK_ACCENT);
+  panel.addTextDisplayComponents(text(header));
+
+  if (entries.length === 0) {
+    panel.addSeparatorComponents(new SeparatorBuilder());
+    panel.addTextDisplayComponents(text("Everyone is safe."));
+    panel.addActionRowComponents(buildActionButtons(false));
+    return panel;
+  }
+
+  let budget = PANEL_TEXT_BUDGET - header.length - footer.length - MORE_LINE_RESERVE;
+  let shown = 0;
+  const overflow: string[] = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (i < MAX_STACK_SECTIONS) {
+      if (entry.section.length > budget) break;
+      budget -= entry.section.length;
+      panel.addSeparatorComponents(new SeparatorBuilder());
+      panel.addSectionComponents(
+        new SectionBuilder()
+          .addTextDisplayComponents(text(entry.section))
+          .setButtonAccessory(linkButton(entry.accessory.label, entry.accessory.url)),
+      );
+    } else {
+      const cost = entry.compact.length + 1;
+      if (cost > budget) break;
+      budget -= cost;
+      overflow.push(entry.compact);
+    }
+    shown++;
+  }
+
+  const hidden = entries.length - shown;
+  if (hidden > 0) overflow.push(`-# … and ${hidden} more. Use ${cmd("stack list")} after some complete.`);
+  if (overflow.length > 0) {
+    panel.addSeparatorComponents(new SeparatorBuilder());
+    panel.addTextDisplayComponents(text(overflow.join("\n")));
+  }
+
+  panel.addSeparatorComponents(new SeparatorBuilder());
+  panel.addTextDisplayComponents(text(footer));
+  panel.addActionRowComponents(buildActionButtons(true));
+  return panel;
+}
+
 /** The live stack panel: one container, one section per request, buttons at the bottom. */
 export async function buildStackPanel(guildId: string): Promise<ContainerBuilder> {
   const data = getGuildDefenseData(guildId);
@@ -122,55 +193,30 @@ export async function buildStackPanel(guildId: string): Promise<ContainerBuilder
   }
   const serverKey = config.serverKey;
 
-  const panel = new ContainerBuilder().setAccentColor(STACK_ACCENT);
   const open = data.requests.length;
-  panel.addTextDisplayComponents(
-    text(`## 🛡️ Stack requests · ${open} open · updated ${time(unixNow(), TimestampStyles.RelativeTime)}`),
-  );
+  const header = `## 🛡️ Stack requests · ${open} open · updated ${time(unixNow(), TimestampStyles.RelativeTime)}`;
 
-  if (open === 0) {
-    panel.addSeparatorComponents(new SeparatorBuilder());
-    panel.addTextDisplayComponents(text("Everyone is safe."));
-    panel.addActionRowComponents(buildActionButtons(false));
-    return panel;
-  }
-
-  const overflow: string[] = [];
+  const entries: StackEntry[] = [];
   for (let i = 0; i < data.requests.length; i++) {
     const request = data.requests[i];
     const village = await getVillageAt(serverKey, request.x, request.y);
     const [line1, line2, line3] = requestLines(serverKey, request, village, i === 0);
-
-    if (i < MAX_STACK_SECTIONS) {
-      panel.addSeparatorComponents(new SeparatorBuilder());
-      const accessory = village
-        ? linkButton("Send", getRallyPointLink(serverKey, village.targetMapId, 1))
-        : linkButton("Map", getMapLink(serverKey, request));
-      panel.addSectionComponents(
-        new SectionBuilder()
-          .addTextDisplayComponents(text(`${line1}\n${line2}\n${line3}`))
-          .setButtonAccessory(accessory),
-      );
-    } else {
-      overflow.push(`${line1}\n${line2}`);
-    }
+    entries.push({
+      section: `${line1}\n${line2}\n${line3}`,
+      compact: `${line1}\n${line2}`,
+      accessory: village
+        ? { label: "Send", url: getRallyPointLink(serverKey, village.targetMapId, 1) }
+        : { label: "Map", url: getMapLink(serverKey, request) },
+    });
   }
 
-  if (overflow.length > 0) {
-    panel.addSeparatorComponents(new SeparatorBuilder());
-    panel.addTextDisplayComponents(text(overflow.join("\n")));
-  }
-
-  panel.addSeparatorComponents(new SeparatorBuilder());
   const completed = data.recentlyCompleted;
   const donePart = completed.length > 0
     ? `✅ Done today: ${completed.map((c) => `(${c.x}|${c.y})`).join(", ")} · `
     : "";
-  panel.addTextDisplayComponents(
-    text(`-# ${donePart}Report with the button or ${cmd("stack sent")}`),
-  );
-  panel.addActionRowComponents(buildActionButtons(true));
-  return panel;
+  const footer = `-# ${donePart}Report with the button or ${cmd("stack sent")}`;
+
+  return composeStackPanel(entries, header, footer);
 }
 
 /** Link to the live stack panel, when one has been posted. */

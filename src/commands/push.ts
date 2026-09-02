@@ -390,15 +390,18 @@ async function handleClose(interaction: ChatInputCommandInteraction): Promise<vo
   const result = await executePushCloseAction(
     { guildId: validation.guildId, config: validation.config, client: interaction.client, userId: interaction.user.id },
     { requestId: requestData.requestId },
-    { isAdmin: isAdmin(interaction.member as GuildMember | null) }
+    {
+      isAdmin: isAdmin(interaction.member as GuildMember | null),
+      onClosed: async (closed) => {
+        await interaction.editReply(
+          confirmationEdit(closed.confirmText ?? asConfirm(closed.actionText), { actionId: closed.actionId })
+        );
+      },
+    }
   );
   if (!result.success) {
     await interaction.editReply(failEdit(result.error, interaction));
-    return;
   }
-  await interaction.editReply(
-    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
-  );
 }
 
 async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {

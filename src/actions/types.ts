@@ -227,10 +227,7 @@ export interface MoveActionInput {
   toPosition: number;
 }
 
-export interface MoveActionSuccess {
-  success: true;
-  actionText: string;
-  confirmText?: string;
+export interface MoveActionSuccess extends ActionSuccess {
   requestId: number;
   toPosition: number;
 }

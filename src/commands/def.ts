@@ -117,13 +117,19 @@ export const defCommand: Command = {
         const result = await executeDefCallCloseAction(
           context,
           { requestId: requestData.requestId },
-          { isAdmin: isAdmin(interaction.member as GuildMember | null) }
+          {
+            isAdmin: isAdmin(interaction.member as GuildMember | null),
+            // Reply before the thread archives; edits inside an archived thread are rejected
+            onClosed: async (closed) => {
+              await interaction.editReply(
+                confirmationEdit(closed.confirmText ?? asConfirm(closed.actionText), { actionId: closed.actionId })
+              );
+            },
+          }
         );
-        await interaction.editReply(
-          result.success
-            ? confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
-            : failEdit(result.error, interaction)
-        );
+        if (!result.success) {
+          await interaction.editReply(failEdit(result.error, interaction));
+        }
         return;
       }
     }

@@ -1,7 +1,6 @@
 import {
   reportTroopsSent,
   getRequestById,
-  DefCallRequest,
 } from "../services/def-calls";
 import { recordContribution } from "../services/stats";
 import { recordAction } from "../services/action-history";
@@ -45,11 +44,6 @@ export async function executeDefCallSentAction(
   if (requestBefore.closed) {
     return { success: false, error: "⚠️ **This defense call is closed.** Undo the close first if it was a mistake." };
   }
-  const previousState: DefCallRequest = {
-    ...requestBefore,
-    contributors: [...requestBefore.contributors],
-  };
-
   const result = reportTroopsSent(guildId, requestId, accountName, troops);
   if ("error" in result) {
     return { success: false, error: result.error };
@@ -68,10 +62,10 @@ export async function executeDefCallSentAction(
     userId,
     coords: { x: result.request.x, y: result.request.y },
     requestId,
-    previousDefCallState: previousState,
     data: {
       troops,
       contributorAccount: accountName,
+      contributorId: creditedUserId,
     },
   });
 

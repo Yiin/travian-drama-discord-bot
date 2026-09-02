@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { Client, TextChannel } from "discord.js";
+import { scheduleAt } from "../utils/time";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const REMINDERS_FILE = path.join(DATA_DIR, "reminders.json");
@@ -24,7 +25,7 @@ interface RemindersData {
 }
 
 // In-memory map of active timeouts by reminder ID
-const activeTimeouts = new Map<number, NodeJS.Timeout>();
+const activeTimeouts = new Map<number, () => void>();
 
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
@@ -183,7 +184,7 @@ function scheduleNextFire(client: Client, reminder: Reminder): void {
   // Clear any existing timeout
   const existingTimeout = activeTimeouts.get(reminder.id);
   if (existingTimeout) {
-    clearTimeout(existingTimeout);
+    existingTimeout();
   }
 
   const nextFireTime = calculateNextFireTime(reminder);
@@ -193,10 +194,10 @@ function scheduleNextFire(client: Client, reminder: Reminder): void {
     console.log(
       `[ReminderScheduler] Reminder #${reminder.id} scheduled for ${new Date(nextFireTime).toISOString()} (in ${Math.round(delayMs / 1000 / 60)} minutes)`
     );
-    const timeout = setTimeout(async () => {
+    const cancel = scheduleAt(nextFireTime, async () => {
       await fireReminder(client, reminder);
-    }, delayMs);
-    activeTimeouts.set(reminder.id, timeout);
+    });
+    activeTimeouts.set(reminder.id, cancel);
   }
 }
 
@@ -279,7 +280,7 @@ export function deleteReminder(id: number): boolean {
   // Cancel any pending timeout
   const timeout = activeTimeouts.get(id);
   if (timeout) {
-    clearTimeout(timeout);
+    timeout();
     activeTimeouts.delete(id);
   }
 

@@ -123,7 +123,14 @@ export function buildPlayerEmbed(
 // Slash command
 // ============================================
 
-const PLAYER_SELECT_ID = "lookup_player_select";
+export const LOOKUP_PLAYER_SELECT_ID = "lookup_player_select";
+const PLAYER_SELECT_ID = LOOKUP_PLAYER_SELECT_ID;
+
+/** Picker messages with a live collector; the global dispatcher answers the rest. */
+const activePickers = new Set<string>();
+export function isLookupPickerActive(messageId: string): boolean {
+  return activePickers.has(messageId);
+}
 
 export const lookupCommand: Command = {
   topic: "info",
@@ -272,6 +279,7 @@ async function handlePlayerLookup(
     content: `Found ${matchingPlayers.length} players named "${playerName}". Choose one:`,
     components: [row],
   });
+  activePickers.add(response.id);
 
   // Wait for selection (60 second timeout)
   try {
@@ -295,6 +303,8 @@ async function handlePlayerLookup(
       content: "Timed out. Run the command again.",
       components: [],
     });
+  } finally {
+    activePickers.delete(response.id);
   }
 }
 

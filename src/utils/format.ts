@@ -41,3 +41,12 @@ export function progressBar(sent: number, needed: number, width = BAR_WIDTH): st
   const filled = Math.round((percentOf(sent, needed) / 100) * width);
   return "▰".repeat(filled) + "▱".repeat(width - filled);
 }
+
+/** Longest note kept on a stack request; the panel has a 4000-char text budget. */
+export const MAX_NOTE_LENGTH = 100;
+
+/** Trim a free-text note to MAX_NOTE_LENGTH characters. */
+export function clipNote(note: string | undefined): string {
+  const trimmed = (note ?? "").trim();
+  return trimmed.length > MAX_NOTE_LENGTH ? trimmed.slice(0, MAX_NOTE_LENGTH - 1) + "…" : trimmed;
+}

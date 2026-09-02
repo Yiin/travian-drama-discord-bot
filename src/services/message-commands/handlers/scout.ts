@@ -1,6 +1,6 @@
 import { CommandContext } from "../types";
 import { executeScoutAction, sendScoutMessage } from "../../../actions";
-import { replyError, rememberAction } from "../utils";
+import { replyError, rememberAction, reactOk } from "../utils";
 import { errors } from "../../../actions/messages";
 
 export async function handleScoutCommand(
@@ -39,18 +39,18 @@ export async function handleScoutCommand(
   }
 
   // Send the scout message to the channel
-  const sent = await sendScoutMessage(ctx.client, ctx.guildId, ctx.config.scoutChannelId, {
+  const posted = await sendScoutMessage(ctx.client, ctx.guildId, ctx.config.scoutChannelId, {
     ...result,
     message: scoutMessage,
     requesterId: ctx.message.author.id,
     scoutRoleId: ctx.config.scoutRoleId,
   });
 
-  if (!sent) {
+  if (!posted) {
     await replyError(ctx, errors.channelGone("scout"));
     return;
   }
 
-  // React to confirm
-  await ctx.message.react("✅");
+  rememberAction(ctx, posted.actionId);
+  await reactOk(ctx);
 }

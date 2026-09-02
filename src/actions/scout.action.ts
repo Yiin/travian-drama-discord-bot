@@ -8,8 +8,9 @@ import {
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, ScoutActionInput, ScoutActionResult, ActionError } from "./types";
 import { errors } from "./messages";
-import { addScoutRequest, pruneScoutRequests, ScoutRequest } from "../services/scout-requests";
+import { addScoutRequest, getScoutRequest, pruneScoutRequests, ScoutRequest } from "../services/scout-requests";
 import { postScoutCard } from "../services/scout-message";
+import { recordAction } from "../services/action-history";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.
@@ -60,17 +61,23 @@ export async function executeScoutAction(
   };
 }
 
+export interface PostedScout {
+  request: ScoutRequest;
+  /** Action id for undo (removes the card). */
+  actionId: number;
+}
+
 /**
- * Store the request and post its card to the scout channel.
- * Returns the stored request, or null when the channel is unreachable.
+ * Store the request, post its card to the scout channel and record the action
+ * for undo. Returns null when the channel is unreachable.
  */
 export async function sendScoutMessage(
   client: Client,
   guildId: string,
   scoutChannelId: string,
   data: ScoutActionSuccess & { message: string; requesterId: string; scoutRoleId?: string }
-): Promise<ScoutRequest | null> {
-  const request = addScoutRequest(guildId, {
+): Promise<PostedScout | null> {
+  const created = addScoutRequest(guildId, {
     channelId: scoutChannelId,
     x: data.coords.x,
     y: data.coords.y,
@@ -79,8 +86,17 @@ export async function sendScoutMessage(
     scoutRoleId: data.scoutRoleId,
   });
   pruneScoutRequests(guildId);
-  const posted = await postScoutCard(client, guildId, request);
-  return posted ? request : null;
+  const posted = await postScoutCard(client, guildId, created);
+  if (!posted) return null;
+  const request = getScoutRequest(guildId, created.id) ?? created;
+  const actionId = recordAction(guildId, {
+    type: "SCOUT_REQUEST_ADD",
+    userId: data.requesterId,
+    coords: { x: request.x, y: request.y },
+    requestId: request.id,
+    data: { channelIdForCard: request.channelId, messageId: request.messageId },
+  });
+  return { request, actionId };
 }
 
 type ScoutActionSuccess = Exclude<ScoutActionResult, ActionError>;

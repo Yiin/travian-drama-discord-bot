@@ -1,6 +1,6 @@
 import { TextChannel } from "discord.js";
 import { CommandContext } from "../types";
-import { parseNames, replyError } from "../utils";
+import { parseNames, replyError, reactOk } from "../utils";
 import { cmd } from "../../../actions/messages";
 import {
   setAccount,
@@ -28,7 +28,7 @@ export async function handleAccountLinkCommand(
   const previousName = getAccountForUser(ctx.guildId, targetUserId);
   setAccount(ctx.guildId, targetUserId, trimmedName);
 
-  await ctx.message.react("✅");
+  await reactOk(ctx);
   const who = isSelf ? "You are" : `<@${targetUserId}> is`;
   let content: string;
   if (previousName === trimmedName) {
@@ -53,7 +53,7 @@ export async function handleAccountUnlinkCommand(ctx: CommandContext, forUserId?
   }
 
   deleteAccount(ctx.guildId, userId);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
   await ctx.message.reply({
     content: isSelf ? `✅ Unlinked **${previousName}**.` : `✅ Unlinked **${previousName}** from <@${userId}>.`,
     allowedMentions: { parse: [] },
@@ -74,7 +74,7 @@ export async function handleSitterSetCommand(
 
   const added = addSitter(ctx.guildId, userId, names);
 
-  await ctx.message.react("✅");
+  await reactOk(ctx);
   if (added.length === 0) {
     await ctx.message.reply(`You are already a sitter for: **${names.join("**, **")}**`);
   } else if (added.length === names.length) {
@@ -101,7 +101,7 @@ export async function handleSitterDelCommand(
 
   const removed = removeSitter(ctx.guildId, userId, names);
 
-  await ctx.message.react("✅");
+  await reactOk(ctx);
   if (removed.length === 0) {
     await ctx.message.reply(`Not sitting: **${names.join("**, **")}**`);
   } else if (removed.length === names.length) {

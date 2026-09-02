@@ -4,6 +4,8 @@ import {
   getActionDescription,
   isPushAction,
   isDefCallAction,
+  isScoutAction,
+  isStatsAction,
 } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { updatePushCard, archivePushThread, unarchivePushThread } from "../services/push-message";
@@ -16,7 +18,8 @@ import {
   unarchiveDefCallThread,
 } from "../services/def-calls-message";
 import { scheduleLanding, cancelLanding } from "../services/landing-scheduler";
-import { removeContribution } from "../services/stats";
+import { removeContribution, recordContribution } from "../services/stats";
+import { cancelScoutNotifications } from "../services/scout-scheduler";
 import { removePushContribution } from "../services/push-stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
 
@@ -71,10 +74,21 @@ export async function executeUndoAction(
   if (action.type === "DEF_CALL_TROOPS_SENT" && action.data.troops) {
     removeContribution(
       guildId,
-      action.userId,
+      action.data.contributorId ?? action.userId,
       action.coords.x,
       action.coords.y,
       action.data.troops
+    );
+  }
+
+  // 3d. Reverse a manual stats adjustment
+  if (action.type === "STATS_ADJUST" && action.data.troops && action.data.contributorId) {
+    recordContribution(
+      guildId,
+      action.data.contributorId,
+      action.coords.x,
+      action.coords.y,
+      -action.data.troops
     );
   }
 
@@ -104,7 +118,9 @@ export async function executeUndoAction(
         await updatePushCard(client, guildId, request);
       }
     }
-  } else {
+  } else if (isScoutAction(action)) {
+    await deleteScoutCard(client, action.data.channelIdForCard, action.data.messageId);
+  } else if (!isStatsAction(action)) {
     await updateGlobalMessage(client, guildId);
   }
 
@@ -123,4 +139,19 @@ export async function executeUndoAction(
     confirmText,
     description,
   };
+}
+
+/** Remove a scout card after its request was undone. */
+async function deleteScoutCard(client: Parameters<typeof updateGlobalMessage>[0], channelId?: string, messageId?: string): Promise<void> {
+  if (!channelId || !messageId) return;
+  cancelScoutNotifications(messageId);
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel && channel.isTextBased()) {
+      const message = await channel.messages.fetch(messageId);
+      await message.delete();
+    }
+  } catch (error) {
+    console.warn("[Undo] Could not delete scout card:", error);
+  }
 }

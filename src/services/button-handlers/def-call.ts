@@ -332,7 +332,15 @@ export async function handleDefCallCloseButton(
       userId: interaction.user.id,
     },
     { requestId: requestData.requestId },
-    { isAdmin: userIsAdmin }
+    {
+      isAdmin: userIsAdmin,
+      // Reply before the thread archives; edits inside an archived thread are rejected
+      onClosed: async (closed) => {
+        await interaction.editReply(
+          confirmationEdit(closed.confirmText ?? asConfirm(closed.actionText), { actionId: closed.actionId })
+        );
+      },
+    }
   );
 
   if (!result.success) {
@@ -341,10 +349,5 @@ export async function handleDefCallCloseButton(
     } catch {
       // ignore
     }
-    return;
   }
-
-  await interaction.editReply(
-    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
-  );
 }

@@ -2,14 +2,20 @@ import { getPushRequestById, setPushRequestClosed, PushRequest } from "../servic
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { archivePushThread, updatePushCard } from "../services/push-message";
 import { recordAction } from "../services/action-history";
-import { ActionContext, PushCloseActionInput, PushCloseActionResult } from "./types";
+import { ActionContext, PushCloseActionInput, PushCloseActionResult, PushCloseActionSuccess } from "./types";
 import { errors } from "./messages";
 
 /** Close a push request: the thread is archived, the data stays, undo reopens it. */
+export interface PushCloseOptions {
+  isAdmin: boolean;
+  /** Runs before the thread is archived, so callers can still reply inside it. */
+  onClosed?: (result: PushCloseActionSuccess) => Promise<void>;
+}
+
 export async function executePushCloseAction(
   context: ActionContext,
   input: PushCloseActionInput,
-  options: { isAdmin: boolean }
+  options: PushCloseOptions
 ): Promise<PushCloseActionResult> {
   const { guildId, config, client, userId } = context;
   const { requestId } = input;
@@ -35,7 +41,6 @@ export async function executePushCloseAction(
   }
 
   await updatePushCard(client, guildId, closed);
-  await archivePushThread(client, closed);
 
   const actionId = recordAction(guildId, {
     type: "PUSH_REQUEST_CLOSED",
@@ -51,7 +56,7 @@ export async function executePushCloseAction(
     ? formatVillageDisplay(config.serverKey, village)
     : `(${request.x}|${request.y})`;
 
-  return {
+  const result: PushCloseActionSuccess = {
     success: true,
     actionId,
     actionText: `<@${userId}> closed push request #${requestId}: ${villageDisplay}`,
@@ -59,4 +64,15 @@ export async function executePushCloseAction(
     requestId,
     coords: { x: request.x, y: request.y },
   };
+
+  if (options.onClosed) {
+    try {
+      await options.onClosed(result);
+    } catch (error) {
+      console.error("[PushClose] Reply before archive failed:", error);
+    }
+  }
+  await archivePushThread(client, closed);
+
+  return result;
 }

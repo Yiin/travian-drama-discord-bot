@@ -1,6 +1,6 @@
 import { CommandContext } from "../types";
 import { requireAdminMiddleware } from "../middleware";
-import { normalizeServerKey, isValidServerKey, replyError } from "../utils";
+import { normalizeServerKey, isValidServerKey, replyError, reactOk } from "../utils";
 import { getGuildConfig, setServerKey, setDefenseChannel, setScoutChannel, setScoutRole, setDefCallsChannelId, setPushChannelId, setServerTimezone } from "../../../config/guild-config";
 import { updateMapData } from "../../map-data";
 import { buildSetupSummary } from "../../setup-panel";
@@ -25,7 +25,7 @@ async function handleSetupServerCommandInner(
     await updateMapData(serverKey);
 
     await ctx.message.reply(`✅ Travian server set to \`${serverKey}\`. Map data downloaded.`);
-    await ctx.message.react("✅");
+    await reactOk(ctx);
   } catch (error) {
     console.error("[Setup] Failed to download map data:", error);
     await ctx.message.reply(`✅ Travian server set to \`${serverKey}\`. ⚠️ Map data could not be downloaded yet; the bot will retry.`);
@@ -51,7 +51,7 @@ async function handleSetupChannelCommandInner(
     await ctx.message.reply(`✅ Resource pushes now go to <#${channelId}>.`);
   }
 
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 async function handleSetupScoutRoleCommandInner(
@@ -80,7 +80,7 @@ async function handleSetupScoutRoleCommandInner(
     }
   }
 
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 async function handleSetupTimezoneCommandInner(
@@ -92,7 +92,7 @@ async function handleSetupTimezoneCommandInner(
   if (trimmed.toLowerCase() === "clear") {
     setServerTimezone(ctx.guildId, null);
     await ctx.message.reply("✅ Timezone cleared. Typed times are read as UTC.");
-    await ctx.message.react("✅");
+    await reactOk(ctx);
     return;
   }
 
@@ -103,7 +103,7 @@ async function handleSetupTimezoneCommandInner(
 
   setServerTimezone(ctx.guildId, trimmed);
   await ctx.message.reply(`✅ Timezone set to \`${trimmed}\`. Typed times are read as local time there.`);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 async function handleSetupShowCommandInner(ctx: CommandContext): Promise<void> {

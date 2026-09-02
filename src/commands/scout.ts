@@ -72,20 +72,22 @@ export const scoutCommand: Command = {
       return;
     }
 
-    const request = await sendScoutMessage(interaction.client, guildId, config.scoutChannelId, {
+    const posted = await sendScoutMessage(interaction.client, guildId, config.scoutChannelId, {
       ...result,
       message: note,
       requesterId: interaction.user.id,
       scoutRoleId: config.scoutRoleId,
     });
 
-    if (!request) {
+    if (!posted) {
       await interaction.editReply({ content: errors.channelGone("scout") });
       return;
     }
+    const { request, actionId } = posted;
 
     await interaction.editReply(
       confirmationEdit(`✅ Scout request #${formatScoutId(request.id)} posted for ${result.villageDisplay}.`, {
+        actionId,
         panelUrl: request.messageId ? messageUrl(guildId, config.scoutChannelId, request.messageId) : undefined,
         panelLabel: "Open card",
       })

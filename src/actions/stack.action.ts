@@ -9,7 +9,7 @@ import { updateGlobalMessage } from "../services/defense-message";
 import { parseAndValidateCoords } from "./validation";
 import { ActionContext, DefActionInput, DefActionResult } from "./types";
 import { errors } from "./messages";
-import { formatTroops } from "../utils/format";
+import { formatTroops, clipNote } from "../utils/format";
 
 /**
  * Execute the "stack" action - create a stack defense request.
@@ -22,7 +22,8 @@ export async function executeStackAction(
   input: DefActionInput,
 ): Promise<DefActionResult> {
   const { guildId, config, client, userId } = context;
-  const { coords: coordsInput, troopsNeeded, message } = input;
+  const { coords: coordsInput, troopsNeeded } = input;
+  const message = clipNote(input.message);
 
   // 1. Parse and validate coordinates
   const coordsResult = parseAndValidateCoords(coordsInput);

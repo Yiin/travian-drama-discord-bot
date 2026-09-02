@@ -20,8 +20,8 @@ import {
 } from "../../stats";
 import { getVillageAt, getMapLink, getPlayerByExactName } from "../../map-data";
 import { errors } from "../../../actions/messages";
-import { replyError } from "../utils";
-import { recordContribution } from "../../stats";
+import { replyError, rememberAction, reactOk } from "../utils";
+import { executeStatsAdjustAction } from "../../../actions/stats-adjust.action";
 
 async function handleStatsLeaderboardCommandInner(ctx: CommandContext): Promise<void> {
   const leaderboard = getLeaderboard(ctx.guildId);
@@ -325,24 +325,18 @@ async function handleStatsAddCommandInner(
   troops: number,
   forUserId?: string
 ): Promise<void> {
-  const coords = parseCoords(coordsInput);
-  if (!coords) {
-    await replyError(ctx, errors.invalidCoords());
+  const result = await executeStatsAdjustAction(
+    { guildId: ctx.guildId, config: ctx.config, client: ctx.client, userId: ctx.message.author.id },
+    { coords: coordsInput, troops, forUserId }
+  );
+  if (!result.success) {
+    await replyError(ctx, result.error);
     return;
   }
-  if (troops === 0) {
-    await replyError(ctx, errors.countIsZero("troop"));
-    return;
-  }
-
-  const targetUserId = forUserId || ctx.message.author.id;
-  recordContribution(ctx.guildId, targetUserId, coords.x, coords.y, troops);
-
-  await ctx.message.react("✅");
-  const verb = troops > 0 ? "Added" : "Subtracted";
-  const preposition = troops > 0 ? "to" : "from";
+  rememberAction(ctx, result.actionId);
+  await reactOk(ctx);
   await ctx.message.reply({
-    content: `✅ ${verb} **${formatNumber(Math.abs(troops))}** troops ${preposition} (${coords.x}|${coords.y}) stats for <@${targetUserId}>.`,
+    content: result.confirmText ?? result.actionText,
     allowedMentions: { parse: [] },
   });
 }

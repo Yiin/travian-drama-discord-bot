@@ -342,6 +342,32 @@ export function restoreRequest(
   return { success: true, requestId: restoredRequest.id };
 }
 
+/**
+ * Replaces a request's data in place (undo of an edit). The request keeps its
+ * id and queue position. Returns false when the id is not active.
+ */
+export function replaceRequest(
+  guildId: string,
+  requestId: number,
+  state: DefenseRequest
+): boolean {
+  const data = getGuildDefenseData(guildId);
+  const index = indexOfId(data, requestId);
+  if (index === -1) return false;
+  data.requests[index] = {
+    ...state,
+    id: requestId,
+    contributors: [...state.contributors],
+  };
+  saveGuildData(guildId, data);
+  return true;
+}
+
+/** Read the store once so id migration runs at boot, before any command. */
+export function ensureMigrated(): void {
+  loadAllData();
+}
+
 export interface SubtractTroopsResult {
   success: boolean;
   request?: DefenseRequest;

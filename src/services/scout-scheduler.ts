@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { Client, TextChannel } from "discord.js";
+import { scheduleAt } from "../utils/time";
 import { getVillageAt, formatVillageDisplay } from "./map-data";
 import { getGuildConfig } from "../config/guild-config";
 
@@ -21,7 +22,7 @@ export interface ScoutNotification {
 type AllNotifications = ScoutNotification[];
 
 // In-memory map of active timeouts by messageId
-const activeTimeouts = new Map<string, NodeJS.Timeout>();
+const activeTimeouts = new Map<string, () => void>();
 
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
@@ -72,7 +73,7 @@ export function scheduleScoutNotification(
   const timeoutKey = `${notification.messageId}:${notification.goingUserId}`;
   const existingTimeout = activeTimeouts.get(timeoutKey);
   if (existingTimeout) {
-    clearTimeout(existingTimeout);
+    existingTimeout();
   }
 
   // Schedule the notification
@@ -81,11 +82,11 @@ export function scheduleScoutNotification(
 
   if (delayMs > 0) {
     console.log(`[ScoutScheduler] Setting timeout for ${delayMs}ms (${Math.round(delayMs / 1000 / 60)} minutes)`);
-    const timeout = setTimeout(async () => {
+    const cancel = scheduleAt(notification.arrivalTimestamp * 1000, async () => {
       console.log(`[ScoutScheduler] Timeout fired for message ${notification.messageId}`);
       await fireNotification(client, notification, markAsDone);
-    }, delayMs);
-    activeTimeouts.set(timeoutKey, timeout);
+    });
+    activeTimeouts.set(timeoutKey, cancel);
   } else {
     console.log(`[ScoutScheduler] Delay is ${delayMs}ms, not scheduling (time already passed)`);
   }
@@ -103,7 +104,7 @@ export function cancelScoutNotifications(messageId: string): void {
   // Clear in-memory timeouts for this message
   for (const [key, timeout] of activeTimeouts.entries()) {
     if (key.startsWith(`${messageId}:`)) {
-      clearTimeout(timeout);
+      timeout();
       activeTimeouts.delete(key);
     }
   }
@@ -185,10 +186,10 @@ export function loadAndRescheduleNotifications(
       const timeoutKey = `${notification.messageId}:${notification.goingUserId}`;
       const delayMs = (notification.arrivalTimestamp - now) * 1000;
 
-      const timeout = setTimeout(async () => {
+      const cancel = scheduleAt(notification.arrivalTimestamp * 1000, async () => {
         await fireNotification(client, notification, markAsDone);
-      }, delayMs);
-      activeTimeouts.set(timeoutKey, timeout);
+      });
+      activeTimeouts.set(timeoutKey, cancel);
     }
   }
 

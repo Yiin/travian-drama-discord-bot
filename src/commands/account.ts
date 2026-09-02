@@ -176,6 +176,7 @@ async function handlePostReminder(interaction: ChatInputCommandInteraction, guil
     await interaction.reply({ content: "⚠️ **Run this in a text channel.**", flags: MessageFlags.Ephemeral });
     return;
   }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   await postAccountReminder(interaction.client, guildId, channel);
-  await interaction.reply({ content: "✅ Reminder posted.", flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ content: "✅ Reminder posted." });
 }

@@ -75,6 +75,11 @@ import {
   UNDO_BUTTON_PREFIX,
 } from "./services/button-handlers/index";
 import { cacheCommandIds } from "./actions/messages";
+import { LOOKUP_PLAYER_SELECT_ID, isLookupPickerActive } from "./commands/lookup";
+import { STATS_RESET_CONFIRM_ID, STATS_RESET_CANCEL_ID, isStatsResetActive } from "./commands/stats";
+import { ensureMigrated as ensureStackMigrated } from "./services/defense-requests";
+import { ensureMigrated as ensurePushMigrated } from "./services/push-requests";
+import { ensureMigrated as ensureDefCallsMigrated } from "./services/def-calls";
 import { handleHelpButton } from "./commands/help";
 import { HELP_BUTTON_PREFIX } from "./services/help";
 import { errors, ACCOUNT_LINK_BUTTON_PREFIX, SETUP_OPEN_BUTTON_ID, SETUP_PING_ADMIN_BUTTON_ID } from "./actions/messages";
@@ -112,8 +117,46 @@ const client = new Client({
   partials: [Partials.Message],
 });
 
+/**
+ * Pickers handled by a collector (lookup select, stats reset) get no reply here
+ * while the collector lives. Someone else's click, or a click after a restart or
+ * timeout, would otherwise show "This interaction failed".
+ */
+async function replyIfPickerStale(
+  interaction: import("discord.js").MessageComponentInteraction,
+  active: boolean,
+): Promise<void> {
+  const owner = interaction.message.interactionMetadata?.user.id;
+  if (owner && owner !== interaction.user.id) {
+    await interaction.reply({ content: "⚠️ **This picker belongs to someone else.** Run the command yourself.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!active) {
+    await interaction.reply({ content: "⚠️ **This picker expired.** Run the command again.", flags: MessageFlags.Ephemeral });
+  }
+}
+
+/** Ephemeral generic error; follows up when the handler already replied or deferred. */
+async function replyGenericError(interaction: import("discord.js").RepliableInteraction): Promise<void> {
+  const reply = { content: errors.generic(), flags: MessageFlags.Ephemeral as const };
+  try {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply);
+    } else {
+      await interaction.reply(reply);
+    }
+  } catch {
+    // Interaction may have expired or already been handled
+  }
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Bot is ready! Logged in as ${readyClient.user.tag}`);
+
+  // Run id migrations for every store now, before any command can touch them
+  ensureStackMigrated();
+  ensurePushMigrated();
+  ensureDefCallsMigrated();
 
   // Cache slash command IDs so error messages can link commands
   await cacheCommandIds(readyClient, process.env.DISCORD_GUILD_ID);
@@ -154,6 +197,8 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
     if (!oldMessage.partial && !newMessage.partial && oldMessage.content === newMessage.content) return;
     // Fetch full message if partial
     const message = newMessage.partial ? await newMessage.fetch() : newMessage;
+    // Pins and embed resolution fire this event too; only a real edit has a timestamp
+    if (message.editedTimestamp === null) return;
     await handleTextCommand(client, message);
   } catch (error) {
     console.error("Error handling message edit:", error);
@@ -223,19 +268,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleDefCallSentButton(interaction);
       } else if (interaction.customId === DEFCALL_CLOSE_BUTTON_ID) {
         await handleDefCallCloseButton(interaction);
+      } else if (interaction.customId === STATS_RESET_CONFIRM_ID || interaction.customId === STATS_RESET_CANCEL_ID) {
+        await replyIfPickerStale(interaction, isStatsResetActive(interaction.message.id));
       }
     } catch (error) {
       console.error("Error handling button interaction:", error);
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: errors.generic(),
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-      } catch {
-        // Ignore reply errors
-      }
+      await replyGenericError(interaction);
     }
     return;
   }
@@ -270,16 +308,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     } catch (error) {
       console.error("Error handling modal submission:", error);
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: errors.generic(),
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-      } catch {
-        // Ignore reply errors
-      }
+      await replyGenericError(interaction);
     }
     return;
   }
@@ -289,16 +318,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       if (interaction.customId === STACK_PICK_SELECT_ID) {
         await handleStackPickSelect(interaction);
+      } else if (interaction.customId === LOOKUP_PLAYER_SELECT_ID) {
+        await replyIfPickerStale(interaction, isLookupPickerActive(interaction.message.id));
       }
     } catch (error) {
       console.error("Error handling select menu:", error);
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
-        }
-      } catch {
-        // Ignore reply errors
-      }
+      await replyGenericError(interaction);
     }
     return;
   }
@@ -313,13 +338,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     } catch (error) {
       console.error("Error handling setup picker:", error);
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
-        }
-      } catch {
-        // Ignore reply errors
-      }
+      await replyGenericError(interaction);
     }
     return;
   }
@@ -352,21 +371,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     console.error(`Error executing ${interaction.commandName}:`, error);
 
-    try {
-      const reply = {
-        content: errors.generic(),
-        flags: MessageFlags.Ephemeral as const,
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
-      }
-    } catch (replyError) {
-      // Interaction may have expired or already been handled
-      console.error("Failed to send error reply:", replyError);
-    }
+    await replyGenericError(interaction);
   }
 });
 

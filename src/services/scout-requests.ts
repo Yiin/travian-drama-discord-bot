@@ -145,6 +145,16 @@ export function markScoutDone(guildId: string, id: number, reportUrl?: string): 
   return request;
 }
 
+/** Drop a scout request entirely (undo of its creation). */
+export function removeScoutRequest(guildId: string, id: number): ScoutRequest | undefined {
+  const data = getGuildData(guildId);
+  const index = data.requests.findIndex((r) => r.id === id);
+  if (index === -1) return undefined;
+  const [removed] = data.requests.splice(index, 1);
+  saveGuildData(guildId, data);
+  return removed;
+}
+
 /** Keep the file small: drop done scouts older than 14 days. */
 export function pruneScoutRequests(guildId: string, maxAgeMs = 14 * 24 * 60 * 60 * 1000): void {
   const data = getGuildData(guildId);

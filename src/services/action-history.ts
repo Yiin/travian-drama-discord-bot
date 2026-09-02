@@ -4,13 +4,16 @@ import {
   DefenseRequest,
   getRequestById,
   restoreRequest,
+  replaceRequest,
   removeRequest,
   subtractTroops,
+  moveRequest,
 } from "./defense-requests";
 import {
   PushRequest,
   getPushRequestById,
   removePushRequest,
+  replacePushRequest,
   subtractResources,
   restorePushRequest,
   setPushRequestClosed,
@@ -22,6 +25,7 @@ import {
   restoreRequest as restoreDefCallRequest,
   closeRequest as closeDefCallRequestById,
 } from "./def-calls";
+import { removeScoutRequest } from "./scout-requests";
 import { formatResources, formatTroops } from "../utils/format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -46,7 +50,11 @@ export type ActionType =
   // Def call action types
   | "DEF_CALL_REQUEST_ADD"
   | "DEF_CALL_TROOPS_SENT"
-  | "DEF_CALL_CLOSED";
+  | "DEF_CALL_CLOSED"
+  // Other undoable actions
+  | "STATS_ADJUST"
+  | "REQUEST_MOVED"
+  | "SCOUT_REQUEST_ADD";
 
 export interface ActionData {
   troops?: number;
@@ -74,6 +82,12 @@ export interface ActionData {
   fromAccount?: string;
   toAccount?: string;
   transferredAmount?: number;
+  // For REQUEST_MOVED
+  fromPosition?: number;
+  toPosition?: number;
+  // For SCOUT_REQUEST_ADD
+  channelIdForCard?: string;
+  messageId?: string;
 }
 
 export interface Action {
@@ -103,7 +117,14 @@ export interface GuildActionHistory {
 export interface MessageActions {
   content: string;
   actionIds: number[];
+  /** All linked actions fell out of history; the message can no longer be edited safely. */
+  expired?: boolean;
+  /** The message ran a command that must not be re-run on edit (an undo). */
+  noEdit?: boolean;
 }
+
+/** Links older than this are dropped to keep the file small. */
+const MAX_MESSAGE_LINKS = 200;
 
 type AllHistoryData = Record<string, GuildActionHistory>;
 
@@ -246,13 +267,32 @@ export function setMessageContent(guildId: string, messageId: string, content: s
   saveGuildHistory(guildId, history);
 }
 
-/** Drop links whose actions have all been trimmed from history. */
+/** Mark a message as one whose edits must be ignored (it ran an undo). */
+export function markMessageNoEdit(guildId: string, messageId: string, content: string): void {
+  const history = getGuildHistory(guildId);
+  history.messageActions ??= {};
+  history.messageActions[messageId] = { content, actionIds: [], noEdit: true };
+  pruneMessageLinks(history);
+  saveGuildHistory(guildId, history);
+}
+
+/**
+ * Links whose actions were trimmed from history stay, flagged `expired`, so an
+ * edit of that message can be refused instead of silently re-applied.
+ * The oldest links are dropped past MAX_MESSAGE_LINKS.
+ */
 function pruneMessageLinks(history: GuildActionHistory): void {
   if (!history.messageActions) return;
   const live = new Set(history.actions.map((a) => a.id));
-  for (const [messageId, entry] of Object.entries(history.messageActions)) {
+  for (const entry of Object.values(history.messageActions)) {
+    if (entry.noEdit) continue;
+    const before = entry.actionIds.length;
     entry.actionIds = entry.actionIds.filter((id) => live.has(id));
-    if (entry.actionIds.length === 0) delete history.messageActions[messageId];
+    if (before > 0 && entry.actionIds.length === 0) entry.expired = true;
+  }
+  const keys = Object.keys(history.messageActions);
+  for (const key of keys.slice(0, Math.max(0, keys.length - MAX_MESSAGE_LINKS))) {
+    delete history.messageActions[key];
   }
 }
 
@@ -479,19 +519,17 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         return { success: false, message: result.error || "Failed to restore." };
       }
 
-      // Request still at same position - restore previous state
-      // First remove, then restore to get the previous state
-      removeRequest(guildId, action.requestId);
-      const result = restoreRequest(guildId, action.previousState);
+      // Request still exists - replace it in place so it keeps its queue position
+      const replaced = replaceRequest(guildId, action.requestId, action.previousState);
       markUndone(guildId, actionId);
-      if (result.success) {
+      if (replaced) {
         return {
           success: true,
           message: `Undone: request ${coordsStr} restored to the previous state.`,
-          requestId: result.requestId,
+          requestId: action.requestId,
         };
       }
-      return { success: false, message: result.error || "Failed to restore." };
+      return { success: false, message: "Failed to restore." };
     }
 
     // --- Push action undo cases ---
@@ -515,7 +553,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     }
 
     case "PUSH_RESOURCES_SENT": {
-      const { resources, contributorAccount, pushDidComplete } = action.data;
+      const { resources, contributorAccount } = action.data;
 
       if (!resources || !contributorAccount) {
         markUndone(guildId, actionId);
@@ -525,36 +563,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         };
       }
 
-      if (pushDidComplete) {
-        // Request was completed by this action - need to restore it
-        if (!action.previousPushState) {
-          markUndone(guildId, actionId);
-          return {
-            success: false,
-            message: `Action #${actionId} has no previous state.`,
-          };
-        }
-
-        // Restore the request
-        const restoredRequest: PushRequest = {
-          ...action.previousPushState,
-          contributors: [...action.previousPushState.contributors],
-        };
-
-        const result = restorePushRequest(guildId, restoredRequest);
-        if (!result.success) {
-          return { success: false, message: result.error || "Failed to restore." };
-        }
-
-        markUndone(guildId, actionId);
-        return {
-          success: true,
-          message: `Undone: push request ${coordsStr} restored as #${result.requestId} (${restoredRequest.resourcesSent}/${restoredRequest.resourcesNeeded}).`,
-          requestId: result.requestId,
-        };
-      }
-
-      // Request was NOT completed - subtract resources
+      // Completion keeps the request in the store, so subtracting is always right;
+      // subtractResources also recomputes `completed`.
       const existing = getPushRequestById(guildId, action.requestId);
       if (!existing) {
         markUndone(guildId, actionId);
@@ -653,18 +663,17 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         return { success: false, message: result.error || "Failed to restore." };
       }
 
-      // Request still at same position - restore previous state
-      removePushRequest(guildId, action.requestId);
-      const result = restorePushRequest(guildId, action.previousPushState);
+      // Request still exists - replace it in place so it keeps its position
+      const replaced = replacePushRequest(guildId, action.requestId, action.previousPushState);
       markUndone(guildId, actionId);
-      if (result.success) {
+      if (replaced) {
         return {
           success: true,
           message: `Undone: push request ${coordsStr} restored to the previous state.`,
-          requestId: result.requestId,
+          requestId: action.requestId,
         };
       }
-      return { success: false, message: result.error || "Failed to restore." };
+      return { success: false, message: "Failed to restore." };
     }
 
     case "PUSH_CONTRIBUTION_EDIT":
@@ -693,18 +702,17 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         return { success: false, message: result.error || "Failed to restore." };
       }
 
-      // Request still at same position - restore previous state
-      removePushRequest(guildId, action.requestId);
-      const resultRestore = restorePushRequest(guildId, action.previousPushState);
+      // Request still exists - replace it in place so it keeps its position
+      const replacedContribution = replacePushRequest(guildId, action.requestId, action.previousPushState);
       markUndone(guildId, actionId);
-      if (resultRestore.success) {
+      if (replacedContribution) {
         return {
           success: true,
           message: `Undone: push request ${coordsStr} restored to the previous state.`,
-          requestId: resultRestore.requestId,
+          requestId: action.requestId,
         };
       }
-      return { success: false, message: resultRestore.error || "Failed to restore." };
+      return { success: false, message: "Failed to restore." };
     }
 
     // --- Def call action undo cases ---
@@ -745,11 +753,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         };
       }
 
-      if (action.previousDefCallState) {
-        restoreDefCallRequest(guildId, action.requestId, action.previousDefCallState);
-      } else {
-        subtractDefCallTroops(guildId, action.requestId, contributorAccount, troops);
-      }
+      // Subtract only this action's troops; a snapshot would erase later reports
+      subtractDefCallTroops(guildId, action.requestId, contributorAccount, troops);
       markUndone(guildId, actionId);
       return {
         success: true,
@@ -776,6 +781,51 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       return {
         success: true,
         message: `Undone: defense request ${coordsStr} reopened.`,
+        requestId: action.requestId,
+      };
+    }
+
+    case "STATS_ADJUST": {
+      // Stats are reversed by the caller (undo.action) because the stats service
+      // is not imported here. Only bookkeeping happens in this store.
+      markUndone(guildId, actionId);
+      const amount = action.data.troops ?? 0;
+      return {
+        success: true,
+        message: `Undone: ${formatTroops(Math.abs(amount))} troops ${amount >= 0 ? "removed from" : "added back to"} ${coordsStr} stats.`,
+      };
+    }
+
+    case "REQUEST_MOVED": {
+      const { fromPosition } = action.data;
+      if (!fromPosition) {
+        markUndone(guildId, actionId);
+        return { success: false, message: `Action #${actionId} is missing required data.` };
+      }
+      const existing = getRequestById(guildId, action.requestId);
+      if (!existing) {
+        markUndone(guildId, actionId);
+        return { success: true, message: `Undone: request ${coordsStr} no longer exists.` };
+      }
+      const moved = moveRequest(guildId, action.requestId, fromPosition);
+      markUndone(guildId, actionId);
+      if (!moved.success) {
+        return { success: true, message: `Undone: request ${coordsStr} could not be moved back (${moved.error}).` };
+      }
+      return {
+        success: true,
+        message: `Undone: request ${coordsStr} moved back to position ${fromPosition}.`,
+        requestId: action.requestId,
+      };
+    }
+
+    case "SCOUT_REQUEST_ADD": {
+      // The card message is removed by the caller (undo.action); the store entry is dropped here.
+      removeScoutRequest(guildId, action.requestId);
+      markUndone(guildId, actionId);
+      return {
+        success: true,
+        message: `Undone: scout request ${coordsStr} removed.`,
         requestId: action.requestId,
       };
     }
@@ -824,6 +874,14 @@ export function getActionDescription(action: Action): string {
       return `Sent ${formatTroops(action.data.troops || 0)} troops to ${coordsStr}`;
     case "DEF_CALL_CLOSED":
       return `Closed defense request ${coordsStr}`;
+    case "STATS_ADJUST": {
+      const amount = action.data.troops ?? 0;
+      return `${amount >= 0 ? "Added" : "Subtracted"} ${formatTroops(Math.abs(amount))} troops ${amount >= 0 ? "to" : "from"} ${coordsStr} stats`;
+    }
+    case "REQUEST_MOVED":
+      return `Moved request ${coordsStr} to position ${action.data.toPosition}`;
+    case "SCOUT_REQUEST_ADD":
+      return `Created scout request ${coordsStr}`;
     default:
       return `Action ${coordsStr}`;
   }
@@ -841,4 +899,12 @@ export function isPushAction(action: Action): boolean {
  */
 export function isDefCallAction(action: Action): boolean {
   return action.type.startsWith("DEF_CALL_");
+}
+
+export function isScoutAction(action: Action): boolean {
+  return action.type === "SCOUT_REQUEST_ADD";
+}
+
+export function isStatsAction(action: Action): boolean {
+  return action.type === "STATS_ADJUST";
 }

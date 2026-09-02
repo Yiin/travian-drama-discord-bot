@@ -5,6 +5,7 @@ import {
 } from "../services/defense-requests";
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
+import { clipNote } from "../utils/format";
 import { ActionContext, UpdateDefActionInput, UpdateDefActionResult } from "./types";
 import { formatTroops } from "../utils/format";
 
@@ -19,7 +20,8 @@ export async function executeUpdateDefAction(
   input: UpdateDefActionInput
 ): Promise<UpdateDefActionResult> {
   const { guildId, client, userId } = context;
-  const { requestId, troopsSent, troopsNeeded, message } = input;
+  const { requestId, troopsSent, troopsNeeded } = input;
+  const message = input.message === undefined ? undefined : clipNote(input.message);
 
   // 1. Check if at least one update parameter is provided
   if (troopsSent === undefined && troopsNeeded === undefined && message === undefined) {

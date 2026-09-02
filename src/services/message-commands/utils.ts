@@ -53,6 +53,30 @@ export async function replyError(ctx: CommandContext, text: string): Promise<voi
 
 const ERROR_REPLY_TTL_MS = 30_000;
 
+/** Success reaction; a missing Add Reactions permission must not abort the command. */
+export async function reactOk(ctx: CommandContext): Promise<void> {
+  try {
+    await ctx.message.react("✅");
+  } catch {
+    // ignore: the action already happened
+  }
+}
+
+/** Remove the bot's own ✅/❌ reactions before an edited message is re-run. */
+export async function clearOwnReactions(message: { reactions: { cache: Map<string, any> }; client: { user: { id: string } | null } }): Promise<void> {
+  const botId = message.client.user?.id;
+  if (!botId) return;
+  for (const emoji of ["✅", "❌"]) {
+    const reaction = message.reactions.cache.get(emoji);
+    if (!reaction) continue;
+    try {
+      await reaction.users.remove(botId);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 /**
  * Link an action to the message that produced it, so editing the message can undo it first.
  */

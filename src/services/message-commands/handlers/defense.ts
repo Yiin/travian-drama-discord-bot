@@ -9,8 +9,8 @@ import {
 } from "../../../actions";
 import { updateGlobalMessage } from "../../defense-message";
 import { errors } from "../../../actions/messages";
-import { replyError, rememberAction } from "../utils";
-import { getLatestUndoableActionId } from "../../action-history";
+import { replyError, rememberAction, reactOk } from "../utils";
+import { getLatestUndoableActionId, markMessageNoEdit } from "../../action-history";
 
 export async function handleSentCommand(
   ctx: CommandContext,
@@ -55,7 +55,7 @@ export async function handleSentCommand(
 
   // Success: react with checkmark (the panel posts the audit line)
   rememberAction(ctx, result.actionId);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 export async function handleStackCommand(
@@ -100,7 +100,7 @@ export async function handleStackCommand(
 
   // Success: react (the panel posts the audit line)
   rememberAction(ctx, result.actionId);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 export async function handleRemoveCommand(
@@ -133,7 +133,7 @@ export async function handleRemoveCommand(
 
   // Success: react (the panel posts the audit line)
   rememberAction(ctx, result.actionId);
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }
 
 export async function handleMoveCommand(
@@ -162,7 +162,8 @@ export async function handleMoveCommand(
     return;
   }
 
-  await ctx.message.react("✅");
+  rememberAction(ctx, result.actionId);
+  await reactOk(ctx);
 }
 
 export async function handleUndoCommand(
@@ -196,8 +197,9 @@ export async function handleUndoCommand(
     return;
   }
 
-  // Success: react and reply with what was undone (this reply is not itself undoable)
-  await ctx.message.react("✅");
+  // Success: react and reply with what was undone. Edits of this message are ignored.
+  markMessageNoEdit(ctx.guildId, ctx.message.id, ctx.message.content);
+  await reactOk(ctx);
   await ctx.message.reply(result.confirmText ?? result.actionText);
 }
 
@@ -210,5 +212,5 @@ export async function handleStackListCommand(ctx: CommandContext): Promise<void>
   await updateGlobalMessage(ctx.client, ctx.guildId);
 
   // React to confirm
-  await ctx.message.react("✅");
+  await reactOk(ctx);
 }

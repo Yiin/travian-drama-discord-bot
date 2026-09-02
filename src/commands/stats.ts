@@ -21,12 +21,12 @@ import {
   getLastResetTime,
 } from "../services/stats";
 import { getVillageAt, getMapLink, getPlayerByExactName, searchPlayersByName } from "../services/map-data";
-import { recordContribution } from "../services/stats";
 import { getAllPlayers } from "../services/player-accounts";
 import { guildCommand, requireGuild } from "./shared";
 import { parseCoords } from "../utils/parse-coords";
 import { formatNumber } from "../utils/format";
-import { errors, cmd, failReply } from "../actions/messages";
+import { errors, cmd, failReply, confirmation, asConfirm } from "../actions/messages";
+import { executeStatsAdjustAction } from "../actions/stats-adjust.action";
 
 export const statsCommand: Command = {
   topic: "info",
@@ -389,17 +389,26 @@ async function handleStacks(
   await interaction.editReply({ embeds: [embed] });
 }
 
+export const STATS_RESET_CONFIRM_ID = "stats_reset_confirm";
+export const STATS_RESET_CANCEL_ID = "stats_reset_cancel";
+
+/** Confirmation messages with a live collector; the global dispatcher answers the rest. */
+const activeResets = new Set<string>();
+export function isStatsResetActive(messageId: string): boolean {
+  return activeResets.has(messageId);
+}
+
 async function handleReset(
   interaction: ChatInputCommandInteraction,
   guildId: string
 ): Promise<void> {
   const confirmButton = new ButtonBuilder()
-    .setCustomId("stats_reset_confirm")
+    .setCustomId(STATS_RESET_CONFIRM_ID)
     .setLabel("Yes, reset all stats")
     .setStyle(ButtonStyle.Danger);
 
   const cancelButton = new ButtonBuilder()
-    .setCustomId("stats_reset_cancel")
+    .setCustomId(STATS_RESET_CANCEL_ID)
     .setLabel("Cancel")
     .setStyle(ButtonStyle.Secondary);
 
@@ -412,15 +421,19 @@ async function handleReset(
     content: "Are you sure you want to reset all stats? This cannot be undone.",
     components: [row],
     flags: MessageFlags.Ephemeral,
+    withResponse: true,
   });
+  const message = response.resource?.message;
+  if (!message) return;
+  activeResets.add(message.id);
 
   try {
-    const buttonInteraction = await response.awaitMessageComponent({
+    const buttonInteraction = await message.awaitMessageComponent({
       componentType: ComponentType.Button,
       time: 30000,
     });
 
-    if (buttonInteraction.customId === "stats_reset_confirm") {
+    if (buttonInteraction.customId === STATS_RESET_CONFIRM_ID) {
       resetStats(guildId);
       await buttonInteraction.update({
         content: "All stats have been reset.",
@@ -438,6 +451,8 @@ async function handleReset(
       content: "Reset timed out.",
       components: [],
     });
+  } finally {
+    activeResets.delete(message.id);
   }
 }
 
@@ -478,26 +493,21 @@ async function handlePlayers(interaction: ChatInputCommandInteraction, guildId: 
 }
 
 async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const coords = parseCoords(interaction.options.getString("coords", true));
-  const troops = interaction.options.getInteger("troops", true);
   const target = interaction.options.getUser("for") ?? interaction.user;
-
-  if (!coords) {
-    await interaction.reply({ content: errors.invalidCoords(), flags: MessageFlags.Ephemeral });
+  const result = await executeStatsAdjustAction(
+    { guildId, config: getGuildConfig(guildId), client: interaction.client, userId: interaction.user.id },
+    {
+      coords: interaction.options.getString("coords", true),
+      troops: interaction.options.getInteger("troops", true),
+      forUserId: target.id,
+    }
+  );
+  if (!result.success) {
+    await interaction.reply(failReply(result.error, interaction));
     return;
   }
-  if (troops === 0) {
-    await interaction.reply({ content: errors.countIsZero("troop"), flags: MessageFlags.Ephemeral });
-    return;
-  }
-
-  recordContribution(guildId, target.id, coords.x, coords.y, troops);
-
-  const verb = troops > 0 ? "Added" : "Subtracted";
-  const preposition = troops > 0 ? "to" : "from";
   await interaction.reply({
-    content: `✅ ${verb} **${formatNumber(Math.abs(troops))}** troops ${preposition} (${coords.x}|${coords.y}) stats for <@${target.id}>.`,
-    flags: MessageFlags.Ephemeral,
+    ...confirmation(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId }),
     allowedMentions: { parse: [] },
   });
 }
