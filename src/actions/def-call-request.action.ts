@@ -1,4 +1,4 @@
-import { addRequest } from "../services/def-calls";
+import { addRequest, removeRequest } from "../services/def-calls";
 import {
   getVillageAt,
   ensureMapData,
@@ -101,6 +101,7 @@ export async function executeDefCallRequestAction(
     );
     channelId = channelResult.channelId;
   } catch (error) {
+    removeRequest(guildId, result.requestId);
     console.error("[DefCallRequest] Failed to create channel:", error);
     return {
       success: false,

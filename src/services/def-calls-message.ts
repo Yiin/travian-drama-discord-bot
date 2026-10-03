@@ -189,19 +189,36 @@ export async function createDefCallThread(
     allowedMentions: { parse: [] },
   });
 
-  const thread = await starter.startThread({
-    name: buildDefCallThreadName(request, config.serverTimezone),
-    autoArchiveDuration: 10080,
-    reason: `Def call by ${request.requesterAccount}`,
-  });
+  let thread: ThreadChannel | undefined;
+  try {
+    thread = await starter.startThread({
+      name: buildDefCallThreadName(request, config.serverTimezone),
+      autoArchiveDuration: 10080,
+      reason: `Def call by ${request.requesterAccount}`,
+    });
 
-  const card = buildDefCallCard(request, config.serverKey, config.serverTimezone, village);
-  const message = await thread.send(v2({ components: [card], allowedMentions: { parse: [] } }));
+    const card = buildDefCallCard(request, config.serverKey, config.serverTimezone, village);
+    const message = await thread.send(v2({ components: [card], allowedMentions: { parse: [] } }));
 
-  updateChannelInfo(guildId, requestId, thread.id, message.id);
-  updateSummaryMessageId(guildId, requestId, starter.id);
+    updateChannelInfo(guildId, requestId, thread.id, message.id);
+    updateSummaryMessageId(guildId, requestId, starter.id);
 
-  return { channelId: thread.id, messageId: message.id };
+    return { channelId: thread.id, messageId: message.id };
+  } catch (error) {
+    if (thread) {
+      try {
+        await thread.delete();
+      } catch (cleanupError) {
+        console.error("[DefCallsMessage] Error removing failed defense thread:", cleanupError);
+      }
+    }
+    try {
+      await starter.delete();
+    } catch (cleanupError) {
+      console.error("[DefCallsMessage] Error removing failed defense starter:", cleanupError);
+    }
+    throw error;
+  }
 }
 
 async function fetchThread(client: Client, channelId: string | undefined): Promise<ThreadChannel | null> {

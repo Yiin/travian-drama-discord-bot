@@ -142,6 +142,14 @@ export function addRequest(
   return { request: newRequest, requestId: newRequest.id };
 }
 
+export function removeRequest(guildId: string, requestId: number): void {
+  const data = getGuildDefCalls(guildId);
+  const index = data.requests.findIndex((request) => request.id === requestId);
+  if (index === -1) return;
+  data.requests.splice(index, 1);
+  saveGuildData(guildId, data);
+}
+
 export function getRequestById(
   guildId: string,
   requestId: number
