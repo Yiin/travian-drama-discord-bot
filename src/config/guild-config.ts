@@ -14,7 +14,13 @@ export interface GuildConfig {
   serverTimezone?: string;
   accountReminderChannelId?: string;
   accountReminderMessageId?: string;
+  /** Role IDs per permission. See `src/actions/permissions.ts` for what an empty list means. */
+  permissions?: GuildPermissions;
 }
+
+export type Permission = "request" | "manage";
+
+export type GuildPermissions = Record<Permission, string[]>;
 
 type GuildConfigs = Record<string, GuildConfig>;
 
@@ -107,6 +113,13 @@ export function setServerTimezone(
 export function setServerKey(guildId: string, serverKey: string): void {
   const configs = loadConfigs();
   configs[guildId] = { ...configs[guildId], serverKey };
+  saveConfigs(configs);
+}
+
+export function setPermissionRoles(guildId: string, permission: Permission, roleIds: string[]): void {
+  const configs = loadConfigs();
+  const current = configs[guildId]?.permissions ?? { request: [], manage: [] };
+  configs[guildId] = { ...configs[guildId], permissions: { ...current, [permission]: roleIds } };
   saveConfigs(configs);
 }
 

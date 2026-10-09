@@ -210,11 +210,12 @@ export function getRecentActions(guildId: string, limit: number = 10): Action[] 
   return history.actions.slice(-limit).reverse();
 }
 
-/** The most recent action that has not been undone yet. */
-export function getLatestUndoableActionId(guildId: string): number | undefined {
+/** The user's most recent action that has not been undone yet. */
+export function getLatestUndoableActionId(guildId: string, userId: string): number | undefined {
   const history = getGuildHistory(guildId);
   for (let i = history.actions.length - 1; i >= 0; i--) {
-    if (!history.actions[i].undone) return history.actions[i].id;
+    const action = history.actions[i];
+    if (!action.undone && action.userId === userId) return action.id;
   }
   return undefined;
 }

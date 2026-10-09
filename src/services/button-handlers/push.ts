@@ -7,9 +7,7 @@ import {
   LabelBuilder,
   MessageFlags,
   UserSelectMenuBuilder,
-  GuildMember,
 } from "discord.js";
-import { isAdmin } from "../../utils/permissions";
 import { GuildConfig } from "../../config/guild-config";
 import { getPushRequestByChannelId, PushRequest } from "../push-requests";
 import {
@@ -28,6 +26,8 @@ export {
   PUSH_CLOSE_BUTTON_ID,
   PUSH_ALL_SENDERS_BUTTON_ID,
 } from "../push-message";
+import { buildActionContext } from "../../actions/context";
+import { checkPermission } from "../../actions/permissions";
 
 export const PUSH_SENT_MODAL_ID = "push_sent_modal";
 export const PUSH_EDIT_MODAL_ID = "push_edit_modal";
@@ -120,7 +120,7 @@ export async function handlePushSentModal(interaction: ModalSubmitInteraction): 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await executePushSentAction(
-    { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
+    buildActionContext(interaction, ctx.guildId, ctx.config),
     { target: ctx.requestId.toString(), resources, creditUserId: sentBy?.id }
   );
 
@@ -136,6 +136,11 @@ export async function handlePushSentModal(interaction: ModalSubmitInteraction): 
 export async function handlePushEditButton(interaction: ButtonInteraction): Promise<void> {
   const ctx = await pushContext(interaction);
   if (!ctx) return;
+  const denied = checkPermission(buildActionContext(interaction, ctx.guildId, ctx.config), "manage", ctx.request.requesterId);
+  if (denied) {
+    await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
+    return;
+  }
 
   const modal = new ModalBuilder().setCustomId(PUSH_EDIT_MODAL_ID).setTitle("Edit push amount");
   const amountInput = new TextInputBuilder()
@@ -164,7 +169,7 @@ export async function handlePushEditModal(interaction: ModalSubmitInteraction): 
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await executePushEditAction(
-    { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
+    buildActionContext(interaction, ctx.guildId, ctx.config),
     { requestId: ctx.requestId, resourcesNeeded }
   );
   if (!result.success) {
@@ -182,10 +187,9 @@ export async function handlePushCloseButton(interaction: ButtonInteraction): Pro
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await executePushCloseAction(
-    { guildId: ctx.guildId, config: ctx.config, client: interaction.client, userId: interaction.user.id },
+    buildActionContext(interaction, ctx.guildId, ctx.config),
     { requestId: ctx.requestId },
     {
-      isAdmin: isAdmin(interaction.member as GuildMember | null),
       onClosed: async (closed) => {
         await interaction.editReply(
           confirmationEdit(closed.confirmText ?? asConfirm(closed.actionText), { actionId: closed.actionId })

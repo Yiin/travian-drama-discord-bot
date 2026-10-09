@@ -8,11 +8,12 @@ import {
 import { getGuildConfig } from "../../config/guild-config";
 import { executeUndoAction } from "../../actions/undo.action";
 import { errors, UNDO_BUTTON_PREFIX, failReply } from "../../actions/messages";
+import { buildActionContext } from "../../actions/context";
 
 export { UNDO_BUTTON_PREFIX };
 
 /**
- * "Undo" button on an ephemeral confirmation. Anyone may undo.
+ * "Undo" button on an ephemeral confirmation. Your own action, or anyone's with `manage`.
  * On success the confirmation is rewritten to "↩️ Undone." with the button disabled.
  */
 export async function handleUndoButton(interaction: ButtonInteraction): Promise<void> {
@@ -31,12 +32,7 @@ export async function handleUndoButton(interaction: ButtonInteraction): Promise<
   await interaction.deferUpdate();
 
   const result = await executeUndoAction(
-    {
-      guildId,
-      config: getGuildConfig(guildId),
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, guildId, getGuildConfig(guildId)),
     { actionId }
   );
 

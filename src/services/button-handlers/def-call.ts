@@ -5,12 +5,10 @@ import {
   TextInputBuilder,
   TextInputStyle,
   LabelBuilder,
-  GuildMember,
   MessageFlags,
   UserSelectMenuBuilder,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
-import { isAdmin } from "../../utils/permissions";
 import { parseTroopCount } from "../../utils/parse-number";
 import { getRequestByChannelId } from "../def-calls";
 import { executeDefCallRequestAction } from "../../actions/def-call-request.action";
@@ -33,6 +31,8 @@ import {
 import { formatTroops } from "../../utils/format";
 import { errors, failEdit } from "../../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
+import { buildActionContext } from "../../actions/context";
+import { checkPermission } from "../../actions/permissions";
 
 export {
   DEFCALL_REQUEST_BUTTON_ID,
@@ -58,6 +58,11 @@ export async function handleDefCallRequestButton(
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
     });
+    return;
+  }
+  const denied = checkPermission(buildActionContext(interaction, guildId, getGuildConfig(guildId)), "request");
+  if (denied) {
+    await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -143,12 +148,7 @@ export async function handleDefCallRequestModal(
   }
 
   const result = await executeDefCallRequestAction(
-    {
-      guildId,
-      config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, guildId, config),
     { coords, landing, comment, troopsNeeded }
   );
 
@@ -278,12 +278,7 @@ export async function handleDefCallSentModal(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await executeDefCallSentAction(
-    {
-      guildId,
-      config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, guildId, config),
     { requestId: requestData.requestId, troops, creditUserId: sentBy?.id }
   );
 
@@ -322,18 +317,10 @@ export async function handleDefCallCloseButton(
   const config = getGuildConfig(guildId);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const userIsAdmin = isAdmin(interaction.member as GuildMember | null);
-
   const result = await executeDefCallCloseAction(
-    {
-      guildId,
-      config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, guildId, config),
     { requestId: requestData.requestId },
     {
-      isAdmin: userIsAdmin,
       // Reply before the thread archives; edits inside an archived thread are rejected
       onClosed: async (closed) => {
         await interaction.editReply(

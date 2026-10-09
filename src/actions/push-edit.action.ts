@@ -4,6 +4,7 @@ import { updatePushCard, postContributionMessage } from "../services/push-messag
 import { ActionContext, PushEditActionInput, PushEditActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 import { formatResources } from "../utils/format";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "push edit" action - edit a push request's amount.
@@ -20,6 +21,9 @@ export async function executePushEditAction(
   if (!request) {
     return { success: false, error: `Push request #${requestId} not found.` };
   }
+
+  const denied = checkPermission(context, "manage", request.requesterId);
+  if (denied) return { success: false, error: denied };
   const previousState: PushRequest = {
     ...request,
     contributors: [...request.contributors],

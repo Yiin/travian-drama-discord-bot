@@ -16,9 +16,9 @@ import {
   DefCallCloseActionResult,
   DefCallCloseActionSuccess,
 } from "./types";
+import { checkPermission } from "./permissions";
 
 export interface CloseOptions {
-  isAdmin: boolean;
   /**
    * Runs after the state changed and before the thread is archived. Callers use
    * it to send their reply: Discord rejects interaction edits and reactions in
@@ -40,12 +40,8 @@ export async function executeDefCallCloseAction(
     return { success: false, error: `Request #${requestId} not found.` };
   }
 
-  if (request.requesterId !== userId && !options.isAdmin) {
-    return {
-      success: false,
-      error: "Only the player who created the request or an administrator can close it.",
-    };
-  }
+  const denied = checkPermission(context, "manage", request.requesterId);
+  if (denied) return { success: false, error: denied };
 
   const previousState: DefCallRequest = {
     ...request,

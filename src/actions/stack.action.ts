@@ -10,11 +10,12 @@ import { parseAndValidateCoords } from "./validation";
 import { ActionContext, DefActionInput, DefActionResult } from "./types";
 import { errors } from "./messages";
 import { formatTroops, clipNote } from "../utils/format";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "stack" action - create a stack defense request.
  *
- * This is the centralized business logic. All interfaces (slash, modal, text)
+ * This is the centralized business logic. All interfaces (slash, buttons, modals)
  * call this function after parsing their inputs.
  */
 export async function executeStackAction(
@@ -24,6 +25,9 @@ export async function executeStackAction(
   const { guildId, config, client, userId } = context;
   const { coords: coordsInput, troopsNeeded } = input;
   const message = clipNote(input.message);
+
+  const denied = checkPermission(context, "request");
+  if (denied) return { success: false, error: denied };
 
   // 1. Parse and validate coordinates
   const coordsResult = parseAndValidateCoords(coordsInput);

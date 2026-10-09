@@ -5,6 +5,8 @@ import { adjustContributionStats } from "../services/push-stats";
 import { ActionContext, PushEditContributionActionInput, PushEditContributionActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 import { formatResources } from "../utils/format";
+import { checkPermission } from "./permissions";
+import { getAccountForUser } from "../services/player-accounts";
 
 /**
  * Execute the "push edit contribution" action - edit a contributor's resource amount.
@@ -20,6 +22,12 @@ export async function executePushEditContributionAction(
   const request = getPushRequestById(guildId, requestId);
   if (!request) {
     return { success: false, error: `Push request #${requestId} not found.` };
+  }
+  // Your own linked account's contribution is yours to fix; anyone else's needs manage
+  const ownAccount = getAccountForUser(guildId, userId);
+  if (ownAccount?.toLowerCase() !== accountName.toLowerCase()) {
+    const denied = checkPermission(context, "manage");
+    if (denied) return { success: false, error: denied };
   }
   const previousState: PushRequest = {
     ...request,

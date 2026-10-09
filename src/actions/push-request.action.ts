@@ -7,6 +7,7 @@ import { ActionContext, PushRequestActionInput, PushRequestActionResult } from "
 import { recordAction } from "../services/action-history";
 import { formatResources } from "../utils/format";
 import { errors } from "./messages";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "push request" action - create a push request.
@@ -20,6 +21,9 @@ export async function executePushRequestAction(
 ): Promise<PushRequestActionResult> {
   const { guildId, config, client, userId } = context;
   const { coords: coordsInput, resourcesNeeded } = input;
+
+  const denied = checkPermission(context, "request");
+  if (denied) return { success: false, error: denied };
 
   // 1. Validate user has a linked account
   const accountResult = validateUserHasAccount(guildId, userId);

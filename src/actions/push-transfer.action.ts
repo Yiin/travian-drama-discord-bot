@@ -5,6 +5,7 @@ import { transferContributionStats } from "../services/push-stats";
 import { ActionContext, PushTransferActionInput, PushTransferActionResult } from "./types";
 import { recordAction } from "../services/action-history";
 import { formatResources } from "../utils/format";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "push transfer" action - transfer contribution from one player to another.
@@ -15,6 +16,9 @@ export async function executePushTransferAction(
 ): Promise<PushTransferActionResult> {
   const { guildId, config, client, userId } = context;
   const { requestId, fromAccount, toAccount } = input;
+
+  const denied = checkPermission(context, "manage");
+  if (denied) return { success: false, error: denied };
 
   // 1. Get request before transfer (deep copy for undo)
   const request = getPushRequestById(guildId, requestId);

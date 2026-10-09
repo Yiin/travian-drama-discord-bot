@@ -11,11 +11,12 @@ import { errors } from "./messages";
 import { addScoutRequest, getScoutRequest, pruneScoutRequests, ScoutRequest } from "../services/scout-requests";
 import { postScoutCard } from "../services/scout-message";
 import { recordAction } from "../services/action-history";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.
  *
- * This is the centralized business logic. All interfaces (slash, text)
+ * This is the centralized business logic. All interfaces (slash, buttons, modals)
  * call this function after parsing their inputs.
  */
 export async function executeScoutAction(
@@ -24,6 +25,9 @@ export async function executeScoutAction(
 ): Promise<ScoutActionResult> {
   const { config } = context;
   const { coords: coordsInput } = input;
+
+  const denied = checkPermission(context, "request");
+  if (denied) return { success: false, error: denied };
 
   // 1. Parse and validate coordinates
   const coordsResult = parseAndValidateCoords(coordsInput);

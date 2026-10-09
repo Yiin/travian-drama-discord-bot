@@ -91,6 +91,7 @@ import {
   handleSetupServerModal,
   handleSetupChannelSelect,
   handleSetupRoleSelect,
+  handleSetupPermissionSelect,
   handleSetupTimezoneButton,
   handleSetupTimezoneModal,
   handleSetupReminderButton,
@@ -101,6 +102,7 @@ import {
   SETUP_TIMEZONE_MODAL_ID,
   SETUP_CHANNEL_SELECT_PREFIX,
   SETUP_ROLE_SELECT_ID,
+  SETUP_PERMISSION_SELECT_PREFIX,
   SETUP_FINISH_BUTTON_ID,
   SETUP_REMINDER_BUTTON_ID,
 } from "./services/setup-panel";
@@ -310,6 +312,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleSetupChannelSelect(interaction);
       } else if (interaction.isRoleSelectMenu() && interaction.customId === SETUP_ROLE_SELECT_ID) {
         await handleSetupRoleSelect(interaction);
+      } else if (interaction.isRoleSelectMenu() && interaction.customId.startsWith(SETUP_PERMISSION_SELECT_PREFIX)) {
+        await handleSetupPermissionSelect(interaction);
       }
     } catch (error) {
       console.error("Error handling setup picker:", error);

@@ -4,10 +4,10 @@ import { archivePushThread, updatePushCard } from "../services/push-message";
 import { recordAction } from "../services/action-history";
 import { ActionContext, PushCloseActionInput, PushCloseActionResult, PushCloseActionSuccess } from "./types";
 import { errors } from "./messages";
+import { checkPermission } from "./permissions";
 
 /** Close a push request: the thread is archived, the data stays, undo reopens it. */
 export interface PushCloseOptions {
-  isAdmin: boolean;
   /** Runs before the thread is archived, so callers can still reply inside it. */
   onClosed?: (result: PushCloseActionSuccess) => Promise<void>;
 }
@@ -27,12 +27,8 @@ export async function executePushCloseAction(
   if (request.closed) {
     return { success: false, error: "⚠️ **This push request is already closed.**" };
   }
-  if (request.requesterId !== userId && !options.isAdmin) {
-    return {
-      success: false,
-      error: "⚠️ **Only the requester or an admin can close this push.**",
-    };
-  }
+  const denied = checkPermission(context, "manage", request.requesterId);
+  if (denied) return { success: false, error: denied };
 
   const previousState: PushRequest = { ...request, contributors: [...request.contributors] };
   const closed = setPushRequestClosed(guildId, requestId, true);

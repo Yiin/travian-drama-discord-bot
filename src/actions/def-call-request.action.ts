@@ -19,6 +19,7 @@ import {
   DefCallRequestActionResult,
 } from "./types";
 import { errors } from "./messages";
+import { checkPermission } from "./permissions";
 
 export async function executeDefCallRequestAction(
   context: ActionContext,
@@ -26,6 +27,9 @@ export async function executeDefCallRequestAction(
 ): Promise<DefCallRequestActionResult> {
   const { guildId, config, client, userId } = context;
   const { coords: coordsInput, landing, comment, troopsNeeded } = input;
+
+  const denied = checkPermission(context, "request");
+  if (denied) return { success: false, error: denied };
 
   if (troopsNeeded !== undefined && (!Number.isFinite(troopsNeeded) || troopsNeeded < 1)) {
     return {

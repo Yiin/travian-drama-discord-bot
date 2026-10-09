@@ -9,6 +9,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import { isAdmin } from "../utils/permissions";
+import type { Permission } from "../config/guild-config";
 
 /**
  * The only place for user-facing error and success wording.
@@ -102,8 +103,39 @@ export const errors = {
 
   adminOnly: () => "⚠️ **Only administrators can do this.**",
 
+  permissionDenied: (permission: Permission, roleIds: string[], requesterMay: boolean) => {
+    if (permission === "request") {
+      return `⚠️ **You can't create requests.** Ask an admin for one of these roles: ${roleList(roleIds)}.`;
+    }
+    if (roleIds.length === 0) {
+      return `⚠️ **Only ${requesterMay ? "the requester or an admin" : "an admin"} can do this.** Ask one of them to do it.`;
+    }
+    return `⚠️ **Only ${requesterMay ? "the requester or a manager" : "a manager"} can do this.** Managers have one of these roles: ${roleList(roleIds)}.`;
+  },
+
+  undoNotYours: (manageRoleIds: string[]) =>
+    manageRoleIds.length === 0
+      ? "⚠️ **You can only undo your own actions.** Ask an admin to undo this one."
+      : `⚠️ **You can only undo your own actions.** Undoing someone else's needs one of these roles: ${roleList(manageRoleIds)}.`,
+
+  nothingToUndo: () =>
+    "⚠️ **You have no recent action to undo.** To undo someone else's action, give its id.",
+
+  administratorOnly: () =>
+    "⚠️ **Only server administrators can change permissions.** Manage Channels is not enough. Ask a member with the Administrator permission.",
+
+  roleAlreadyListed: (permission: Permission, roleId: string) =>
+    `⚠️ **<@&${roleId}> already has \`${permission}\`.** See the lists with ${cmd("permissions show")}.`,
+
+  roleNotListed: (permission: Permission, roleId: string) =>
+    `⚠️ **<@&${roleId}> does not have \`${permission}\`.** See the lists with ${cmd("permissions show")}.`,
+
   generic: () => "⚠️ **Something went wrong.** Try again, and tell an admin if it keeps happening.",
 };
+
+function roleList(roleIds: string[]): string {
+  return roleIds.map((id) => `<@&${id}>`).join(", ");
+}
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);

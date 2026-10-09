@@ -1,6 +1,7 @@
 import {
   GuildMember,
   PermissionFlagsBits,
+  PermissionsBitField,
   ChatInputCommandInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
@@ -22,6 +23,17 @@ export function isAdmin(member: GuildMember | null | undefined): boolean {
     member.permissions.has(PermissionFlagsBits.Administrator) ||
     member.permissions.has(PermissionFlagsBits.ManageChannels)
   );
+}
+
+/**
+ * Administrator permission or a bot owner. Only these may change the permission
+ * role lists; Manage Channels is not enough.
+ */
+export function isAdministratorOrOwner(interaction: {
+  user: { id: string };
+  memberPermissions: Readonly<PermissionsBitField> | null;
+}): boolean {
+  return isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) === true;
 }
 
 type RepliableInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction;

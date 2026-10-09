@@ -24,6 +24,7 @@ import { undoCommand } from "./undo";
 import { helpCommand } from "./help";
 import { setupCommand } from "./setup";
 import { reminderCommand } from "./reminder";
+import { permissionsCommand } from "./permissions";
 import { penisCommand } from "./penis";
 
 registerCommand(stackCommand);
@@ -38,4 +39,5 @@ registerCommand(undoCommand);
 registerCommand(helpCommand);
 registerCommand(setupCommand);
 registerCommand(reminderCommand);
+registerCommand(permissionsCommand);
 registerCommand(penisCommand);

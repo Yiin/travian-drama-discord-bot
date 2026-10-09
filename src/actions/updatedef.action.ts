@@ -8,11 +8,12 @@ import { updateGlobalMessage } from "../services/defense-message";
 import { clipNote } from "../utils/format";
 import { ActionContext, UpdateDefActionInput, UpdateDefActionResult } from "./types";
 import { formatTroops } from "../utils/format";
+import { checkPermission } from "./permissions";
 
 /**
- * Execute the "updatedef" action - update a defense request (admin).
+ * Execute the "updatedef" action - update a defense request (requester or manager).
  *
- * This is the centralized business logic. All interfaces (slash, text)
+ * This is the centralized business logic. All interfaces (slash, buttons, modals)
  * call this function after parsing their inputs.
  */
 export async function executeUpdateDefAction(
@@ -36,6 +37,9 @@ export async function executeUpdateDefAction(
   if (!existingRequest) {
     return { success: false, error: `Request #${requestId} not found.` };
   }
+
+  const denied = checkPermission(context, "manage", existingRequest.requesterId);
+  if (denied) return { success: false, error: denied };
 
   // 3. Snapshot the request before update for undo support
   const snapshot: DefenseRequest = {

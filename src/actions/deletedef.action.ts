@@ -7,11 +7,12 @@ import { getVillageAt, getMapLink, formatVillageDisplay } from "../services/map-
 import { recordAction } from "../services/action-history";
 import { updateGlobalMessage } from "../services/defense-message";
 import { ActionContext, DeleteDefActionInput, DeleteDefActionResult } from "./types";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "deletedef" action - delete a defense request.
  *
- * This is the centralized business logic. All interfaces (slash, text)
+ * This is the centralized business logic. All interfaces (slash, buttons, modals)
  * call this function after parsing their inputs.
  */
 export async function executeDeleteDefAction(
@@ -26,6 +27,9 @@ export async function executeDeleteDefAction(
   if (!existingRequest) {
     return { success: false, error: `Request #${requestId} not found.` };
   }
+
+  const denied = checkPermission(context, "manage", existingRequest.requesterId);
+  if (denied) return { success: false, error: denied };
 
   // 2. Snapshot the request before deletion for undo support
   const snapshot: DefenseRequest = {

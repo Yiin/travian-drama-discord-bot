@@ -1,6 +1,5 @@
 import {
   ChatInputCommandInteraction,
-  GuildMember,
   MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
@@ -11,10 +10,10 @@ import {
   executeDefCallCloseAction,
 } from "../actions";
 import { getRequestByChannelId } from "../services/def-calls";
-import { isAdmin } from "../utils/permissions";
 import { withRetry } from "../utils/retry";
 import { errors, confirmationEdit, asConfirm, channelUrl, failEdit } from "../actions/messages";
 import { guildCommand, requireGuild } from "./shared";
+import { buildActionContext } from "../actions/context";
 
 export const defCommand: Command = {
   topic: "defense",
@@ -61,7 +60,7 @@ export const defCommand: Command = {
     if (!guildId) return;
 
     const config = getGuildConfig(guildId);
-    const context = { guildId, config, client: interaction.client, userId: interaction.user.id };
+    const context = buildActionContext(interaction, guildId, config);
 
     switch (interaction.options.getSubcommand()) {
       case "request": {
@@ -118,7 +117,6 @@ export const defCommand: Command = {
           context,
           { requestId: requestData.requestId },
           {
-            isAdmin: isAdmin(interaction.member as GuildMember | null),
             // Reply before the thread archives; edits inside an archived thread are rejected
             onClosed: async (closed) => {
               await interaction.editReply(

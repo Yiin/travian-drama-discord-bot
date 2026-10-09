@@ -23,6 +23,8 @@ import { getStackPanelUrl } from "../defense-message";
 import { stackChoiceLabel } from "../../utils/choices";
 import { formatTroops } from "../../utils/format";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
+import { buildActionContext } from "../../actions/context";
+import { checkPermission } from "../../actions/permissions";
 
 // Defense button/modal IDs
 export const SENT_BUTTON_ID = "sent_troops_button";
@@ -186,12 +188,7 @@ export async function handleSentModal(
 
   // 5. Execute action
   const result = await executeSentAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       target: requestId.toString(),
       troops,
@@ -231,6 +228,11 @@ export async function handleRequestDefButton(
       ...failReply(errors.notSetUp(), interaction),
       flags: MessageFlags.Ephemeral,
     });
+    return;
+  }
+  const denied = checkPermission(buildActionContext(interaction, guildId, config), "request");
+  if (denied) {
+    await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -310,12 +312,7 @@ export async function handleRequestDefModal(
 
   // 5. Execute action
   const result = await executeStackAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       coords: coordsInput,
       troopsNeeded,

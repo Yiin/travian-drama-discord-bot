@@ -22,11 +22,12 @@ import { removeContribution, recordContribution } from "../services/stats";
 import { cancelScoutNotifications } from "../services/scout-scheduler";
 import { removePushContribution } from "../services/push-stats";
 import { ActionContext, UndoActionInput, UndoActionResult } from "./types";
+import { checkUndoPermission } from "./permissions";
 
 /**
  * Execute the "undo" action - undo a previous action.
  *
- * This is the centralized business logic. All interfaces (slash, text)
+ * This is the centralized business logic. All interfaces (slash, buttons, modals)
  * call this function after parsing their inputs.
  */
 export async function executeUndoAction(
@@ -41,6 +42,8 @@ export async function executeUndoAction(
   if (!action) {
     return { success: false, error: `Action #${actionId} was not found.` };
   }
+  const denied = checkUndoPermission(context, action.userId);
+  if (denied) return { success: false, error: denied };
 
   // 2. Perform the undo
   const result = performUndo(guildId, actionId);

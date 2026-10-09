@@ -7,15 +7,16 @@ import { errors, confirmationEdit, asConfirm, failEdit, failReply } from "../act
 import { getLatestUndoableActionId } from "../services/action-history";
 import { getStackPanelUrl } from "../services/defense-message";
 import { guildCommand, requireGuild } from "./shared";
+import { buildActionContext } from "../actions/context";
 
 export const undoCommand: Command = {
   topic: "info",
-  summary: "Undo the last action, or a specific one by id",
-  data: guildCommand("undo", "Undo an action (the most recent one if no id is given)")
+  summary: "Undo your last action, or a specific one by id",
+  data: guildCommand("undo", "Undo an action (your most recent one if no id is given)")
     .addIntegerOption((option) =>
       option
         .setName("id")
-        .setDescription("Action id from a confirmation or the channel log (default: most recent)")
+        .setDescription("Action id from a confirmation or the channel log (default: your most recent)")
         .setRequired(false)
         .setMinValue(1)
     ),
@@ -30,16 +31,16 @@ export const undoCommand: Command = {
       return;
     }
 
-    const actionId = interaction.options.getInteger("id") ?? getLatestUndoableActionId(guildId);
+    const actionId = interaction.options.getInteger("id") ?? getLatestUndoableActionId(guildId, interaction.user.id);
     if (!actionId) {
-      await interaction.reply({ content: errors.notFound("undoable action"), flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: errors.nothingToUndo(), flags: MessageFlags.Ephemeral });
       return;
     }
 
     await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     const result = await executeUndoAction(
-      { guildId, config, client: interaction.client, userId: interaction.user.id },
+      buildActionContext(interaction, guildId, config),
       { actionId }
     );
 

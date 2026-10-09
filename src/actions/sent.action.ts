@@ -14,7 +14,7 @@ import { formatTroops } from "../utils/format";
 /**
  * Execute the "sent" action - report troops sent to a defense request.
  *
- * This is the centralized business logic. All interfaces (slash, modal, text)
+ * This is the centralized business logic. All interfaces (slash, buttons, modals)
  * call this function after parsing their inputs.
  */
 export async function executeSentAction(

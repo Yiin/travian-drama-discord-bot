@@ -14,20 +14,14 @@ import {
   StringSelectMenuInteraction,
 } from "discord.js";
 import { getGuildConfig } from "../../config/guild-config";
-import {
-  getRequestById,
-  getAllRequests,
-  getRequestPosition,
-  moveRequest,
-  removeRequest,
-  updateRequest,
-} from "../defense-requests";
+import { getRequestById, getAllRequests, getRequestPosition } from "../defense-requests";
 import { getVillageAt, formatVillageDisplay } from "../map-data";
-import { updateGlobalMessage } from "../defense-message";
-import { recordAction } from "../action-history";
 import { formatTroops } from "../../utils/format";
-import { errors, confirmationEdit, failReply } from "../../actions/messages";
+import { errors, confirmationEdit, failReply, asConfirm } from "../../actions/messages";
 import { getStackPanelUrl } from "../defense-message";
+import { buildActionContext } from "../../actions/context";
+import { checkPermission } from "../../actions/permissions";
+import { executeDeleteDefAction, executeMoveAction, executeUpdateDefAction } from "../../actions";
 import { stackChoiceLabel } from "../../utils/choices";
 
 // Button IDs (prefixes - actual IDs carry the stable request id, like "stack_up:41")
@@ -185,13 +179,12 @@ async function moveByOffset(interaction: ButtonInteraction, offset: -1 | 1): Pro
 
   await interaction.deferUpdate();
 
-  const result = moveRequest(guildId, requestId, target);
+  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const result = await executeMoveAction(context, { requestId, toPosition: target });
   if (!result.success) {
-    await interaction.followUp(failReply(result.error ?? errors.generic(), interaction));
+    await interaction.followUp(failReply(result.error, interaction));
     return;
   }
-
-  await updateGlobalMessage(interaction.client, guildId);
 
   const editor = await buildStackEditor(guildId, requestId);
   await interaction.editReply(editor ?? { content: errors.notFound("request", requestId), components: [] });
@@ -216,6 +209,12 @@ export async function handleStackEditButton(
   const request = getRequestById(guildId, requestId);
   if (!request) {
     await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const denied = checkPermission(context, "manage", request.requesterId);
+  if (denied) {
+    await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -278,32 +277,17 @@ export async function handleStackEditModal(
 
   await interaction.deferUpdate();
 
-  const result = updateRequest(guildId, requestId, { troopsNeeded, message });
-  if ("error" in result) {
+  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const result = await executeUpdateDefAction(context, { requestId, troopsNeeded, message });
+  if (!result.success) {
     await interaction.followUp(failReply(result.error, interaction));
     return;
   }
 
-  recordAction(guildId, {
-    type: "ADMIN_UPDATE",
-    userId: interaction.user.id,
-    coords: { x: request.x, y: request.y },
-    requestId,
-    previousState: { ...request, contributors: [...request.contributors] },
-    data: {
-      previousTroopsSent: request.troopsSent,
-      previousTroopsNeeded: request.troopsNeeded,
-      previousMessage: request.message,
-      adminDidComplete: result.troopsSent >= result.troopsNeeded,
-    },
-  });
-
-  await updateGlobalMessage(interaction.client, guildId);
-
   const editor = await buildStackEditor(guildId, requestId);
   if (!editor) {
     await interaction.editReply({
-      content: `✅ Request #${requestId} is complete (${formatTroops(result.troopsSent)} / ${formatTroops(troopsNeeded)}).`,
+      content: `✅ Request #${requestId} is complete (${formatTroops(result.request.troopsSent)} / ${formatTroops(troopsNeeded)}).`,
       components: [],
     });
     return;
@@ -324,8 +308,14 @@ export async function handleStackDeleteButton(
   if (!requestId) return;
 
   const editor = await buildStackEditor(guildId, requestId);
-  if (!editor) {
+  const request = getRequestById(guildId, requestId);
+  if (!editor || !request) {
     await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const denied = checkPermission(buildActionContext(interaction, guildId, getGuildConfig(guildId)), "manage", request.requesterId);
+  if (denied) {
+    await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -344,46 +334,18 @@ export async function handleStackConfirmDelete(
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
-  const request = getRequestById(guildId, requestId);
-  if (!request) {
-    await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
-    return;
-  }
-
   await interaction.deferUpdate();
 
-  const snapshot = { ...request, contributors: [...request.contributors] };
-
-  if (!removeRequest(guildId, requestId)) {
-    await interaction.followUp({ content: errors.generic(), flags: MessageFlags.Ephemeral });
+  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const result = await executeDeleteDefAction(context, { requestId });
+  if (!result.success) {
+    await interaction.followUp(failReply(result.error, interaction));
     return;
   }
 
-  const actionId = recordAction(guildId, {
-    type: "REQUEST_DELETED",
-    userId: interaction.user.id,
-    coords: { x: request.x, y: request.y },
-    requestId,
-    previousState: snapshot,
-    data: {},
-  });
-
-  const config = getGuildConfig(guildId);
-  const village = config.serverKey
-    ? await getVillageAt(config.serverKey, request.x, request.y)
-    : null;
-  const villageDisplay = village && config.serverKey
-    ? formatVillageDisplay(config.serverKey, village)
-    : `(${request.x}|${request.y})`;
-
-  await updateGlobalMessage(interaction.client, guildId, {
-    text: `<@${interaction.user.id}> deleted request #${requestId}: ${villageDisplay}`,
-    undoId: actionId,
-  });
-
   await interaction.editReply(
-    confirmationEdit(`✅ Deleted request #${requestId}: ${villageDisplay}.`, {
-      actionId,
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
+      actionId: result.actionId,
       panelUrl: getStackPanelUrl(guildId),
     })
   );

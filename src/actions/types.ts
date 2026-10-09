@@ -10,6 +10,10 @@ export interface ActionContext {
   config: GuildConfig;
   client: Client;
   userId: string; // The user performing the action
+  /** Role IDs of the acting member, including the @everyone role (the guild ID). */
+  roleIds: string[];
+  /** Administrator permission or a bot owner: passes every permission check. */
+  isAdministrator: boolean;
 }
 
 /**

@@ -9,6 +9,7 @@ import { getOpenScoutRequests, getScoutRequest, formatScoutId } from "../service
 import { getVillageAt } from "../services/map-data";
 import { completeScout } from "../services/button-handlers/scout";
 import { isValidReportLink, normalizeReportLink } from "../utils/report-link";
+import { buildActionContext } from "../actions/context";
 
 export const scoutCommand: Command = {
   topic: "scouting",
@@ -63,7 +64,7 @@ export const scoutCommand: Command = {
     await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     const result = await executeScoutAction(
-      { guildId, config, client: interaction.client, userId: interaction.user.id },
+      buildActionContext(interaction, guildId, config),
       { coords: coordsInput, message: note, requesterId: interaction.user.id, scoutRoleId: config.scoutRoleId }
     );
 

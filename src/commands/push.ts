@@ -4,7 +4,6 @@ import {
   EmbedBuilder,
   Colors,
   MessageFlags,
-  GuildMember,
 } from "discord.js";
 import { Command } from "../types";
 import {
@@ -22,11 +21,12 @@ import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { getGuildConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
-import { requireAdmin, isAdmin } from "../utils/permissions";
+import { requireAdmin } from "../utils/permissions";
 import { guildCommand } from "./shared";
 import { formatResources } from "../utils/format";
 import { errors, failReply, failEdit } from "../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
+import { buildActionContext } from "../actions/context";
 
 export const pushCommand: Command = {
   topic: "pushes",
@@ -55,10 +55,10 @@ export const pushCommand: Command = {
         )
     )
     .addSubcommand((sub) =>
-      sub.setName("close").setDescription("Close this push and archive the thread (requester or admin)")
+      sub.setName("close").setDescription("Close this push and archive the thread (requester or manager)")
     )
     .addSubcommand((sub) =>
-      sub.setName("delete").setDescription("Delete this push and its thread for good (admin, no undo)")
+      sub.setName("delete").setDescription("Delete this push and its thread for good (manager, no undo)")
     )
     .addSubcommand((sub) =>
       sub
@@ -210,7 +210,6 @@ export const pushCommand: Command = {
         await handleClose(interaction);
         break;
       case "delete":
-        if (!(await requireAdmin(interaction))) return;
         await handleDelete(interaction);
         break;
       case "edit":
@@ -294,12 +293,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
 
   // 4. Execute action
   const result = await executePushRequestAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       coords: coordsInput,
       resourcesNeeded,
@@ -349,12 +343,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 5. Execute action
   const result = await executePushSentAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       target: requestData.requestId.toString(),
       resources,
@@ -373,7 +362,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
   );
 }
 
-/** Close = the requester or an admin removes the request. Archiving arrives in Phase 3. */
+/** Close = the requester or a manager archives the thread; the data stays. */
 async function handleClose(interaction: ChatInputCommandInteraction): Promise<void> {
   const validation = validatePushConfig(interaction.guildId);
   if (!validation.valid) {
@@ -388,10 +377,9 @@ async function handleClose(interaction: ChatInputCommandInteraction): Promise<vo
 
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const result = await executePushCloseAction(
-    { guildId: validation.guildId, config: validation.config, client: interaction.client, userId: interaction.user.id },
+    buildActionContext(interaction, validation.guildId, validation.config),
     { requestId: requestData.requestId },
     {
-      isAdmin: isAdmin(interaction.member as GuildMember | null),
       onClosed: async (closed) => {
         await interaction.editReply(
           confirmationEdit(closed.confirmText ?? asConfirm(closed.actionText), { actionId: closed.actionId })
@@ -428,12 +416,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
   // 4. Execute action
   const result = await executePushDeleteAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       requestId: requestData.requestId,
     }
@@ -479,12 +462,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 5. Execute action
   const result = await executePushEditAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       requestId: requestData.requestId,
       resourcesNeeded,
@@ -530,12 +508,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
 
   // 5. Execute action
   const result = await executePushEditContributionAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       requestId: requestData.requestId,
       accountName: playerName,
@@ -582,12 +555,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
 
   // 5. Execute action
   const result = await executePushTransferAction(
-    {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    },
+    buildActionContext(interaction, validation.guildId, validation.config),
     {
       requestId: requestData.requestId,
       fromAccount,

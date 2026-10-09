@@ -2,9 +2,10 @@ import { removePushRequest, getPushRequestById, PushRequest } from "../services/
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
 import { deletePushChannel } from "../services/push-message";
 import { ActionContext, PushDeleteActionInput, PushDeleteActionResult } from "./types";
+import { checkPermission } from "./permissions";
 
 /**
- * Execute the "push delete" action - admin-only hard delete of a push request and its thread.
+ * Execute the "push delete" action - manager-only hard delete of a push request and its thread.
  * Not undoable; use "close" for the normal case.
  */
 export async function executePushDeleteAction(
@@ -13,6 +14,9 @@ export async function executePushDeleteAction(
 ): Promise<PushDeleteActionResult> {
   const { guildId, config, client, userId } = context;
   const { requestId } = input;
+
+  const denied = checkPermission(context, "manage");
+  if (denied) return { success: false, error: denied };
 
   // 1. Get request before deletion (deep copy for undo)
   const request = getPushRequestById(guildId, requestId);

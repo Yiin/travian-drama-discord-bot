@@ -2,6 +2,7 @@ import { moveRequest, getRequestById, getRequestPosition } from "../services/def
 import { updateGlobalMessage } from "../services/defense-message";
 import { recordAction } from "../services/action-history";
 import { ActionContext, MoveActionInput, MoveActionResult } from "./types";
+import { checkPermission } from "./permissions";
 
 /**
  * Execute the "move" action - move a defense request to a different position.
@@ -12,6 +13,9 @@ export async function executeMoveAction(
 ): Promise<MoveActionResult> {
   const { guildId, client, userId } = context;
   const { requestId, toPosition } = input;
+
+  const denied = checkPermission(context, "manage");
+  if (denied) return { success: false, error: denied };
 
   const request = getRequestById(guildId, requestId);
   const fromPosition = getRequestPosition(guildId, requestId);

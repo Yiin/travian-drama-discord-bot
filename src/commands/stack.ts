@@ -20,6 +20,7 @@ import { buildStackEditor } from "../services/button-handlers/stack-edit";
 import { confirmationEdit, asConfirm, errors, failReply, failEdit } from "../actions/messages";
 import { stackChoiceLabel, filterChoices } from "../utils/choices";
 import { guildCommand } from "./shared";
+import { buildActionContext } from "../actions/context";
 
 export const stackCommand: Command = {
   topic: "defense",
@@ -115,12 +116,7 @@ export const stackCommand: Command = {
       await interaction.reply(failReply(validation.error, interaction));
       return;
     }
-    const context = {
-      guildId: validation.guildId,
-      config: validation.config,
-      client: interaction.client,
-      userId: interaction.user.id,
-    };
+    const context = buildActionContext(interaction, validation.guildId, validation.config);
     const panelUrl = () => getStackPanelUrl(validation.guildId);
 
     switch (interaction.options.getSubcommand()) {

@@ -74,6 +74,22 @@ describe("finish setup gating", () => {
     const scout = selects.find((c: any) => c.custom_id === "setup_channel:scout");
     expect(scout.default_values ?? []).toEqual([]);
   });
+
+  it("has a multi-role picker per permission, preselected, within Discord's 40-component limit", () => {
+    const config: GuildConfig = { permissions: { request: ["r1", "r2"], manage: [] } };
+    const json = buildSetupPanel(config, { guildId: "g1" }).toJSON() as any;
+    const pickers = json.components
+      .filter((c: any) => c.type === 1)
+      .flatMap((row: any) => row.components)
+      .filter((c: any) => typeof c.custom_id === "string" && c.custom_id.startsWith("setup_permission:"));
+    expect(pickers.map((c: any) => c.custom_id)).toEqual(["setup_permission:request", "setup_permission:manage"]);
+    expect(pickers[0].max_values).toBe(25);
+    expect(pickers[0].default_values).toEqual([{ id: "r1", type: "role" }, { id: "r2", type: "role" }]);
+    expect(pickers[1].default_values ?? []).toEqual([]);
+
+    const count = (c: any): number => 1 + (c.components ?? []).reduce((n: number, child: any) => n + count(child), 0);
+    expect(count(json)).toBeLessThanOrEqual(40);
+  });
 });
 
 describe("ping-admin throttle", () => {

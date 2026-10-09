@@ -27,6 +27,7 @@ import { parseCoords } from "../utils/parse-coords";
 import { formatNumber } from "../utils/format";
 import { errors, cmd, failReply, confirmation, asConfirm } from "../actions/messages";
 import { executeStatsAdjustAction } from "../actions/stats-adjust.action";
+import { buildActionContext } from "../actions/context";
 
 export const statsCommand: Command = {
   topic: "info",
@@ -495,7 +496,7 @@ async function handlePlayers(interaction: ChatInputCommandInteraction, guildId: 
 async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const target = interaction.options.getUser("for") ?? interaction.user;
   const result = await executeStatsAdjustAction(
-    { guildId, config: getGuildConfig(guildId), client: interaction.client, userId: interaction.user.id },
+    buildActionContext(interaction, guildId, getGuildConfig(guildId)),
     {
       coords: interaction.options.getString("coords", true),
       troops: interaction.options.getInteger("troops", true),

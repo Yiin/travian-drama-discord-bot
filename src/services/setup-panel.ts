@@ -24,10 +24,13 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { getGuildConfig, GuildConfig, setScoutRole } from "../config/guild-config";
+import { getGuildConfig, GuildConfig, Permission, setScoutRole } from "../config/guild-config";
 import { ChannelKind, cmd, errors, SETUP_OPEN_BUTTON_ID, SETUP_PING_ADMIN_BUTTON_ID } from "../actions/messages";
 import { applyChannel, applyServerKey, applyTimezone, CHANNEL_KIND_LABEL } from "../actions/setup.action";
 import { isAdmin } from "../utils/permissions";
+import { buildActionContext } from "../actions/context";
+import { buildPermissionSummary, describePermission, PERMISSION_LABEL } from "../actions/permissions";
+import { executePermissionChangeAction } from "../actions/permissions.action";
 import { v2 } from "./panel";
 import { updateGlobalMessage } from "./defense-message";
 import { refreshHubChannel } from "./def-calls-message";
@@ -47,10 +50,12 @@ export const SETUP_TIMEZONE_MODAL_ID = "setup_timezone_modal";
 export const SETUP_TIMEZONE_INPUT_ID = "setup_timezone_input";
 export const SETUP_CHANNEL_SELECT_PREFIX = "setup_channel:";
 export const SETUP_ROLE_SELECT_ID = "setup_scout_role_select";
+export const SETUP_PERMISSION_SELECT_PREFIX = "setup_permission:";
 export const SETUP_FINISH_BUTTON_ID = "setup_finish_button";
 export const SETUP_REMINDER_BUTTON_ID = "setup_reminder_button";
 
 const CHANNEL_KINDS: ChannelKind[] = ["defense", "defcalls", "scout", "push"];
+const PERMISSIONS: Permission[] = ["request", "manage"];
 
 const CHANNEL_FIELD: Record<ChannelKind, keyof GuildConfig> = {
   defense: "defenseChannelId",
@@ -118,6 +123,8 @@ export function buildSetupSummary(config: GuildConfig): string {
     ),
     line(status.scoutRole, "Scout role", config.scoutRoleId ? `<@&${config.scoutRoleId}>` : "none (optional)"),
     line(status.timezone, "Timezone", config.serverTimezone ? `\`${config.serverTimezone}\`` : "UTC (optional)"),
+    "",
+    buildPermissionSummary(config),
     "",
     buildSetupFooter(config),
   ];
@@ -203,6 +210,31 @@ export function buildSetupPanel(config: GuildConfig, options: SetupPanelOptions)
         .setStyle(ButtonStyle.Secondary),
     ),
   );
+  panel.addSeparatorComponents(new SeparatorBuilder());
+
+  // 4 · Permissions
+  panel.addTextDisplayComponents(
+    text(
+      `**4 · Permissions**\n-# Create requests: ${describePermission(config, "request")}. Manage any request: ${describePermission(
+        config,
+        "manage",
+      )}. Leave a picker empty for the default. Only members with Administrator can change these.`,
+    ),
+  );
+  for (const permission of PERMISSIONS) {
+    const current = config.permissions?.[permission] ?? [];
+    const select = new RoleSelectMenuBuilder()
+      .setCustomId(`${SETUP_PERMISSION_SELECT_PREFIX}${permission}`)
+      .setPlaceholder(
+        permission === "request"
+          ? `${PERMISSION_LABEL.request} → roles (empty: everyone)`
+          : `${PERMISSION_LABEL.manage} → roles (empty: admins only)`,
+      )
+      .setMinValues(0)
+      .setMaxValues(25);
+    if (current.length > 0) select.setDefaultRoles(...current.slice(0, 25));
+    panel.addActionRowComponents(new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(select));
+  }
   panel.addSeparatorComponents(new SeparatorBuilder());
 
   panel.addTextDisplayComponents(
@@ -452,6 +484,27 @@ export async function handleSetupRoleSelect(interaction: RoleSelectMenuInteracti
   if (!guildId) return;
   setScoutRole(guildId, interaction.values[0] ?? null);
   await refreshPanel(interaction, guildId);
+}
+
+/** Permission pickers replace the whole list. Administrator or bot owner only, not Manage Channels. */
+export async function handleSetupPermissionSelect(interaction: RoleSelectMenuInteraction): Promise<void> {
+  const guildId = await requireSetupAdmin(interaction);
+  if (!guildId) return;
+  const permission = interaction.customId.slice(SETUP_PERMISSION_SELECT_PREFIX.length) as Permission;
+  if (!PERMISSIONS.includes(permission)) {
+    await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const result = executePermissionChangeAction(buildActionContext(interaction, guildId, getGuildConfig(guildId)), {
+    permission,
+    set: interaction.values,
+  });
+  if (!result.success) {
+    await interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await refreshPanel(interaction, guildId);
+  await interaction.followUp({ content: result.confirmText, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 }
 
 export async function handleSetupTimezoneButton(interaction: ButtonInteraction): Promise<void> {
