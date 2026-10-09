@@ -104,7 +104,7 @@ export function buildSetupFooter(config: GuildConfig): string {
   ].join(" · ");
 }
 
-/** Checklist used by `/setup show` and `!setup show`. */
+/** Checklist used by `/setup show`. */
 export function buildSetupSummary(config: GuildConfig): string {
   const status = setupStatus(config);
   const line = (ok: boolean, label: string, value?: string) =>

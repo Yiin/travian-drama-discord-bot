@@ -46,7 +46,6 @@ describe("stable id migration", () => {
             { id: 1, type: "DEF_ADD", userId: "u", timestamp: 1, coords: { x: 1, y: 2 }, requestId: 1, data: {}, undone: false },
             { id: 2, type: "DEF_ADD", userId: "u", timestamp: 1, coords: { x: 3, y: 4 }, requestId: 2, data: {}, undone: true },
           ],
-          messageActions: { m1: { content: "!stack 1|2 100", actionIds: [1] } },
         },
       })
     );
@@ -74,7 +73,6 @@ describe("stable id migration", () => {
     const history = JSON.parse(readFileSync(join(dir, "data", "action-history.json"), "utf8"));
     expect(history[GUILD].actions[0]).toMatchObject({ undone: true, expiredReason: "expired by id migration" });
     expect(history[GUILD].actions[1].expiredReason).toBeUndefined();
-    expect(history[GUILD].messageActions.m1).toBeDefined();
   });
 
   it("keeps an existing id on restore and bumps the counter past it", async () => {

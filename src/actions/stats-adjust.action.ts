@@ -22,8 +22,7 @@ export interface StatsAdjustActionSuccess extends ActionSuccess {
 export type StatsAdjustActionResult = StatsAdjustActionSuccess | ActionError;
 
 /**
- * Manual stats adjustment (`/stats add`, `!stats add`). Recorded so an undo
- * or an edited text command can reverse it.
+ * Manual stats adjustment (`/stats add`). Recorded so an undo can reverse it.
  */
 export async function executeStatsAdjustAction(
   context: ActionContext,

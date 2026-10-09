@@ -12,7 +12,7 @@ import {
   setScoutRole,
 } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
-import { normalizeServerKey, isValidServerKey } from "../services/message-commands/utils";
+import { normalizeServerKey, isValidServerKey } from "../utils/server-key";
 import { filterChoices } from "../utils/choices";
 import { ChannelKind } from "../actions/messages";
 import { applyChannel, applyServerKey, applyTimezone } from "../actions/setup.action";

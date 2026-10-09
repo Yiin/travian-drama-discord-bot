@@ -109,22 +109,7 @@ export interface Action {
 export interface GuildActionHistory {
   nextId: number;
   actions: Action[];
-  /** Text-command messages that produced actions, keyed by message ID. */
-  messageActions?: Record<string, MessageActions>;
 }
-
-/** Actions a single text-command message produced, plus the content that produced them. */
-export interface MessageActions {
-  content: string;
-  actionIds: number[];
-  /** All linked actions fell out of history; the message can no longer be edited safely. */
-  expired?: boolean;
-  /** The message ran a command that must not be re-run on edit (an undo). */
-  noEdit?: boolean;
-}
-
-/** Links older than this are dropped to keep the file small. */
-const MAX_MESSAGE_LINKS = 200;
 
 type AllHistoryData = Record<string, GuildActionHistory>;
 
@@ -232,68 +217,6 @@ export function getLatestUndoableActionId(guildId: string): number | undefined {
     if (!history.actions[i].undone) return history.actions[i].id;
   }
   return undefined;
-}
-
-// --- Text-command message links ---
-// Each message owns its own actions. Editing a message undoes those actions before the new content runs.
-
-export function linkActionToMessage(
-  guildId: string,
-  messageId: string,
-  content: string,
-  actionId: number
-): void {
-  const history = getGuildHistory(guildId);
-  history.messageActions ??= {};
-  const entry = history.messageActions[messageId] ?? { content, actionIds: [] };
-  entry.content = content;
-  if (!entry.actionIds.includes(actionId)) entry.actionIds.push(actionId);
-  history.messageActions[messageId] = entry;
-  pruneMessageLinks(history);
-  saveGuildHistory(guildId, history);
-}
-
-export function getMessageActions(guildId: string, messageId: string): MessageActions | undefined {
-  return getGuildHistory(guildId).messageActions?.[messageId];
-}
-
-export function setMessageContent(guildId: string, messageId: string, content: string): void {
-  const history = getGuildHistory(guildId);
-  history.messageActions ??= {};
-  const entry = history.messageActions[messageId] ?? { content, actionIds: [] };
-  entry.content = content;
-  history.messageActions[messageId] = entry;
-  pruneMessageLinks(history);
-  saveGuildHistory(guildId, history);
-}
-
-/** Mark a message as one whose edits must be ignored (it ran an undo). */
-export function markMessageNoEdit(guildId: string, messageId: string, content: string): void {
-  const history = getGuildHistory(guildId);
-  history.messageActions ??= {};
-  history.messageActions[messageId] = { content, actionIds: [], noEdit: true };
-  pruneMessageLinks(history);
-  saveGuildHistory(guildId, history);
-}
-
-/**
- * Links whose actions were trimmed from history stay, flagged `expired`, so an
- * edit of that message can be refused instead of silently re-applied.
- * The oldest links are dropped past MAX_MESSAGE_LINKS.
- */
-function pruneMessageLinks(history: GuildActionHistory): void {
-  if (!history.messageActions) return;
-  const live = new Set(history.actions.map((a) => a.id));
-  for (const entry of Object.values(history.messageActions)) {
-    if (entry.noEdit) continue;
-    const before = entry.actionIds.length;
-    entry.actionIds = entry.actionIds.filter((id) => live.has(id));
-    if (before > 0 && entry.actionIds.length === 0) entry.expired = true;
-  }
-  const keys = Object.keys(history.messageActions);
-  for (const key of keys.slice(0, Math.max(0, keys.length - MAX_MESSAGE_LINKS))) {
-    delete history.messageActions[key];
-  }
 }
 
 export function markUndone(guildId: string, actionId: number): boolean {

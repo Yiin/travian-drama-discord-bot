@@ -1,11 +1,10 @@
-import { Client, Events, GatewayIntentBits, Partials, MessageFlags } from "discord.js";
+import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import dotenv from "dotenv";
 import { commands } from "./commands";
 import { startScheduler } from "./services/map-scheduler";
 import { loadAndRescheduleNotifications } from "./services/scout-scheduler";
 import { loadAndRescheduleReminders } from "./services/reminder-scheduler";
 import { loadAndScheduleLandings } from "./services/landing-scheduler";
-import { handleTextCommand } from "./services/message-commands";
 import { markScoutMessageAsDoneById } from "./services/button-handlers/scout";
 import {
   handleSentButton,
@@ -112,9 +111,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
   ],
-  partials: [Partials.Message],
 });
 
 /**
@@ -180,28 +177,6 @@ client.on(Events.GuildCreate, async (guild) => {
     await postWelcomePanel(client, guild);
   } catch (error) {
     console.error(`Error onboarding guild ${guild.id}:`, error);
-  }
-});
-
-client.on(Events.MessageCreate, async (message) => {
-  try {
-    await handleTextCommand(client, message);
-  } catch (error) {
-    console.error("Error handling message:", error);
-  }
-});
-
-client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-  try {
-    // Embed resolution and pins also fire this event; only content changes matter
-    if (!oldMessage.partial && !newMessage.partial && oldMessage.content === newMessage.content) return;
-    // Fetch full message if partial
-    const message = newMessage.partial ? await newMessage.fetch() : newMessage;
-    // Pins and embed resolution fire this event too; only a real edit has a timestamp
-    if (message.editedTimestamp === null) return;
-    await handleTextCommand(client, message);
-  } catch (error) {
-    console.error("Error handling message edit:", error);
   }
 });
 

@@ -27,11 +27,11 @@ describe("help is generated from the command registry", () => {
     expect(text).toContain("Report troops you sent");
   });
 
-  it("overview names every topic and the text shortcuts", () => {
+  it("overview names every topic", () => {
     const embed = buildHelpEmbed(commands).toJSON();
     const names = (embed.fields ?? []).map((f) => f.name);
     for (const topic of HELP_TOPICS) expect(names).toContain(topic.label);
-    expect(names.some((n) => n.startsWith("Text shortcuts"))).toBe(true);
+    expect(names.some((n) => n.includes("`!"))).toBe(false);
     expect(buildHelpButtons(commands).flatMap((r) => r.components).length).toBe(HELP_TOPICS.length + 1);
   });
 });

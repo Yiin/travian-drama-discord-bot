@@ -16,13 +16,7 @@ export const HELP_TOPICS: { id: HelpTopic; label: string; blurb: string }[] = [
   { id: "pushes", label: "Pushes", blurb: "Resource pushes, one thread per request." },
   { id: "you", label: "You", blurb: "Your account link and sitter list." },
   { id: "info", label: "Info", blurb: "Lookups, stats, undo." },
-  { id: "admin", label: "Admin", blurb: "Setup and reminders." },
-];
-
-const TEXT_SHORTCUTS = [
-  "`!stack 12|-45 5000 anti cav` · `!sent 41 500` · `!remove 41` · `!move 41 1`",
-  "`!def 12|-45 14:30 note` · `!sent 500` (inside a defense thread) · `!close`",
-  "`!scout 12|-45 WWK or fake?` · `!lookup Player` · `!undo` · `!help`",
+  { id: "admin", label: "Admin", blurb: "Setup, permissions and reminders." },
 ];
 
 interface SubcommandJson {
@@ -74,7 +68,6 @@ export function buildHelpEmbed(commands: Collection<string, Command>, topic?: He
       if (names.length === 0) continue;
       embed.addFields({ name: t.label, value: `${t.blurb}\n${names.join(" · ")}` });
     }
-    embed.addFields({ name: "Text shortcuts (prefix `!`)", value: TEXT_SHORTCUTS.join("\n") });
     return embed;
   }
 

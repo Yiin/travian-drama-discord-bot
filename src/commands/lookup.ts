@@ -34,7 +34,7 @@ import { guildCommand, requireGuild } from "./shared";
 // Exported embed builders for reuse
 // ============================================
 
-export function buildVillageEmbed(
+function buildVillageEmbed(
   village: VillageData,
   coords: { x: number; y: number },
   rallyLink: string,
@@ -54,7 +54,7 @@ export function buildVillageEmbed(
     .setTimestamp();
 }
 
-export function buildPlayerEmbed(
+function buildPlayerEmbed(
   player: PlayerSearchResult,
   villages: VillageData[],
   serverKey: string

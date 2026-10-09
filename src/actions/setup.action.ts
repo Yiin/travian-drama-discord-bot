@@ -8,11 +8,11 @@ import {
 } from "../config/guild-config";
 import { updateMapData } from "../services/map-data";
 import { isValidTimezone } from "../utils/time";
-import { normalizeServerKey, isValidServerKey } from "../services/message-commands/utils";
+import { normalizeServerKey, isValidServerKey } from "../utils/server-key";
 import { ChannelKind } from "./messages";
 
 /**
- * Setup steps shared by `/setup …`, `!setup …` and the setup panel.
+ * Setup steps shared by `/setup …` and the setup panel.
  * Each returns the user-facing text so every surface says the same thing.
  */
 

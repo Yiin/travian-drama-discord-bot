@@ -75,11 +75,6 @@ export const errors = {
   channelGone: (kind: ChannelKind) =>
     `⚠️ **The ${CHANNEL_LABEL[kind]} channel no longer exists.** An admin can pick a new one with ${cmd("setup channel")}.`,
 
-  wrongChannel: (kind: ChannelKind, channelId: string | undefined, slashAlternative: string) =>
-    channelId
-      ? `⚠️ **This command works in <#${channelId}>.** Or use ${cmd(slashAlternative)} from anywhere.`
-      : `⚠️ **No ${CHANNEL_LABEL[kind]} channel is set.** Use ${cmd(slashAlternative)} instead.`,
-
   notInThread: (what: string) =>
     `⚠️ **This is not a ${what} thread.** Run it inside the thread the bot created for the request.`,
 
