@@ -1,6 +1,6 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig, getScopeConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
 import { executeScoutAction, sendScoutMessage } from "../actions";
 import { errors, confirmationEdit, messageUrl, failEdit, failReply } from "../actions/messages";

@@ -5,7 +5,7 @@ import {
   ButtonStyle,
   MessageFlags,
 } from "discord.js";
-import { getGuildConfig , getScopeConfig } from "../../config/guild-config";
+import { getScopeConfig } from "../../config/guild-config";
 import { executeUndoAction } from "../../actions/undo.action";
 import { errors, UNDO_BUTTON_PREFIX, failReply } from "../../actions/messages";
 import { buildActionContext } from "../../actions/context";

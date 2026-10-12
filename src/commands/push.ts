@@ -19,7 +19,7 @@ import { executePushTransferAction } from "../actions/push-transfer.action";
 import { getPushLeaderboard, getPlayerPushStats, editGlobalStats, transferGlobalStats } from "../services/push-stats";
 import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { getGuildConfig, getScopeConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
 import { requireAdmin } from "../utils/permissions";
 import { guildCommand } from "./shared";
@@ -27,7 +27,7 @@ import { formatResources } from "../utils/format";
 import { errors, failReply, failEdit } from "../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 import { buildActionContext } from "../actions/context";
-import { resolveScope } from "../config/scope";
+import { confedSuffix, resolveScope } from "../config/scope";
 
 export const pushCommand: Command = {
   topic: "pushes",
@@ -592,7 +592,7 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("Push Leaderboard")
+    .setTitle(`Push Leaderboard${confedSuffix(scope)}`)
     .setColor(Colors.Gold)
     .setTimestamp();
 

@@ -40,7 +40,7 @@ import {
 } from "./button-handlers/def-call-ids";
 import { formatTroops, percentOf, progressBar } from "../utils/format";
 import { upsertPanel, v2 } from "./panel";
-import { Scope, scopeKey } from "../config/scope";
+import { Scope } from "../config/scope";
 
 const ACCENT_OPEN = 0xf1c40f;
 const ACCENT_DONE = 0x248046;

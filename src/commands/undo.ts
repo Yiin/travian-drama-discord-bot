@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig, getScopeConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import { executeUndoAction } from "../actions";
 import { withRetry } from "../utils/retry";
 import { errors, confirmationEdit, asConfirm, failEdit, failReply } from "../actions/messages";

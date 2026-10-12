@@ -10,7 +10,7 @@ import {
   MessageFlags,
   UserSelectMenuBuilder,
 } from "discord.js";
-import { getGuildConfig , getScopeConfig } from "../../config/guild-config";
+import { getScopeConfig } from "../../config/guild-config";
 import { getGuildDefenseData } from "../defense-requests";
 import { getVillageAt } from "../map-data";
 import {

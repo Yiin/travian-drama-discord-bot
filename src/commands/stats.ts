@@ -11,7 +11,7 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { getGuildConfig, getScopeConfig } from "../config/guild-config";
-import { Scope } from "../config/scope";
+import { confedSuffix, Scope } from "../config/scope";
 import { requireAdmin } from "../utils/permissions";
 import {
   getLeaderboard,
@@ -72,7 +72,7 @@ export const statsCommand: Command = {
         )
         .addUserOption((opt) => opt.setName("for").setDescription("Credit this member instead of yourself"))
     )
-    .addSubcommand((sub) => sub.setName("reset").setDescription("Reset all stats for this server (admin)")),
+    .addSubcommand((sub) => sub.setName("reset").setDescription("Reset all defense stats here; inside a confed category, that confed's (admin)")),
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const guildId = interaction.guildId;
@@ -162,7 +162,7 @@ async function handleLeaderboard(
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("Defense Leaderboard")
+    .setTitle(`Defense Leaderboard${confedSuffix(scope)}`)
     .setDescription(lines.join("\n"))
     .setFooter({ text: `Stats since ${resetDate}` })
     .setColor(0x5865f2);
@@ -420,7 +420,7 @@ async function handleReset(
   );
 
   const response = await interaction.reply({
-    content: "Are you sure you want to reset all stats? This cannot be undone.",
+    content: `Are you sure you want to reset all defense stats${confedSuffix(scope)}? This cannot be undone.`,
     components: [row],
     flags: MessageFlags.Ephemeral,
     withResponse: true,

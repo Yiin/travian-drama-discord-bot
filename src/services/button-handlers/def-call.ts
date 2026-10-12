@@ -8,7 +8,7 @@ import {
   MessageFlags,
   UserSelectMenuBuilder,
 } from "discord.js";
-import { getGuildConfig , getScopeConfig } from "../../config/guild-config";
+import { getScopeConfig } from "../../config/guild-config";
 import { parseTroopCount } from "../../utils/parse-number";
 import { getRequestByChannelId } from "../def-calls";
 import { executeDefCallRequestAction } from "../../actions/def-call-request.action";

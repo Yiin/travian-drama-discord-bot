@@ -38,6 +38,13 @@ export function guildScopes(guildId: string): Scope[] {
   return [mainScope(guildId), ...confeds.map((c) => ({ guildId, confedId: c.id }))];
 }
 
+/** ` · BBCTM` for a confed, empty for the main confed. For titles. */
+export function confedSuffix(scope: Scope): string {
+  if (!scope.confedId) return "";
+  const confed = getGuildConfig(scope.guildId).confeds?.find((c) => c.id === scope.confedId);
+  return confed ? ` · ${confed.name}` : "";
+}
+
 export function sameScope(a: Scope, b: Scope): boolean {
   return scopeKey(a) === scopeKey(b);
 }

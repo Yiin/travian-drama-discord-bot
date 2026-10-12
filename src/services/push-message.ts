@@ -22,7 +22,7 @@ import { getScopeConfig } from "../config/guild-config";
 import { getVillageAt, getMapLink, VillageData } from "./map-data";
 import { formatResources, percentOf, progressBar } from "../utils/format";
 import { v2 } from "./panel";
-import { Scope, scopeKey } from "../config/scope";
+import { Scope } from "../config/scope";
 
 // Button IDs for push threads
 export const PUSH_SENT_BUTTON_ID = "push_sent_button";

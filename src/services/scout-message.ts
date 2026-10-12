@@ -17,7 +17,7 @@ import { getVillageAt, getMapLink, getRallyPointLink, getTribeName, VillageData 
 import { SCOUT_GOING_BUTTON_ID, SCOUT_RESULT_BUTTON_ID } from "./button-handlers/scout-ids";
 import { formatTroops } from "../utils/format";
 import { v2 } from "./panel";
-import { Scope, scopeKey } from "../config/scope";
+import { Scope } from "../config/scope";
 
 const ACCENT_OPEN = 0xf39c12;
 const ACCENT_GOING = 0x3498db;
