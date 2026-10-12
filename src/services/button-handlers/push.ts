@@ -28,6 +28,7 @@ export {
 } from "../push-message";
 import { buildActionContext } from "../../actions/context";
 import { checkPermission } from "../../actions/permissions";
+import { resolveScope, Scope } from "../../config/scope";
 
 export const PUSH_SENT_MODAL_ID = "push_sent_modal";
 export const PUSH_EDIT_MODAL_ID = "push_edit_modal";
@@ -35,20 +36,20 @@ export const PUSH_RESOURCES_INPUT_ID = "push_resources_input";
 export const PUSH_AMOUNT_INPUT_ID = "push_amount_input";
 export const PUSH_SENT_FOR_SELECT_ID = "push_sent_for_select";
 
-type Ctx = { guildId: string; config: GuildConfig; request: PushRequest; requestId: number };
+type Ctx = { guildId: string; scope: Scope; config: GuildConfig; request: PushRequest; requestId: number };
 
 /** Shared pre-flight for every push button and modal: setup, thread, open request. */
 async function pushContext(
   interaction: ButtonInteraction | ModalSubmitInteraction,
   options: { allowClosed?: boolean } = {}
 ): Promise<Ctx | null> {
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return null;
   }
   const channelId = interaction.channelId;
-  const info = channelId ? getPushRequestByChannelId(validation.guildId, channelId) : undefined;
+  const info = channelId ? getPushRequestByChannelId(validation.scope, channelId) : undefined;
   if (!info) {
     await interaction.reply({ content: errors.notInThread("push"), flags: MessageFlags.Ephemeral });
     return null;
@@ -60,7 +61,7 @@ async function pushContext(
     });
     return null;
   }
-  return { guildId: validation.guildId, config: validation.config, request: info.request, requestId: info.requestId };
+  return { guildId: validation.guildId, scope: validation.scope, config: validation.config, request: info.request, requestId: info.requestId };
 }
 
 function parseAmount(raw: string): number | null {
@@ -120,7 +121,7 @@ export async function handlePushSentModal(interaction: ModalSubmitInteraction): 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await executePushSentAction(
-    buildActionContext(interaction, ctx.guildId, ctx.config),
+    buildActionContext(interaction, ctx.scope, ctx.config),
     { target: ctx.requestId.toString(), resources, creditUserId: sentBy?.id }
   );
 
@@ -136,7 +137,7 @@ export async function handlePushSentModal(interaction: ModalSubmitInteraction): 
 export async function handlePushEditButton(interaction: ButtonInteraction): Promise<void> {
   const ctx = await pushContext(interaction);
   if (!ctx) return;
-  const denied = checkPermission(buildActionContext(interaction, ctx.guildId, ctx.config), "manage", ctx.request.requesterId);
+  const denied = checkPermission(buildActionContext(interaction, ctx.scope, ctx.config), "manage", ctx.request.requesterId);
   if (denied) {
     await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
@@ -169,7 +170,7 @@ export async function handlePushEditModal(interaction: ModalSubmitInteraction): 
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await executePushEditAction(
-    buildActionContext(interaction, ctx.guildId, ctx.config),
+    buildActionContext(interaction, ctx.scope, ctx.config),
     { requestId: ctx.requestId, resourcesNeeded }
   );
   if (!result.success) {
@@ -187,7 +188,7 @@ export async function handlePushCloseButton(interaction: ButtonInteraction): Pro
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await executePushCloseAction(
-    buildActionContext(interaction, ctx.guildId, ctx.config),
+    buildActionContext(interaction, ctx.scope, ctx.config),
     { requestId: ctx.requestId },
     {
       onClosed: async (closed) => {

@@ -13,7 +13,8 @@ import {
   time,
   TimestampStyles,
 } from "discord.js";
-import { getGuildConfig } from "../../config/guild-config";
+import { getScopeConfig } from "../../config/guild-config";
+import { resolveScope, Scope } from "../../config/scope";
 import { scheduleScoutNotification, cancelScoutNotifications } from "../scout-scheduler";
 import { parseTimeToTimestamp } from "../../utils/time";
 import {
@@ -53,13 +54,13 @@ function targetMessageId(interaction: ButtonInteraction): string {
 async function openScoutOrReply(
   interaction: ButtonInteraction | ModalSubmitInteraction,
   messageId: string
-): Promise<{ guildId: string; request: ScoutRequest } | null> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+): Promise<{ scope: Scope; request: ScoutRequest } | null> {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return null;
   }
-  const request = getScoutRequestByMessageId(guildId, messageId);
+  const request = getScoutRequestByMessageId(scope, messageId);
   if (!request) {
     await interaction.reply({ content: errors.notFound("scout request"), flags: MessageFlags.Ephemeral });
     return null;
@@ -68,7 +69,7 @@ async function openScoutOrReply(
     await interaction.reply({ content: "⚠️ **This scout request is already done.**", flags: MessageFlags.Ephemeral });
     return null;
   }
-  return { guildId, request };
+  return { scope, request };
 }
 
 // --- I'm going ---
@@ -108,10 +109,10 @@ export async function handleScoutGoingModal(interaction: ModalSubmitInteraction)
   if (!ctx) return;
 
   const rawTime = interaction.fields.getTextInputValue(SCOUT_TIME_INPUT_ID).trim();
-  const config = getGuildConfig(ctx.guildId);
+  const config = getScopeConfig(ctx.scope);
   const arrivalAt = parseTimeToTimestamp(rawTime, config.serverTimezone) ?? undefined;
 
-  const updated = setScoutGoing(ctx.guildId, ctx.request.id, {
+  const updated = setScoutGoing(ctx.scope, ctx.request.id, {
     userId: interaction.user.id,
     displayName: interaction.user.displayName,
     arrivalAt,
@@ -123,7 +124,7 @@ export async function handleScoutGoingModal(interaction: ModalSubmitInteraction)
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  await updateScoutCard(interaction.client, ctx.guildId, updated);
+  await updateScoutCard(interaction.client, ctx.scope, updated);
 
   if (arrivalAt !== undefined) {
     scheduleScoutNotification(
@@ -131,7 +132,7 @@ export async function handleScoutGoingModal(interaction: ModalSubmitInteraction)
       {
         messageId,
         channelId: updated.channelId,
-        guildId: ctx.guildId,
+        guildId: ctx.scope.guildId,
         requesterId: updated.requesterId,
         goingUserId: interaction.user.id,
         goingUserName: interaction.user.displayName,
@@ -188,7 +189,7 @@ export async function handleScoutResultModal(interaction: ModalSubmitInteraction
   if (!ctx) return;
 
   const link = interaction.fields.getTextInputValue(SCOUT_REPORT_INPUT_ID);
-  const config = getGuildConfig(ctx.guildId);
+  const config = getScopeConfig(ctx.scope);
   if (!isValidReportLink(link, config.serverKey)) {
     const retry = new ButtonBuilder()
       .setCustomId(`${SCOUT_RESULT_BUTTON_ID}:${messageId}`)
@@ -203,7 +204,7 @@ export async function handleScoutResultModal(interaction: ModalSubmitInteraction
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const done = await completeScout(interaction.client, ctx.guildId, ctx.request, normalizeReportLink(link));
+  const done = await completeScout(interaction.client, ctx.scope, ctx.request, normalizeReportLink(link));
   await interaction.editReply({
     content: done ? "✅ Result saved. The card now links to the report." : errors.generic(),
   });
@@ -212,14 +213,14 @@ export async function handleScoutResultModal(interaction: ModalSubmitInteraction
 /** Mark a scout done (optionally with the report link), re-render, cancel reminders. */
 export async function completeScout(
   client: Client,
-  guildId: string,
+  scope: Scope,
   request: ScoutRequest,
   reportUrl?: string
 ): Promise<boolean> {
-  const done = markScoutDone(guildId, request.id, reportUrl);
+  const done = markScoutDone(scope, request.id, reportUrl);
   if (!done) return false;
   if (done.messageId) cancelScoutNotifications(done.messageId);
-  await updateScoutCard(client, guildId, done);
+  await updateScoutCard(client, scope, done);
   return true;
 }
 
@@ -235,5 +236,5 @@ export async function markScoutMessageAsDoneById(
   if (!client) return;
   const found = findScoutByMessageId(messageId);
   if (!found || found.request.status === "done") return;
-  await completeScout(client, found.guildId, found.request);
+  await completeScout(client, found.scope, found.request);
 }

@@ -1,4 +1,5 @@
-import { getGuildConfig, GuildConfig } from "../config/guild-config";
+import { getScopeConfig, GuildConfig } from "../config/guild-config";
+import { Scope } from "../config/scope";
 import { getPushRequestById, getPushRequestsByCoords } from "../services/push-requests";
 import { getAccountForUser } from "../services/player-accounts";
 import { parseCoords } from "../utils/parse-coords";
@@ -8,19 +9,19 @@ import { errors } from "./messages";
  * Result from push config validation - either valid context or error
  */
 export type PushConfigValidation =
-  | { valid: true; guildId: string; config: GuildConfig }
+  | { valid: true; guildId: string; scope: Scope; config: GuildConfig }
   | { valid: false; error: string };
 
 /**
  * Validates guild configuration for push actions.
  * Returns a validated context or an error message.
  */
-export function validatePushConfig(guildId: string | null): PushConfigValidation {
-  if (!guildId) {
+export function validatePushConfig(scope: Scope | null): PushConfigValidation {
+  if (!scope) {
     return { valid: false, error: errors.guildOnly() };
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
 
   if (!config.serverKey) {
     return {
@@ -36,7 +37,7 @@ export function validatePushConfig(guildId: string | null): PushConfigValidation
     };
   }
 
-  return { valid: true, guildId, config };
+  return { valid: true, guildId: scope.guildId, scope, config };
 }
 
 /**
@@ -72,11 +73,11 @@ export type PushTargetResolution =
 /**
  * Resolves a target string (ID or coordinates) to a push request ID.
  */
-export function resolvePushTarget(guildId: string, targetInput: string): PushTargetResolution {
+export function resolvePushTarget(scope: Scope, targetInput: string): PushTargetResolution {
   // Try coordinates first
   const coords = parseCoords(targetInput);
   if (coords) {
-    const matches = getPushRequestsByCoords(guildId, coords.x, coords.y);
+    const matches = getPushRequestsByCoords(scope, coords.x, coords.y);
     if (matches.length === 0) {
       return {
         success: false,
@@ -102,7 +103,7 @@ export function resolvePushTarget(guildId: string, targetInput: string): PushTar
     };
   }
 
-  const existingRequest = getPushRequestById(guildId, parsed);
+  const existingRequest = getPushRequestById(scope, parsed);
   if (!existingRequest) {
     return { success: false, error: errors.notFound("push request", parsed) };
   }

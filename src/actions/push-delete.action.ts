@@ -12,14 +12,14 @@ export async function executePushDeleteAction(
   context: ActionContext,
   input: PushDeleteActionInput
 ): Promise<PushDeleteActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { requestId } = input;
 
   const denied = checkPermission(context, "manage");
   if (denied) return { success: false, error: denied };
 
   // 1. Get request before deletion (deep copy for undo)
-  const request = getPushRequestById(guildId, requestId);
+  const request = getPushRequestById(scope, requestId);
   if (!request) {
     return { success: false, error: `Push request #${requestId} not found.` };
   }
@@ -35,7 +35,7 @@ export async function executePushDeleteAction(
   await deletePushChannel(client, request);
 
   // 4. Remove the request from data
-  const removed = removePushRequest(guildId, requestId);
+  const removed = removePushRequest(scope, requestId);
   if (!removed) {
     return { success: false, error: `Failed to delete push request #${requestId}.` };
   }

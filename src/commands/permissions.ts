@@ -5,6 +5,7 @@ import { buildActionContext } from "../actions/context";
 import { executePermissionChangeAction } from "../actions/permissions.action";
 import { buildPermissionSummary } from "../actions/permissions";
 import { guildCommand, requireGuild } from "./shared";
+import { mainScope } from "../config/scope";
 
 const PERMISSION_CHOICES: { name: string; value: Permission }[] = [
   { name: "request: create stack, defense, push and scout requests", value: "request" },
@@ -58,7 +59,8 @@ export const permissionsCommand: Command = {
     const permission = interaction.options.getString("permission", true) as Permission;
     const roleId = interaction.options.getRole("role", true).id;
     const result = executePermissionChangeAction(
-      buildActionContext(interaction, guildId, config),
+      // Permissions are guild-wide
+      buildActionContext(interaction, mainScope(guildId), config),
       subcommand === "add" ? { permission, add: roleId } : { permission, remove: roleId }
     );
     await interaction.reply({

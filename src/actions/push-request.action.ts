@@ -19,7 +19,7 @@ export async function executePushRequestAction(
   context: ActionContext,
   input: PushRequestActionInput
 ): Promise<PushRequestActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { coords: coordsInput, resourcesNeeded } = input;
 
   const denied = checkPermission(context, "request");
@@ -52,16 +52,16 @@ export async function executePushRequestAction(
   const village = await getVillageAt(config.serverKey!, x, y);
 
   // 5. Add the request
-  const result = addPushRequest(guildId, x, y, resourcesNeeded, userId, accountName);
+  const result = addPushRequest(scope, x, y, resourcesNeeded, userId, accountName);
   if ("error" in result) {
     return { success: false, error: result.error };
   }
 
   // 6. Create the push channel
-  const channelResult = await createPushThread(client, guildId, result.request, result.requestId);
+  const channelResult = await createPushThread(client, scope, result.request, result.requestId);
 
   // 7. Record the action for undo
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "PUSH_REQUEST_ADD",
     userId,
     coords: { x, y },

@@ -21,6 +21,7 @@ import { confirmationEdit, asConfirm, errors, failReply, failEdit } from "../act
 import { stackChoiceLabel, filterChoices } from "../utils/choices";
 import { guildCommand } from "./shared";
 import { buildActionContext } from "../actions/context";
+import { resolveScope, Scope } from "../config/scope";
 
 export const stackCommand: Command = {
   topic: "defense",
@@ -95,13 +96,13 @@ export const stackCommand: Command = {
     .addSubcommand((sub) => sub.setName("list").setDescription("Re-post the queue panel")),
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
-    const guildId = interaction.guildId;
-    if (!guildId) {
+    const scope = await resolveScope(interaction);
+    if (!scope) {
       await interaction.respond([]);
       return;
     }
     const focused = interaction.options.getFocused(true);
-    const choices = await stackRequestChoices(guildId);
+    const choices = await stackRequestChoices(scope);
     const filtered = filterChoices(choices, String(focused.value));
     if (focused.name === "target") {
       await interaction.respond(filtered.map((c) => ({ name: c.name, value: c.value })));
@@ -111,13 +112,13 @@ export const stackCommand: Command = {
   },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const validation = validateDefenseConfig(interaction.guildId);
+    const validation = validateDefenseConfig(await resolveScope(interaction));
     if (!validation.valid) {
       await interaction.reply(failReply(validation.error, interaction));
       return;
     }
-    const context = buildActionContext(interaction, validation.guildId, validation.config);
-    const panelUrl = () => getStackPanelUrl(validation.guildId);
+    const context = buildActionContext(interaction, validation.scope, validation.config);
+    const panelUrl = () => getStackPanelUrl(validation.scope);
 
     switch (interaction.options.getSubcommand()) {
       case "request": {
@@ -148,7 +149,7 @@ export const stackCommand: Command = {
         const note = interaction.options.getString("note") ?? undefined;
 
         if (troopsSent === undefined && troopsNeeded === undefined && note === undefined) {
-          const editor = await buildStackEditor(validation.guildId, requestId);
+          const editor = await buildStackEditor(validation.scope, requestId);
           await interaction.reply(
             editor
               ? { ...editor, flags: MessageFlags.Ephemeral }
@@ -181,7 +182,7 @@ export const stackCommand: Command = {
       }
       case "list": {
         await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
-        await updateGlobalMessage(interaction.client, validation.guildId);
+        await updateGlobalMessage(interaction.client, validation.scope);
         await interaction.editReply(
           confirmationEdit("✅ Queue panel re-posted.", { panelUrl: panelUrl() })
         );
@@ -209,10 +210,10 @@ async function reply(interaction: ChatInputCommandInteraction, result: Outcome, 
 }
 
 /** Open queue requests as `{ name, value }` choices, in priority order. */
-export async function stackRequestChoices(guildId: string): Promise<{ name: string; value: string }[]> {
-  const validation = validateDefenseConfig(guildId);
+export async function stackRequestChoices(scope: Scope): Promise<{ name: string; value: string }[]> {
+  const validation = validateDefenseConfig(scope);
   if (!validation.valid) return [];
-  const requests = getAllRequests(guildId);
+  const requests = getAllRequests(scope);
   const choices: { name: string; value: string }[] = [];
   for (let i = 0; i < requests.length; i++) {
     const request = requests[i];

@@ -19,7 +19,7 @@ import { executePushTransferAction } from "../actions/push-transfer.action";
 import { getPushLeaderboard, getPlayerPushStats, editGlobalStats, transferGlobalStats } from "../services/push-stats";
 import { getPushRequestByChannelId } from "../services/push-requests";
 import { getVillageAt, formatVillageDisplay } from "../services/map-data";
-import { getGuildConfig } from "../config/guild-config";
+import { getGuildConfig, getScopeConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
 import { requireAdmin } from "../utils/permissions";
 import { guildCommand } from "./shared";
@@ -27,6 +27,7 @@ import { formatResources } from "../utils/format";
 import { errors, failReply, failEdit } from "../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../actions/messages";
 import { buildActionContext } from "../actions/context";
+import { resolveScope } from "../config/scope";
 
 export const pushCommand: Command = {
   topic: "pushes",
@@ -224,13 +225,13 @@ export const pushCommand: Command = {
 
     // Stats group uses global leaderboard for autocomplete
     if (subcommandGroup === "stats" && (focusedOption.name === "name" || focusedOption.name === "player" || focusedOption.name === "from")) {
-      const guildId = interaction.guildId;
-      if (!guildId) {
+      const scope = await resolveScope(interaction);
+      if (!scope) {
         await interaction.respond([]);
         return;
       }
 
-      const leaderboard = getPushLeaderboard(guildId);
+      const leaderboard = getPushLeaderboard(scope);
       const searchValue = focusedOption.value.toLowerCase();
 
       // Filter and limit to 25 results (Discord's max)
@@ -245,14 +246,14 @@ export const pushCommand: Command = {
       await interaction.respond(filtered);
     } else if (subcommandGroup === "contributor" && (focusedOption.name === "player" || focusedOption.name === "from")) {
       // Contributor group uses current push channel contributors
-      const guildId = interaction.guildId;
-      if (!guildId) {
+      const scope = await resolveScope(interaction);
+      if (!scope) {
         await interaction.respond([]);
         return;
       }
 
       const channelId = interaction.channelId;
-      const requestData = getPushRequestByChannelId(guildId, channelId);
+      const requestData = getPushRequestByChannelId(scope, channelId);
       if (!requestData) {
         await interaction.respond([]);
         return;
@@ -278,7 +279,7 @@ export const pushCommand: Command = {
 
 async function handleRequest(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -293,7 +294,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
 
   // 4. Execute action
   const result = await executePushRequestAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       coords: coordsInput,
       resourcesNeeded,
@@ -317,7 +318,7 @@ async function handleRequest(interaction: ChatInputCommandInteraction): Promise<
 
 async function handleSent(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -325,7 +326,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 2. Get request from channel context
   const channelId = interaction.channelId;
-  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  const requestData = getPushRequestByChannelId(validation.scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("push"),
@@ -343,7 +344,7 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 5. Execute action
   const result = await executePushSentAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       target: requestData.requestId.toString(),
       resources,
@@ -364,12 +365,12 @@ async function handleSent(interaction: ChatInputCommandInteraction): Promise<voi
 
 /** Close = the requester or a manager archives the thread; the data stays. */
 async function handleClose(interaction: ChatInputCommandInteraction): Promise<void> {
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
   }
-  const requestData = getPushRequestByChannelId(validation.guildId, interaction.channelId);
+  const requestData = getPushRequestByChannelId(validation.scope, interaction.channelId);
   if (!requestData) {
     await interaction.reply({ content: errors.notInThread("push"), flags: MessageFlags.Ephemeral });
     return;
@@ -377,7 +378,7 @@ async function handleClose(interaction: ChatInputCommandInteraction): Promise<vo
 
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const result = await executePushCloseAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     { requestId: requestData.requestId },
     {
       onClosed: async (closed) => {
@@ -394,7 +395,7 @@ async function handleClose(interaction: ChatInputCommandInteraction): Promise<vo
 
 async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -402,7 +403,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
   // 2. Get request from channel context
   const channelId = interaction.channelId;
-  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  const requestData = getPushRequestByChannelId(validation.scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("push"),
@@ -416,7 +417,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
   // 4. Execute action
   const result = await executePushDeleteAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       requestId: requestData.requestId,
     }
@@ -437,7 +438,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
 async function handleEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -445,7 +446,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 2. Get request from channel context
   const channelId = interaction.channelId;
-  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  const requestData = getPushRequestByChannelId(validation.scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("push"),
@@ -462,7 +463,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
 
   // 5. Execute action
   const result = await executePushEditAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       requestId: requestData.requestId,
       resourcesNeeded,
@@ -482,7 +483,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
 
 async function handleContributorEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -490,7 +491,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
 
   // 2. Get request from channel context
   const channelId = interaction.channelId;
-  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  const requestData = getPushRequestByChannelId(validation.scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("push"),
@@ -508,7 +509,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
 
   // 5. Execute action
   const result = await executePushEditContributionAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       requestId: requestData.requestId,
       accountName: playerName,
@@ -529,7 +530,7 @@ async function handleContributorEdit(interaction: ChatInputCommandInteraction): 
 
 async function handleContributorTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
   // 1. Validate configuration
-  const validation = validatePushConfig(interaction.guildId);
+  const validation = validatePushConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -537,7 +538,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
 
   // 2. Get request from channel context
   const channelId = interaction.channelId;
-  const requestData = getPushRequestByChannelId(validation.guildId, channelId);
+  const requestData = getPushRequestByChannelId(validation.scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("push"),
@@ -555,7 +556,7 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
 
   // 5. Execute action
   const result = await executePushTransferAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       requestId: requestData.requestId,
       fromAccount,
@@ -575,15 +576,15 @@ async function handleContributorTransfer(interaction: ChatInputCommandInteractio
 }
 
 async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
 
   await withRetry(() => interaction.deferReply());
 
-  const leaderboard = getPushLeaderboard(guildId);
+  const leaderboard = getPushLeaderboard(scope);
 
   if (leaderboard.length === 0) {
     await interaction.editReply({ content: "No push stats." });
@@ -610,8 +611,8 @@ async function handleStatsLeaderboard(interaction: ChatInputCommandInteraction):
 }
 
 async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -620,14 +621,14 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
 
   await withRetry(() => interaction.deferReply());
 
-  const stats = getPlayerPushStats(guildId, playerName);
+  const stats = getPlayerPushStats(scope, playerName);
 
   if (!stats) {
     await interaction.editReply({ content: `No push stats for player **${playerName}**.` });
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
 
   const embed = new EmbedBuilder()
     .setTitle(`Push stats: ${stats.accountName}`)
@@ -660,8 +661,8 @@ async function handleStatsPlayer(interaction: ChatInputCommandInteraction): Prom
 }
 
 async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -671,7 +672,7 @@ async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promis
 
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
-  const result = editGlobalStats(guildId, playerName, newAmount);
+  const result = editGlobalStats(scope, playerName, newAmount);
 
   if (!result.success) {
     await interaction.editReply(failEdit(result.error!, interaction));
@@ -685,8 +686,8 @@ async function handleStatsEdit(interaction: ChatInputCommandInteraction): Promis
 }
 
 async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -696,7 +697,7 @@ async function handleStatsTransfer(interaction: ChatInputCommandInteraction): Pr
 
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
-  const result = transferGlobalStats(guildId, fromAccount, toAccount);
+  const result = transferGlobalStats(scope, fromAccount, toAccount);
 
   if (!result.success) {
     await interaction.editReply(failEdit(result.error!, interaction));

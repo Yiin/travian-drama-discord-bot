@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DefCallRequest } from "../def-calls";
 
 vi.mock("../../config/guild-config", () => ({
-  getGuildConfig: () => ({ defCallsChannelId: "parent", serverKey: "ts33.x3.international" }),
+  getScopeConfig: () => ({ defCallsChannelId: "parent", serverKey: "ts33.x3.international" }),
 }));
 vi.mock("../map-data", () => ({
   getVillageAt: vi.fn().mockResolvedValue(null),
@@ -42,7 +42,7 @@ it("removes the starter when thread creation fails", async () => {
   const { client, starter, thread } = setup();
   const error = new Error("Missing Access");
   starter.startThread.mockRejectedValue(error);
-  await expect(createDefCallThread(client, "guild", request, 1)).rejects.toBe(error);
+  await expect(createDefCallThread(client, { guildId: "guild" }, request, 1)).rejects.toBe(error);
   expect(starter.delete).toHaveBeenCalledOnce();
   expect(thread.delete).not.toHaveBeenCalled();
   expect(updateChannelInfo).not.toHaveBeenCalled();
@@ -53,7 +53,7 @@ it("removes both the thread and starter when card sending fails", async () => {
   const { client, starter, thread } = setup();
   const error = new Error("Cannot send card");
   thread.send.mockRejectedValue(error);
-  await expect(createDefCallThread(client, "guild", request, 1)).rejects.toBe(error);
+  await expect(createDefCallThread(client, { guildId: "guild" }, request, 1)).rejects.toBe(error);
   expect(thread.delete).toHaveBeenCalledOnce();
   expect(starter.delete).toHaveBeenCalledOnce();
   expect(updateChannelInfo).not.toHaveBeenCalled();
@@ -67,7 +67,7 @@ it("tries both deletions and preserves the creation error when cleanup fails", a
   thread.send.mockRejectedValue(error);
   thread.delete.mockRejectedValue(threadError);
   starter.delete.mockRejectedValue(starterError);
-  await expect(createDefCallThread(client, "guild", request, 1)).rejects.toBe(error);
+  await expect(createDefCallThread(client, { guildId: "guild" }, request, 1)).rejects.toBe(error);
   expect(thread.delete).toHaveBeenCalledOnce();
   expect(starter.delete).toHaveBeenCalledOnce();
   expect(console.error).toHaveBeenCalledWith(expect.any(String), threadError);

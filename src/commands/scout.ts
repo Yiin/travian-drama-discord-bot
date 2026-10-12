@@ -1,15 +1,16 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig } from "../config/guild-config";
+import { getGuildConfig, getScopeConfig } from "../config/guild-config";
 import { withRetry } from "../utils/retry";
 import { executeScoutAction, sendScoutMessage } from "../actions";
 import { errors, confirmationEdit, messageUrl, failEdit, failReply } from "../actions/messages";
-import { guildCommand, requireGuild } from "./shared";
+import { guildCommand, requireScope } from "./shared";
 import { getOpenScoutRequests, getScoutRequest, formatScoutId } from "../services/scout-requests";
 import { getVillageAt } from "../services/map-data";
 import { completeScout } from "../services/button-handlers/scout";
 import { isValidReportLink, normalizeReportLink } from "../utils/report-link";
 import { buildActionContext } from "../actions/context";
+import { resolveScope, Scope } from "../config/scope";
 
 export const scoutCommand: Command = {
   topic: "scouting",
@@ -39,17 +40,17 @@ export const scoutCommand: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const guildId = await requireGuild(interaction);
-    if (!guildId) return;
+    const scope = await requireScope(interaction);
+    if (!scope) return;
 
-    const config = getGuildConfig(guildId);
+    const config = getScopeConfig(scope);
     if (!config.serverKey) {
       await interaction.reply(failReply(errors.notSetUp(), interaction));
       return;
     }
 
     if (interaction.options.getSubcommand() === "result") {
-      await handleResult(interaction, guildId, config.serverKey);
+      await handleResult(interaction, scope, config.serverKey);
       return;
     }
 
@@ -64,7 +65,7 @@ export const scoutCommand: Command = {
     await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     const result = await executeScoutAction(
-      buildActionContext(interaction, guildId, config),
+      buildActionContext(interaction, scope, config),
       { coords: coordsInput, message: note, requesterId: interaction.user.id, scoutRoleId: config.scoutRoleId }
     );
 
@@ -73,7 +74,7 @@ export const scoutCommand: Command = {
       return;
     }
 
-    const posted = await sendScoutMessage(interaction.client, guildId, config.scoutChannelId, {
+    const posted = await sendScoutMessage(interaction.client, scope, config.scoutChannelId, {
       ...result,
       message: note,
       requesterId: interaction.user.id,
@@ -89,21 +90,21 @@ export const scoutCommand: Command = {
     await interaction.editReply(
       confirmationEdit(`✅ Scout request #${formatScoutId(request.id)} posted for ${result.villageDisplay}.`, {
         actionId,
-        panelUrl: request.messageId ? messageUrl(guildId, config.scoutChannelId, request.messageId) : undefined,
+        panelUrl: request.messageId ? messageUrl(scope.guildId, config.scoutChannelId, request.messageId) : undefined,
         panelLabel: "Open card",
       })
     );
   },
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
-    const guildId = interaction.guildId;
-    if (!guildId) {
+    const scope = await resolveScope(interaction);
+    if (!scope) {
       await interaction.respond([]);
       return;
     }
-    const config = getGuildConfig(guildId);
+    const config = getScopeConfig(scope);
     const typed = interaction.options.getFocused().toLowerCase();
-    const open = getOpenScoutRequests(guildId).slice(-25).reverse();
+    const open = getOpenScoutRequests(scope).slice(-25).reverse();
     const choices = [];
     for (const request of open) {
       const village = config.serverKey ? await getVillageAt(config.serverKey, request.x, request.y) : null;
@@ -116,9 +117,9 @@ export const scoutCommand: Command = {
   },
 };
 
-async function handleResult(interaction: ChatInputCommandInteraction, guildId: string, serverKey: string): Promise<void> {
+async function handleResult(interaction: ChatInputCommandInteraction, scope: Scope, serverKey: string): Promise<void> {
   const id = parseInt(interaction.options.getString("target", true).replace(/^#?S/i, ""), 10);
-  const request = Number.isFinite(id) ? getScoutRequest(guildId, id) : undefined;
+  const request = Number.isFinite(id) ? getScoutRequest(scope, id) : undefined;
   if (!request) {
     await interaction.reply({ content: errors.notFound("scout request"), flags: MessageFlags.Ephemeral });
     return;
@@ -137,7 +138,7 @@ async function handleResult(interaction: ChatInputCommandInteraction, guildId: s
   }
 
   await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
-  const done = await completeScout(interaction.client, guildId, request, normalizeReportLink(link));
+  const done = await completeScout(interaction.client, scope, request, normalizeReportLink(link));
   await interaction.editReply({
     content: done ? `✅ Result saved for #${formatScoutId(request.id)}. The card now links to the report.` : errors.generic(),
   });

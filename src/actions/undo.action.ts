@@ -34,11 +34,11 @@ export async function executeUndoAction(
   context: ActionContext,
   input: UndoActionInput
 ): Promise<UndoActionResult> {
-  const { guildId, client, userId } = context;
+  const { guildId, scope, client, userId } = context;
   const { actionId } = input;
 
   // 1. Get the action to show what we're undoing
-  const action = getAction(guildId, actionId);
+  const action = getAction(scope, actionId);
   if (!action) {
     return { success: false, error: `Action #${actionId} was not found.` };
   }
@@ -46,7 +46,7 @@ export async function executeUndoAction(
   if (denied) return { success: false, error: denied };
 
   // 2. Perform the undo
-  const result = performUndo(guildId, actionId);
+  const result = performUndo(scope, actionId);
   if (!result.success) {
     return { success: false, error: result.message };
   }
@@ -54,7 +54,7 @@ export async function executeUndoAction(
   // 3. Reverse stats contribution if this was a TROOPS_SENT action
   if (action.type === "TROOPS_SENT" && action.data.troops && action.data.contributorId) {
     removeContribution(
-      guildId,
+      scope,
       action.data.contributorId,
       action.coords.x,
       action.coords.y,
@@ -65,7 +65,7 @@ export async function executeUndoAction(
   // 3b. Reverse push stats contribution if this was a PUSH_RESOURCES_SENT action
   if (action.type === "PUSH_RESOURCES_SENT" && action.data.resources && action.data.contributorAccount) {
     removePushContribution(
-      guildId,
+      scope,
       action.data.contributorAccount,
       action.coords.x,
       action.coords.y,
@@ -76,7 +76,7 @@ export async function executeUndoAction(
   // 3c. Reverse stats contribution if this was a DEF_CALL_TROOPS_SENT action
   if (action.type === "DEF_CALL_TROOPS_SENT" && action.data.troops) {
     removeContribution(
-      guildId,
+      scope,
       action.data.contributorId ?? action.userId,
       action.coords.x,
       action.coords.y,
@@ -87,7 +87,7 @@ export async function executeUndoAction(
   // 3d. Reverse a manual stats adjustment
   if (action.type === "STATS_ADJUST" && action.data.troops && action.data.contributorId) {
     recordContribution(
-      guildId,
+      scope,
       action.data.contributorId,
       action.coords.x,
       action.coords.y,
@@ -97,34 +97,34 @@ export async function executeUndoAction(
 
   // 4. Update the appropriate message/channel based on action type
   if (isDefCallAction(action)) {
-    const request = getDefCallRequestById(guildId, result.requestId ?? action.requestId);
+    const request = getDefCallRequestById(scope, result.requestId ?? action.requestId);
     if (request && request.channelId) {
       if (request.closed) {
-        cancelLanding(guildId, request.id);
-        await updateDefCallCard(client, guildId, request);
+        cancelLanding(scope, request.id);
+        await updateDefCallCard(client, scope, request);
         await archiveDefCallThread(client, request);
       } else {
         await unarchiveDefCallThread(client, request);
-        await updateDefCallCard(client, guildId, request);
-        scheduleLanding(client, guildId, request);
+        await updateDefCallCard(client, scope, request);
+        scheduleLanding(client, scope, request);
       }
     }
-    await refreshHubChannel(client, guildId);
+    await refreshHubChannel(client, scope);
   } else if (isPushAction(action)) {
-    const request = getPushRequestById(guildId, result.requestId ?? action.requestId);
+    const request = getPushRequestById(scope, result.requestId ?? action.requestId);
     if (request && request.channelId) {
       if (request.closed) {
-        await updatePushCard(client, guildId, request);
+        await updatePushCard(client, scope, request);
         await archivePushThread(client, request);
       } else {
         await unarchivePushThread(client, request);
-        await updatePushCard(client, guildId, request);
+        await updatePushCard(client, scope, request);
       }
     }
   } else if (isScoutAction(action)) {
     await deleteScoutCard(client, action.data.channelIdForCard, action.data.messageId);
   } else if (!isStatsAction(action)) {
-    await updateGlobalMessage(client, guildId);
+    await updateGlobalMessage(client, scope);
   }
 
   // 5. Get description of what was undone

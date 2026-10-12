@@ -1,18 +1,31 @@
 import { BaseInteraction, GuildMember } from "discord.js";
-import { GuildConfig } from "../config/guild-config";
+import { getScopeConfig, GuildConfig } from "../config/guild-config";
+import { resolveScope, Scope } from "../config/scope";
 import { isAdministratorOrOwner } from "../utils/permissions";
 import { ActionContext } from "./types";
 
 /** The one way every surface builds an `ActionContext` from an interaction. */
-export function buildActionContext(interaction: BaseInteraction, guildId: string, config: GuildConfig): ActionContext {
+export function buildActionContext(interaction: BaseInteraction, scope: Scope, config: GuildConfig): ActionContext {
+  const guildId = scope.guildId;
   return {
     guildId,
+    scope,
     config,
     client: interaction.client,
     userId: interaction.user.id,
     roleIds: memberRoleIds(interaction.member, guildId),
     isAdministrator: isAdministratorOrOwner(interaction),
   };
+}
+
+/**
+ * Context for the confed of the channel the interaction came from.
+ * Null outside a guild.
+ */
+export async function resolveActionContext(interaction: BaseInteraction): Promise<ActionContext | null> {
+  const scope = await resolveScope(interaction);
+  if (!scope) return null;
+  return buildActionContext(interaction, scope, getScopeConfig(scope));
 }
 
 /**

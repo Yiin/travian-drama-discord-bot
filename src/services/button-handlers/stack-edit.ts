@@ -13,7 +13,7 @@ import {
   StringSelectMenuOptionBuilder,
   StringSelectMenuInteraction,
 } from "discord.js";
-import { getGuildConfig } from "../../config/guild-config";
+import { getScopeConfig } from "../../config/guild-config";
 import { getRequestById, getAllRequests, getRequestPosition } from "../defense-requests";
 import { getVillageAt, formatVillageDisplay } from "../map-data";
 import { formatTroops } from "../../utils/format";
@@ -23,6 +23,7 @@ import { buildActionContext } from "../../actions/context";
 import { checkPermission } from "../../actions/permissions";
 import { executeDeleteDefAction, executeMoveAction, executeUpdateDefAction } from "../../actions";
 import { stackChoiceLabel } from "../../utils/choices";
+import { resolveScope, Scope } from "../../config/scope";
 
 // Button IDs (prefixes - actual IDs carry the stable request id, like "stack_up:41")
 export const STACK_UP_PREFIX = "stack_up";
@@ -100,13 +101,13 @@ function buildConfirmDeleteButtons(
 
 /** Ephemeral editor payload for one request: summary text plus Up/Down/Edit/Delete. */
 export async function buildStackEditor(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): Promise<{ content: string; components: ActionRowBuilder<ButtonBuilder>[] } | null> {
-  const config = getGuildConfig(guildId);
-  const request = getRequestById(guildId, requestId);
-  const position = getRequestPosition(guildId, requestId);
-  const totalRequests = getAllRequests(guildId).length;
+  const config = getScopeConfig(scope);
+  const request = getRequestById(scope, requestId);
+  const position = getRequestPosition(scope, requestId);
+  const totalRequests = getAllRequests(scope).length;
 
   if (!request || !position) {
     return null;
@@ -140,10 +141,11 @@ export async function buildStackEditor(
   };
 }
 
-async function guildIdOrReply(
+async function scopeOrReply(
   interaction: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction
-): Promise<string | null> {
-  if (interaction.guildId) return interaction.guildId;
+): Promise<Scope | null> {
+  const scope = await resolveScope(interaction);
+  if (scope) return scope;
   await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
   return null;
 }
@@ -156,18 +158,18 @@ async function requestIdOrReply(interaction: ButtonInteraction | ModalSubmitInte
 }
 
 async function moveByOffset(interaction: ButtonInteraction, offset: -1 | 1): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
-  const position = getRequestPosition(guildId, requestId);
+  const position = getRequestPosition(scope, requestId);
   if (!position) {
     await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const total = getAllRequests(guildId).length;
+  const total = getAllRequests(scope).length;
   const target = position + offset;
   if (target < 1 || target > total) {
     await interaction.reply({
@@ -179,14 +181,14 @@ async function moveByOffset(interaction: ButtonInteraction, offset: -1 | 1): Pro
 
   await interaction.deferUpdate();
 
-  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const context = buildActionContext(interaction, scope, getScopeConfig(scope));
   const result = await executeMoveAction(context, { requestId, toPosition: target });
   if (!result.success) {
     await interaction.followUp(failReply(result.error, interaction));
     return;
   }
 
-  const editor = await buildStackEditor(guildId, requestId);
+  const editor = await buildStackEditor(scope, requestId);
   await interaction.editReply(editor ?? { content: errors.notFound("request", requestId), components: [] });
 }
 
@@ -201,17 +203,17 @@ export async function handleStackDownButton(interaction: ButtonInteraction): Pro
 export async function handleStackEditButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
-  const request = getRequestById(guildId, requestId);
+  const request = getRequestById(scope, requestId);
   if (!request) {
     await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
-  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const context = buildActionContext(interaction, scope, getScopeConfig(scope));
   const denied = checkPermission(context, "manage", request.requesterId);
   if (denied) {
     await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
@@ -255,12 +257,12 @@ export async function handleStackEditButton(
 export async function handleStackEditModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
-  const request = getRequestById(guildId, requestId);
+  const request = getRequestById(scope, requestId);
   if (!request) {
     await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
@@ -277,14 +279,14 @@ export async function handleStackEditModal(
 
   await interaction.deferUpdate();
 
-  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const context = buildActionContext(interaction, scope, getScopeConfig(scope));
   const result = await executeUpdateDefAction(context, { requestId, troopsNeeded, message });
   if (!result.success) {
     await interaction.followUp(failReply(result.error, interaction));
     return;
   }
 
-  const editor = await buildStackEditor(guildId, requestId);
+  const editor = await buildStackEditor(scope, requestId);
   if (!editor) {
     await interaction.editReply({
       content: `✅ Request #${requestId} is complete (${formatTroops(result.request.troopsSent)} / ${formatTroops(troopsNeeded)}).`,
@@ -302,18 +304,18 @@ export async function handleStackEditModal(
 export async function handleStackDeleteButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
-  const editor = await buildStackEditor(guildId, requestId);
-  const request = getRequestById(guildId, requestId);
+  const editor = await buildStackEditor(scope, requestId);
+  const request = getRequestById(scope, requestId);
   if (!editor || !request) {
     await interaction.reply({ content: errors.notFound("request", requestId), flags: MessageFlags.Ephemeral });
     return;
   }
-  const denied = checkPermission(buildActionContext(interaction, guildId, getGuildConfig(guildId)), "manage", request.requesterId);
+  const denied = checkPermission(buildActionContext(interaction, scope, getScopeConfig(scope)), "manage", request.requesterId);
   if (denied) {
     await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
@@ -329,14 +331,14 @@ export async function handleStackDeleteButton(
 export async function handleStackConfirmDelete(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
   await interaction.deferUpdate();
 
-  const context = buildActionContext(interaction, guildId, getGuildConfig(guildId));
+  const context = buildActionContext(interaction, scope, getScopeConfig(scope));
   const result = await executeDeleteDefAction(context, { requestId });
   if (!result.success) {
     await interaction.followUp(failReply(result.error, interaction));
@@ -346,7 +348,7 @@ export async function handleStackConfirmDelete(
   await interaction.editReply(
     confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
       actionId: result.actionId,
-      panelUrl: getStackPanelUrl(guildId),
+      panelUrl: getStackPanelUrl(scope),
     })
   );
 }
@@ -354,14 +356,14 @@ export async function handleStackConfirmDelete(
 export async function handleStackCancelDelete(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = await requestIdOrReply(interaction);
   if (!requestId) return;
 
   await interaction.deferUpdate();
 
-  const editor = await buildStackEditor(guildId, requestId);
+  const editor = await buildStackEditor(scope, requestId);
   await interaction.editReply(editor ?? { content: errors.notFound("request", requestId), components: [] });
 }
 
@@ -372,10 +374,10 @@ export const STACK_PICK_SELECT_ID = "stack_pick_edit";
 
 /** Panel Edit button: one request opens the editor; several show a picker first. */
 export async function handleStackPanelEditButton(interaction: ButtonInteraction): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
 
-  const requests = getAllRequests(guildId);
+  const requests = getAllRequests(scope);
   if (requests.length === 0) {
     await interaction.reply({
       content: "⚠️ **There are no open stack requests.** Press **Request stack** to add one.",
@@ -385,22 +387,22 @@ export async function handleStackPanelEditButton(interaction: ButtonInteraction)
   }
 
   if (requests.length === 1) {
-    const editor = await buildStackEditor(guildId, requests[0].id);
+    const editor = await buildStackEditor(scope, requests[0].id);
     await interaction.reply({ ...(editor ?? { content: errors.generic(), components: [] }), flags: MessageFlags.Ephemeral });
     return;
   }
 
   await interaction.reply({
     content: "Pick the request to edit:",
-    components: [await buildStackPicker(guildId)],
+    components: [await buildStackPicker(scope)],
     flags: MessageFlags.Ephemeral,
   });
 }
 
-async function buildStackPicker(guildId: string): Promise<ActionRowBuilder<StringSelectMenuBuilder>> {
-  const config = getGuildConfig(guildId);
+async function buildStackPicker(scope: Scope): Promise<ActionRowBuilder<StringSelectMenuBuilder>> {
+  const config = getScopeConfig(scope);
   const options: StringSelectMenuOptionBuilder[] = [];
-  const requests = getAllRequests(guildId).slice(0, 25);
+  const requests = getAllRequests(scope).slice(0, 25);
   for (let i = 0; i < requests.length; i++) {
     const request = requests[i];
     const village = config.serverKey ? await getVillageAt(config.serverKey, request.x, request.y) : null;
@@ -419,9 +421,9 @@ async function buildStackPicker(guildId: string): Promise<ActionRowBuilder<Strin
 }
 
 export async function handleStackPickSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  const guildId = await guildIdOrReply(interaction);
-  if (!guildId) return;
+  const scope = await scopeOrReply(interaction);
+  if (!scope) return;
   const requestId = parseInt(interaction.values[0] ?? "", 10);
-  const editor = Number.isFinite(requestId) ? await buildStackEditor(guildId, requestId) : null;
+  const editor = Number.isFinite(requestId) ? await buildStackEditor(scope, requestId) : null;
   await interaction.update(editor ?? { content: errors.notFound("request", requestId), components: [] });
 }

@@ -5,10 +5,11 @@ import {
   ButtonStyle,
   MessageFlags,
 } from "discord.js";
-import { getGuildConfig } from "../../config/guild-config";
+import { getGuildConfig , getScopeConfig } from "../../config/guild-config";
 import { executeUndoAction } from "../../actions/undo.action";
 import { errors, UNDO_BUTTON_PREFIX, failReply } from "../../actions/messages";
 import { buildActionContext } from "../../actions/context";
+import { resolveScope } from "../../config/scope";
 
 export { UNDO_BUTTON_PREFIX };
 
@@ -17,8 +18,8 @@ export { UNDO_BUTTON_PREFIX };
  * On success the confirmation is rewritten to "↩️ Undone." with the button disabled.
  */
 export async function handleUndoButton(interaction: ButtonInteraction): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -32,7 +33,7 @@ export async function handleUndoButton(interaction: ButtonInteraction): Promise<
   await interaction.deferUpdate();
 
   const result = await executeUndoAction(
-    buildActionContext(interaction, guildId, getGuildConfig(guildId)),
+    buildActionContext(interaction, scope, getScopeConfig(scope)),
     { actionId }
   );
 

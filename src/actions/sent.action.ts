@@ -21,18 +21,18 @@ export async function executeSentAction(
   context: ActionContext,
   input: SentActionInput
 ): Promise<SentActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { target, troops, creditUserId } = input;
 
   // 1. Resolve target to request ID
-  const targetResult = resolveTarget(guildId, target);
+  const targetResult = resolveTarget(scope, target);
   if (!targetResult.success) {
     return { success: false, error: targetResult.error };
   }
   const { requestId } = targetResult;
 
   // 2. Snapshot request before modification (for undo)
-  const requestBefore = getRequestById(guildId, requestId);
+  const requestBefore = getRequestById(scope, requestId);
   if (!requestBefore) {
     return { success: false, error: `Request #${requestId} not found.` };
   }
@@ -42,16 +42,16 @@ export async function executeSentAction(
   };
 
   // 3. Perform the operation
-  const result = reportTroopsSent(guildId, requestId, creditUserId, troops);
+  const result = reportTroopsSent(scope, requestId, creditUserId, troops);
   if ("error" in result) {
     return { success: false, error: result.error };
   }
 
   // 4. Record contribution to stats
-  recordContribution(guildId, creditUserId, snapshot.x, snapshot.y, troops);
+  recordContribution(scope, creditUserId, snapshot.x, snapshot.y, troops);
 
   // 5. Record action for undo support
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "TROOPS_SENT",
     userId,
     coords: { x: snapshot.x, y: snapshot.y },
@@ -90,7 +90,7 @@ export async function executeSentAction(
 
   // 8. Update global message
   const lastAction: LastActionInfo = { text: actionText, undoId: actionId };
-  await updateGlobalMessage(client, guildId, lastAction);
+  await updateGlobalMessage(client, scope, lastAction);
 
   return {
     success: true,

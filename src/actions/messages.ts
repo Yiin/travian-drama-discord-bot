@@ -76,6 +76,22 @@ export const errors = {
   channelGone: (kind: ChannelKind) =>
     `⚠️ **The ${CHANNEL_LABEL[kind]} channel no longer exists.** An admin can pick a new one with ${cmd("setup channel")}.`,
 
+  channelOutsideConfed: (channelId: string, confedName: string, categoryId: string) =>
+    `⚠️ **<#${channelId}> is not in the ${confedName} category.** Pick a channel inside <#${categoryId}>, or move the channel there first.`,
+
+  channelInOtherConfed: (channelId: string, confedName: string) =>
+    `⚠️ **<#${channelId}> belongs to the ${confedName} confed.** Pick a channel outside the confed categories.`,
+
+  categoryTaken: (confedName: string) =>
+    `⚠️ **That category already belongs to the ${confedName} confed.** Pick another category, or remove ${confedName} with ${cmd("setup confed remove")}.`,
+
+  categoryHoldsMainChannels: (channelIds: string[]) =>
+    `⚠️ **The main confed uses channels in that category:** ${channelIds.map((id) => `<#${id}>`).join(", ")}. Move them to another category first, or pick another category.`,
+
+  confedNotFound: () => `⚠️ **That confed does not exist.** See the list with ${cmd("setup show")}.`,
+
+  confedNameTaken: (name: string) => `⚠️ **A confed named ${name} already exists.** Pick another name.`,
+
   notInThread: (what: string) =>
     `⚠️ **This is not a ${what} thread.** Run it inside the thread the bot created for the request.`,
 

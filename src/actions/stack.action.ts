@@ -22,7 +22,7 @@ export async function executeStackAction(
   context: ActionContext,
   input: DefActionInput,
 ): Promise<DefActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { coords: coordsInput, troopsNeeded } = input;
   const message = clipNote(input.message);
 
@@ -50,7 +50,7 @@ export async function executeStackAction(
 
   // 4. Add the request (multiple requests per coordinate allowed)
   const result = addRequest(
-    guildId,
+    scope,
     x,
     y,
     troopsNeeded,
@@ -62,7 +62,7 @@ export async function executeStackAction(
   }
 
   // 5. Record the action for undo support
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "DEF_ADD",
     userId,
     coords: { x, y },
@@ -84,7 +84,7 @@ export async function executeStackAction(
   const confirmText = `✅ Created request #${result.requestId}: ${villageDisplay}${allianceInfo}. Needs **${formatTroops(troopsNeeded)}** troops.`;
 
   // 7. Update the global message and post the audit line
-  await updateGlobalMessage(client, guildId, { text: actionText, undoId: actionId });
+  await updateGlobalMessage(client, scope, { text: actionText, undoId: actionId });
 
   return {
     success: true,

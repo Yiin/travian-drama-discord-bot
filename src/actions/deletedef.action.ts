@@ -19,11 +19,11 @@ export async function executeDeleteDefAction(
   context: ActionContext,
   input: DeleteDefActionInput
 ): Promise<DeleteDefActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { requestId } = input;
 
   // 1. Check if request exists and get info before deletion
-  const existingRequest = getRequestById(guildId, requestId);
+  const existingRequest = getRequestById(scope, requestId);
   if (!existingRequest) {
     return { success: false, error: `Request #${requestId} not found.` };
   }
@@ -50,13 +50,13 @@ export async function executeDeleteDefAction(
     : `[(${existingRequest.x}|${existingRequest.y})](${getMapLink(config.serverKey!, existingRequest)})`;
 
   // 4. Delete the request
-  const success = removeRequest(guildId, requestId);
+  const success = removeRequest(scope, requestId);
   if (!success) {
     return { success: false, error: `Failed to delete request #${requestId}.` };
   }
 
   // 5. Record the action for undo support
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "REQUEST_DELETED",
     userId,
     coords: { x: snapshot.x, y: snapshot.y },
@@ -68,7 +68,7 @@ export async function executeDeleteDefAction(
   // 6. Build action text, update the global message, post the audit line
   const actionText = `<@${userId}> deleted request #${requestId}: ${villageDisplay}`;
   const confirmText = `✅ Deleted request #${requestId}: ${villageDisplay}.`;
-  await updateGlobalMessage(client, guildId, { text: actionText, undoId: actionId });
+  await updateGlobalMessage(client, scope, { text: actionText, undoId: actionId });
 
   return {
     success: true,

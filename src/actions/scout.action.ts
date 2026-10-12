@@ -12,6 +12,7 @@ import { addScoutRequest, getScoutRequest, pruneScoutRequests, ScoutRequest } fr
 import { postScoutCard } from "../services/scout-message";
 import { recordAction } from "../services/action-history";
 import { checkPermission } from "./permissions";
+import { Scope } from "../config/scope";
 
 /**
  * Execute the "scout" action - validate coordinates and get village info.
@@ -77,11 +78,11 @@ export interface PostedScout {
  */
 export async function sendScoutMessage(
   client: Client,
-  guildId: string,
+  scope: Scope,
   scoutChannelId: string,
   data: ScoutActionSuccess & { message: string; requesterId: string; scoutRoleId?: string }
 ): Promise<PostedScout | null> {
-  const created = addScoutRequest(guildId, {
+  const created = addScoutRequest(scope, {
     channelId: scoutChannelId,
     x: data.coords.x,
     y: data.coords.y,
@@ -89,11 +90,11 @@ export async function sendScoutMessage(
     requesterId: data.requesterId,
     scoutRoleId: data.scoutRoleId,
   });
-  pruneScoutRequests(guildId);
-  const posted = await postScoutCard(client, guildId, created);
+  pruneScoutRequests(scope);
+  const posted = await postScoutCard(client, scope, created);
   if (!posted) return null;
-  const request = getScoutRequest(guildId, created.id) ?? created;
-  const actionId = recordAction(guildId, {
+  const request = getScoutRequest(scope, created.id) ?? created;
+  const actionId = recordAction(scope, {
     type: "SCOUT_REQUEST_ADD",
     userId: data.requesterId,
     coords: { x: request.x, y: request.y },

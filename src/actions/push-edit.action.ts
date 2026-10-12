@@ -13,11 +13,11 @@ export async function executePushEditAction(
   context: ActionContext,
   input: PushEditActionInput
 ): Promise<PushEditActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { requestId, resourcesNeeded } = input;
 
   // 1. Get request before edit (deep copy for undo)
-  const request = getPushRequestById(guildId, requestId);
+  const request = getPushRequestById(scope, requestId);
   if (!request) {
     return { success: false, error: `Push request #${requestId} not found.` };
   }
@@ -32,7 +32,7 @@ export async function executePushEditAction(
   const oldAmount = request.resourcesNeeded;
 
   // 2. Update the request
-  const result = updatePushRequest(guildId, requestId, { resourcesNeeded });
+  const result = updatePushRequest(scope, requestId, { resourcesNeeded });
   if ("error" in result) {
     return { success: false, error: result.error };
   }
@@ -41,7 +41,7 @@ export async function executePushEditAction(
   const village = await getVillageAt(config.serverKey!, request.x, request.y);
 
   // 4. Record action for undo
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "PUSH_REQUEST_EDIT",
     userId,
     coords: { x: request.x, y: request.y },
@@ -61,7 +61,7 @@ export async function executePushEditAction(
 
   // 6. Post edit notification in the channel and update embed
   await postContributionMessage(client, result, `📝 Changed target: **${formatResources(oldAmount)}** → **${formatResources(resourcesNeeded)}**`);
-  await updatePushCard(client, guildId, result);
+  await updatePushCard(client, scope, result);
 
   return {
     success: true,

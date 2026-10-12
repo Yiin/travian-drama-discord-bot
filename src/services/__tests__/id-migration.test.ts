@@ -22,6 +22,7 @@ afterEach(() => {
 });
 
 const GUILD = "g1";
+const SCOPE = { guildId: GUILD };
 
 describe("stable id migration", () => {
   it("assigns ids to stack requests written before ids existed and expires undo history", async () => {
@@ -51,19 +52,19 @@ describe("stable id migration", () => {
     );
 
     const svc = await import("../defense-requests");
-    const data = svc.getGuildDefenseData(GUILD);
+    const data = svc.getGuildDefenseData(SCOPE);
 
     expect(data.requests.map((r) => r.id)).toEqual([1, 2]);
     expect(data.nextId).toBe(3);
 
-    const added = svc.addRequest(GUILD, 5, 6, 100, "", "u");
+    const added = svc.addRequest(SCOPE, 5, 6, 100, "", "u");
     expect("requestId" in added && added.requestId).toBe(3);
-    expect(svc.getRequestById(GUILD, 3)?.x).toBe(5);
+    expect(svc.getRequestById(SCOPE, 3)?.x).toBe(5);
 
     // ids stay stable when an earlier request is removed
-    svc.removeRequest(GUILD, 1);
-    expect(svc.getRequestById(GUILD, 3)?.x).toBe(5);
-    expect(svc.getRequestPosition(GUILD, 3)).toBe(2);
+    svc.removeRequest(SCOPE, 1);
+    expect(svc.getRequestById(SCOPE, 3)?.x).toBe(5);
+    expect(svc.getRequestPosition(SCOPE, 3)).toBe(2);
 
     // the file was written back with ids
     const onDisk = JSON.parse(readFileSync(join(dir, "data", "defense-requests.json"), "utf8"));
@@ -77,17 +78,17 @@ describe("stable id migration", () => {
 
   it("keeps an existing id on restore and bumps the counter past it", async () => {
     const svc = await import("../defense-requests");
-    const a = svc.addRequest(GUILD, 1, 1, 10, "", "u");
-    const b = svc.addRequest(GUILD, 2, 2, 10, "", "u");
+    const a = svc.addRequest(SCOPE, 1, 1, 10, "", "u");
+    const b = svc.addRequest(SCOPE, 2, 2, 10, "", "u");
     if ("error" in a || "error" in b) throw new Error("setup failed");
 
-    svc.removeRequest(GUILD, a.requestId);
-    const restored = svc.restoreRequest(GUILD, a.request);
+    svc.removeRequest(SCOPE, a.requestId);
+    const restored = svc.restoreRequest(SCOPE, a.request);
     expect(restored.requestId).toBe(a.requestId);
-    expect(svc.getRequestPosition(GUILD, a.requestId)).toBe(2);
+    expect(svc.getRequestPosition(SCOPE, a.requestId)).toBe(2);
 
     // restoring something whose id is active again gets a fresh id
-    const dup = svc.restoreRequest(GUILD, b.request);
+    const dup = svc.restoreRequest(SCOPE, b.request);
     expect(dup.requestId).toBe(3);
   });
 
@@ -102,12 +103,12 @@ describe("stable id migration", () => {
     );
 
     const push = await import("../push-requests");
-    expect(push.getPushRequestByChannelId(GUILD, "c1")?.requestId).toBe(1);
-    const added = push.addPushRequest(GUILD, 2, 2, 5, "u", "A");
+    expect(push.getPushRequestByChannelId(SCOPE, "c1")?.requestId).toBe(1);
+    const added = push.addPushRequest(SCOPE, 2, 2, 5, "u", "A");
     expect("requestId" in added && added.requestId).toBe(2);
 
     const defCalls = await import("../def-calls");
-    expect(defCalls.getRequestByChannelId(GUILD, "c2")?.requestId).toBe(1);
-    expect(defCalls.addRequest(GUILD, 2, 2, 1, "u", "A").requestId).toBe(2);
+    expect(defCalls.getRequestByChannelId(SCOPE, "c2")?.requestId).toBe(1);
+    expect(defCalls.addRequest(SCOPE, 2, 2, 1, "u", "A").requestId).toBe(2);
   });
 });

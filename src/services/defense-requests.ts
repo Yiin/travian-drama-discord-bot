@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { expireActionHistory } from "./history-expiry";
+import { Scope, scopeKey } from "../config/scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const REQUESTS_FILE = path.join(DATA_DIR, "defense-requests.json");
@@ -104,14 +105,14 @@ function getDefaultGuildData(): GuildDefenseData {
   };
 }
 
-export function getGuildDefenseData(guildId: string): GuildDefenseData {
+export function getGuildDefenseData(scope: Scope): GuildDefenseData {
   const allData = loadAllData();
-  return allData[guildId] || getDefaultGuildData();
+  return allData[scopeKey(scope)] || getDefaultGuildData();
 }
 
-function saveGuildData(guildId: string, data: GuildDefenseData): void {
+function saveGuildData(scope: Scope, data: GuildDefenseData): void {
   const allData = loadAllData();
-  allData[guildId] = data;
+  allData[scopeKey(scope)] = data;
   saveAllData(allData);
 }
 
@@ -119,14 +120,14 @@ function indexOfId(data: GuildDefenseData, requestId: number): number {
   return data.requests.findIndex((r) => r.id === requestId);
 }
 
-export function setGlobalMessageId(guildId: string, messageId: string): void {
-  const data = getGuildDefenseData(guildId);
+export function setGlobalMessageId(scope: Scope, messageId: string): void {
+  const data = getGuildDefenseData(scope);
   data.globalMessageId = messageId;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 }
 
-export function getGlobalMessageId(guildId: string): string | undefined {
-  return getGuildDefenseData(guildId).globalMessageId;
+export function getGlobalMessageId(scope: Scope): string | undefined {
+  return getGuildDefenseData(scope).globalMessageId;
 }
 
 export interface AddRequestResult {
@@ -135,14 +136,14 @@ export interface AddRequestResult {
 }
 
 export function addRequest(
-  guildId: string,
+  scope: Scope,
   x: number,
   y: number,
   troopsNeeded: number,
   message: string,
   requesterId: string
 ): AddRequestResult | { error: string } {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
 
   if (data.requests.length >= MAX_REQUESTS) {
     return { error: `Maximum of ${MAX_REQUESTS} active requests reached.` };
@@ -161,30 +162,30 @@ export function addRequest(
   };
 
   data.requests.push(newRequest);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 
   return { request: newRequest, requestId: newRequest.id };
 }
 
 export function getRequestById(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): DefenseRequest | undefined {
-  return getGuildDefenseData(guildId).requests.find((r) => r.id === requestId);
+  return getGuildDefenseData(scope).requests.find((r) => r.id === requestId);
 }
 
 /** 1-based queue position of a request, or undefined when it is not active. */
-export function getRequestPosition(guildId: string, requestId: number): number | undefined {
-  const index = indexOfId(getGuildDefenseData(guildId), requestId);
+export function getRequestPosition(scope: Scope, requestId: number): number | undefined {
+  const index = indexOfId(getGuildDefenseData(scope), requestId);
   return index === -1 ? undefined : index + 1;
 }
 
 export function getRequestsByCoords(
-  guildId: string,
+  scope: Scope,
   x: number,
   y: number
 ): { request: DefenseRequest; requestId: number }[] {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   return data.requests
     .filter((r) => r.x === x && r.y === y)
     .map((request) => ({ request, requestId: request.id }));
@@ -196,12 +197,12 @@ export interface ReportTroopsResult {
 }
 
 export function reportTroopsSent(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   userId: string,
   troops: number
 ): ReportTroopsResult | { error: string } {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   const index = indexOfId(data, requestId);
   const request = data.requests[index];
 
@@ -232,7 +233,7 @@ export function reportTroopsSent(
     });
   }
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 
   return { request, isComplete };
 }
@@ -244,11 +245,11 @@ export interface UpdateRequestOptions {
 }
 
 export function updateRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   updates: UpdateRequestOptions
 ): DefenseRequest | { error: string } {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   const index = indexOfId(data, requestId);
   const request = data.requests[index];
 
@@ -276,15 +277,15 @@ export function updateRequest(
     });
   }
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
 export function removeRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): boolean {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   const index = indexOfId(data, requestId);
 
   if (index === -1) {
@@ -292,20 +293,20 @@ export function removeRequest(
   }
 
   data.requests.splice(index, 1);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return true;
 }
 
-export function clearRecentlyCompleted(guildId: string): CompletedRequest[] {
-  const data = getGuildDefenseData(guildId);
+export function clearRecentlyCompleted(scope: Scope): CompletedRequest[] {
+  const data = getGuildDefenseData(scope);
   const completed = [...data.recentlyCompleted];
   data.recentlyCompleted = [];
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return completed;
 }
 
-export function getAllRequests(guildId: string): DefenseRequest[] {
-  return getGuildDefenseData(guildId).requests;
+export function getAllRequests(scope: Scope): DefenseRequest[] {
+  return getGuildDefenseData(scope).requests;
 }
 
 // --- Undo support functions ---
@@ -321,10 +322,10 @@ export interface RestoreResult {
  * The request keeps its id unless that id is active again, in which case it gets a new one.
  */
 export function restoreRequest(
-  guildId: string,
+  scope: Scope,
   request: DefenseRequest
 ): RestoreResult {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
 
   if (data.requests.length >= MAX_REQUESTS) {
     return { success: false, error: `Maximum request limit reached (${MAX_REQUESTS}).` };
@@ -338,7 +339,7 @@ export function restoreRequest(
   };
   data.nextId = Math.max(data.nextId, restoredRequest.id + 1);
   data.requests.push(restoredRequest);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true, requestId: restoredRequest.id };
 }
 
@@ -347,11 +348,11 @@ export function restoreRequest(
  * id and queue position. Returns false when the id is not active.
  */
 export function replaceRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   state: DefenseRequest
 ): boolean {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   const index = indexOfId(data, requestId);
   if (index === -1) return false;
   data.requests[index] = {
@@ -359,7 +360,7 @@ export function replaceRequest(
     id: requestId,
     contributors: [...state.contributors],
   };
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return true;
 }
 
@@ -379,12 +380,12 @@ export interface SubtractTroopsResult {
  * Also updates the contributor's total.
  */
 export function subtractTroops(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   contributorId: string,
   troops: number
 ): SubtractTroopsResult {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   const request = data.requests.find((r) => r.id === requestId);
 
   if (!request) {
@@ -403,7 +404,7 @@ export function subtractTroops(
     }
   }
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true, request };
 }
 
@@ -416,11 +417,11 @@ export interface MoveRequestResult {
  * Moves a request to a 1-based queue position.
  */
 export function moveRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   toPosition: number
 ): MoveRequestResult {
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   const fromIndex = indexOfId(data, requestId);
   const toIndex = toPosition - 1;
 
@@ -442,6 +443,6 @@ export function moveRequest(
   const [request] = data.requests.splice(fromIndex, 1);
   data.requests.splice(toIndex, 0, request);
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true };
 }

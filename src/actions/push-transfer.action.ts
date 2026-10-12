@@ -14,14 +14,14 @@ export async function executePushTransferAction(
   context: ActionContext,
   input: PushTransferActionInput
 ): Promise<PushTransferActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { requestId, fromAccount, toAccount } = input;
 
   const denied = checkPermission(context, "manage");
   if (denied) return { success: false, error: denied };
 
   // 1. Get request before transfer (deep copy for undo)
-  const request = getPushRequestById(guildId, requestId);
+  const request = getPushRequestById(scope, requestId);
   if (!request) {
     return { success: false, error: `Push request #${requestId} not found.` };
   }
@@ -31,7 +31,7 @@ export async function executePushTransferAction(
   };
 
   // 2. Perform the transfer
-  const result = transferContribution(guildId, requestId, fromAccount, toAccount);
+  const result = transferContribution(scope, requestId, fromAccount, toAccount);
   if (!result.success) {
     return { success: false, error: result.error! };
   }
@@ -39,13 +39,13 @@ export async function executePushTransferAction(
   const transferredAmount = result.transferredAmount!;
 
   // 3. Transfer stats
-  transferContributionStats(guildId, fromAccount, toAccount, request.x, request.y, transferredAmount);
+  transferContributionStats(scope, fromAccount, toAccount, request.x, request.y, transferredAmount);
 
   // 4. Get village info for display
   const village = await getVillageAt(config.serverKey!, request.x, request.y);
 
   // 5. Record action for undo
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "PUSH_CONTRIBUTION_TRANSFER",
     userId,
     coords: { x: request.x, y: request.y },
@@ -70,7 +70,7 @@ export async function executePushTransferAction(
     result.request!,
     `🔄 Transferred contribution: **${fromAccount}** → **${toAccount}** (**${formatResources(transferredAmount)}**)`
   );
-  await updatePushCard(client, guildId, result.request!);
+  await updatePushCard(client, scope, result.request!);
 
   return {
     success: true,

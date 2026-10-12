@@ -19,6 +19,7 @@ import { requireAdmin } from "../utils/permissions";
 import { ARROW } from "../utils/format";
 import { filterChoices } from "../utils/choices";
 import { guildCommand, requireGuild } from "./shared";
+import { guildScopes } from "../config/scope";
 
 export const accountCommand: Command = {
   topic: "you",
@@ -154,8 +155,13 @@ async function handleRename(interaction: ChatInputCommandInteraction, guildId: s
   }
 
   const accountRenamed = renameAccount(guildId, oldName, newName);
-  const pushUpdates = renameAccountInPushRequests(guildId, oldName, newName);
-  const statsUpdates = renameAccountInPushStats(guildId, oldName, newName);
+  // Accounts are guild-wide, so the rename reaches every confed's pushes and stats.
+  let pushUpdates = 0;
+  let statsUpdates = 0;
+  for (const scope of guildScopes(guildId)) {
+    pushUpdates += renameAccountInPushRequests(scope, oldName, newName);
+    statsUpdates += renameAccountInPushStats(scope, oldName, newName);
+  }
 
   if (!accountRenamed && pushUpdates === 0 && statsUpdates === 0) {
     await interaction.reply({ content: `⚠️ **Account ${oldName} not found.**`, flags: MessageFlags.Ephemeral });

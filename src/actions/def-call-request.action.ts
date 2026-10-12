@@ -25,7 +25,7 @@ export async function executeDefCallRequestAction(
   context: ActionContext,
   input: DefCallRequestActionInput
 ): Promise<DefCallRequestActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { coords: coordsInput, landing, comment, troopsNeeded } = input;
 
   const denied = checkPermission(context, "request");
@@ -85,7 +85,7 @@ export async function executeDefCallRequestAction(
   const village = await getVillageAt(config.serverKey, x, y);
 
   const result = addRequest(
-    guildId,
+    scope,
     x,
     y,
     landingAt,
@@ -99,13 +99,13 @@ export async function executeDefCallRequestAction(
   try {
     const channelResult = await createDefCallThread(
       client,
-      guildId,
+      scope,
       result.request,
       result.requestId
     );
     channelId = channelResult.channelId;
   } catch (error) {
-    removeRequest(guildId, result.requestId);
+    removeRequest(scope, result.requestId);
     console.error("[DefCallRequest] Failed to create channel:", error);
     return {
       success: false,
@@ -113,10 +113,10 @@ export async function executeDefCallRequestAction(
     };
   }
 
-  scheduleLanding(client, guildId, result.request);
-  await refreshHubChannel(client, guildId);
+  scheduleLanding(client, scope, result.request);
+  await refreshHubChannel(client, scope);
 
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "DEF_CALL_REQUEST_ADD",
     userId,
     coords: { x, y },

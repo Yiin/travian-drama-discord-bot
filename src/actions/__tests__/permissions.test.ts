@@ -11,6 +11,7 @@ import { buildActionContext } from "../context";
 import { BOT_OWNER_IDS } from "../../config/owners";
 
 const GUILD = "g1";
+const SCOPE = { guildId: GUILD };
 const MANAGER_ROLE = "r-manager";
 const CALLER_ROLE = "r-caller";
 
@@ -81,26 +82,26 @@ describe("the requester owns their request", () => {
 
 describe("administrator and bot owner bypass", () => {
   it("passes both checks for Administrator", () => {
-    const context = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.Administrator]), GUILD, restricted);
+    const context = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.Administrator]), { guildId: GUILD }, restricted);
     expect(context.isAdministrator).toBe(true);
     expect(checkPermission(context, "request")).toBeNull();
     expect(checkPermission(context, "manage", "someone-else")).toBeNull();
   });
 
   it("passes both checks for the bot owner without any permission", () => {
-    const context = buildActionContext(fakeInteraction(BOT_OWNER_IDS[0], []), GUILD, restricted);
+    const context = buildActionContext(fakeInteraction(BOT_OWNER_IDS[0], []), { guildId: GUILD }, restricted);
     expect(context.isAdministrator).toBe(true);
     expect(checkPermission(context, "manage")).toBeNull();
   });
 
   it("does not treat Manage Channels as Administrator", () => {
-    const context = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.ManageChannels]), GUILD, restricted);
+    const context = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.ManageChannels]), { guildId: GUILD }, restricted);
     expect(context.isAdministrator).toBe(false);
     expect(checkPermission(context, "manage")).not.toBeNull();
   });
 
   it("reads role ids from an uncached member and adds @everyone", () => {
-    const context = buildActionContext(fakeInteraction("u9", [], [MANAGER_ROLE]), GUILD, restricted);
+    const context = buildActionContext(fakeInteraction("u9", [], [MANAGER_ROLE]), { guildId: GUILD }, restricted);
     expect(context.roleIds).toEqual([MANAGER_ROLE, GUILD]);
     expect(checkPermission(context, "manage")).toBeNull();
   });
@@ -137,16 +138,16 @@ describe("actions that touch the data files", () => {
     const { executePermissionChangeAction } = await import("../permissions.action");
     const { getGuildConfig } = await import("../../config/guild-config");
 
-    const manageChannels = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.ManageChannels]), GUILD, {});
+    const manageChannels = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.ManageChannels]), { guildId: GUILD }, {});
     const refused = executePermissionChangeAction(manageChannels, { permission: "manage", add: MANAGER_ROLE });
     expect(refused).toEqual({ success: false, error: expect.stringContaining("Manage Channels is not enough") });
     expect(getGuildConfig(GUILD).permissions).toBeUndefined();
 
-    const admin = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.Administrator]), GUILD, {});
+    const admin = buildActionContext(fakeInteraction("u9", [PermissionFlagsBits.Administrator]), { guildId: GUILD }, {});
     expect(executePermissionChangeAction(admin, { permission: "manage", add: MANAGER_ROLE }).success).toBe(true);
     expect(getGuildConfig(GUILD).permissions).toEqual({ request: [], manage: [MANAGER_ROLE] });
 
-    const owner = buildActionContext(fakeInteraction(BOT_OWNER_IDS[0], []), GUILD, getGuildConfig(GUILD));
+    const owner = buildActionContext(fakeInteraction(BOT_OWNER_IDS[0], []), { guildId: GUILD }, getGuildConfig(GUILD));
     expect(executePermissionChangeAction(owner, { permission: "manage", remove: MANAGER_ROLE }).success).toBe(true);
     expect(getGuildConfig(GUILD).permissions?.manage).toEqual([]);
   });
@@ -162,38 +163,38 @@ describe("actions that touch the data files", () => {
   it("undo refuses someone else's action and leaves it in place", async () => {
     const history = await import("../../services/action-history");
     const { executeUndoAction } = await import("../undo.action");
-    const actionId = history.recordAction(GUILD, {
+    const actionId = history.recordAction(SCOPE, {
       type: "STATS_ADJUST",
       userId: "u2",
       coords: { x: 1, y: 2 },
       requestId: 0,
       data: { troops: 100, contributorId: "u2" },
     });
-    const context = { ...actor({}, restricted), guildId: GUILD, client: {} } as ActionContext;
+    const context = { ...actor({}, restricted), guildId: GUILD, scope: SCOPE, client: {} } as ActionContext;
 
     const refused = await executeUndoAction(context, { actionId });
     expect(refused.success).toBe(false);
-    expect(history.getAction(GUILD, actionId)?.undone).toBe(false);
+    expect(history.getAction(SCOPE, actionId)?.undone).toBe(false);
 
     const own = await executeUndoAction({ ...context, userId: "u2" }, { actionId });
     expect(own.success).toBe(true);
-    expect(history.getAction(GUILD, actionId)?.undone).toBe(true);
+    expect(history.getAction(SCOPE, actionId)?.undone).toBe(true);
   });
 
   it("refuses a stack edit by someone who neither owns the request nor manages", async () => {
     vi.doMock("../../services/defense-message", () => ({ updateGlobalMessage: vi.fn() }));
     const store = await import("../../services/defense-requests");
     const { executeUpdateDefAction } = await import("../updatedef.action");
-    const added = store.addRequest(GUILD, 1, 2, 1000, "", "owner");
+    const added = store.addRequest(SCOPE, 1, 2, 1000, "", "owner");
     if ("error" in added) throw new Error(added.error);
-    const base = { ...actor({}, restricted), guildId: GUILD, client: {} } as ActionContext;
+    const base = { ...actor({}, restricted), guildId: GUILD, scope: SCOPE, client: {} } as ActionContext;
 
     const refused = await executeUpdateDefAction(base, { requestId: added.requestId, troopsNeeded: 500 });
     expect(refused.success).toBe(false);
-    expect(store.getRequestById(GUILD, added.requestId)?.troopsNeeded).toBe(1000);
+    expect(store.getRequestById(SCOPE, added.requestId)?.troopsNeeded).toBe(1000);
 
     const byOwner = await executeUpdateDefAction({ ...base, userId: "owner" }, { requestId: added.requestId, troopsNeeded: 500 });
     expect(byOwner.success).toBe(true);
-    expect(store.getRequestById(GUILD, added.requestId)?.troopsNeeded).toBe(500);
+    expect(store.getRequestById(SCOPE, added.requestId)?.troopsNeeded).toBe(500);
   });
 });

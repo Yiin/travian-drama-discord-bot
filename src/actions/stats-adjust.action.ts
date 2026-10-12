@@ -28,7 +28,7 @@ export async function executeStatsAdjustAction(
   context: ActionContext,
   input: StatsAdjustActionInput
 ): Promise<StatsAdjustActionResult> {
-  const { guildId, userId } = context;
+  const { guildId, scope, userId } = context;
   const coordsResult = parseAndValidateCoords(input.coords);
   if (!coordsResult.success) {
     return { success: false, error: coordsResult.error };
@@ -39,9 +39,9 @@ export async function executeStatsAdjustAction(
   const { x, y } = coordsResult;
   const targetUserId = input.forUserId || userId;
 
-  recordContribution(guildId, targetUserId, x, y, input.troops);
+  recordContribution(scope, targetUserId, x, y, input.troops);
 
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "STATS_ADJUST",
     userId,
     coords: { x, y },

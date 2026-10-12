@@ -1,21 +1,43 @@
 import fs from "fs";
 import path from "path";
+import type { Scope } from "./scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const CONFIG_FILE = path.join(DATA_DIR, "guilds.json");
 
-export interface GuildConfig {
+/** Settings each confed has on its own. The main confed keeps them at the top of `GuildConfig`. */
+export interface ConfedSettings {
   defenseChannelId?: string;
   scoutChannelId?: string;
   scoutRoleId?: string;
   pushChannelId?: string;
   defCallsChannelId?: string;
+}
+
+const CONFED_SETTING_KEYS: (keyof ConfedSettings)[] = [
+  "defenseChannelId",
+  "scoutChannelId",
+  "scoutRoleId",
+  "pushChannelId",
+  "defCallsChannelId",
+];
+
+/** A confed besides the main one, bound to a Discord category. See `src/config/scope.ts`. */
+export interface Confed extends ConfedSettings {
+  id: string;
+  name: string;
+  categoryId: string;
+}
+
+export interface GuildConfig extends ConfedSettings {
   serverKey?: string;
   serverTimezone?: string;
   accountReminderChannelId?: string;
   accountReminderMessageId?: string;
   /** Role IDs per permission. See `src/actions/permissions.ts` for what an empty list means. */
   permissions?: GuildPermissions;
+  confeds?: Confed[];
+  nextConfedId?: number;
 }
 
 export type Permission = "request" | "manage";
@@ -49,50 +71,59 @@ export function getGuildConfig(guildId: string): GuildConfig {
   return configs[guildId] || {};
 }
 
-export function setDefenseChannel(
-  guildId: string,
-  channelId: string
-): void {
-  const configs = loadConfigs();
-  configs[guildId] = { ...configs[guildId], defenseChannelId: channelId };
-  saveConfigs(configs);
+/**
+ * Config as seen from one confed: the guild-wide settings plus that confed's
+ * channels and scout role. A confed never inherits the main confed's channels.
+ */
+export function getScopeConfig(scope: Scope): GuildConfig {
+  const config = getGuildConfig(scope.guildId);
+  if (!scope.confedId) return config;
+  const confed = config.confeds?.find((c) => c.id === scope.confedId);
+  const scoped: GuildConfig = { ...config };
+  for (const key of CONFED_SETTING_KEYS) scoped[key] = confed?.[key];
+  return scoped;
 }
 
-export function setScoutChannel(
-  guildId: string,
-  channelId: string
-): void {
-  const configs = loadConfigs();
-  configs[guildId] = { ...configs[guildId], scoutChannelId: channelId };
-  saveConfigs(configs);
+export function getConfed(scope: Scope): Confed | undefined {
+  if (!scope.confedId) return undefined;
+  return getGuildConfig(scope.guildId).confeds?.find((c) => c.id === scope.confedId);
 }
 
-export function setPushChannelId(
-  guildId: string,
-  channelId: string
-): void {
+export function setConfedSetting(scope: Scope, key: keyof ConfedSettings, value: string | null): void {
   const configs = loadConfigs();
-  configs[guildId] = { ...configs[guildId], pushChannelId: channelId };
-  saveConfigs(configs);
-}
-
-export function setDefCallsChannelId(
-  guildId: string,
-  channelId: string
-): void {
-  const configs = loadConfigs();
-  configs[guildId] = { ...configs[guildId], defCallsChannelId: channelId };
-  saveConfigs(configs);
-}
-
-export function setScoutRole(guildId: string, roleId: string | null): void {
-  const configs = loadConfigs();
-  if (roleId === null) {
-    const { scoutRoleId, ...rest } = configs[guildId] || {};
-    configs[guildId] = rest;
+  const config = configs[scope.guildId] ?? {};
+  const apply = <T extends ConfedSettings>(target: T): T => {
+    const next = { ...target };
+    if (value === null) delete next[key];
+    else next[key] = value;
+    return next;
+  };
+  if (!scope.confedId) {
+    configs[scope.guildId] = apply(config);
   } else {
-    configs[guildId] = { ...configs[guildId], scoutRoleId: roleId };
+    configs[scope.guildId] = {
+      ...config,
+      confeds: (config.confeds ?? []).map((c) => (c.id === scope.confedId ? apply(c) : c)),
+    };
   }
+  saveConfigs(configs);
+}
+
+export function addConfed(guildId: string, name: string, categoryId: string): Confed {
+  const configs = loadConfigs();
+  const config = configs[guildId] ?? {};
+  const nextId = config.nextConfedId ?? 1;
+  const confed: Confed = { id: `c${nextId}`, name, categoryId };
+  configs[guildId] = { ...config, confeds: [...(config.confeds ?? []), confed], nextConfedId: nextId + 1 };
+  saveConfigs(configs);
+  return confed;
+}
+
+/** Unbinds a confed from its category. Its requests and stats stay on disk. */
+export function removeConfed(guildId: string, confedId: string): void {
+  const configs = loadConfigs();
+  const config = configs[guildId] ?? {};
+  configs[guildId] = { ...config, confeds: (config.confeds ?? []).filter((c) => c.id !== confedId) };
   saveConfigs(configs);
 }
 

@@ -18,10 +18,11 @@ import {
   updatePushRequestChannelInfo,
   getPushRequestByChannelId,
 } from "./push-requests";
-import { getGuildConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import { getVillageAt, getMapLink, VillageData } from "./map-data";
 import { formatResources, percentOf, progressBar } from "../utils/format";
 import { v2 } from "./panel";
+import { Scope, scopeKey } from "../config/scope";
 
 // Button IDs for push threads
 export const PUSH_SENT_BUTTON_ID = "push_sent_button";
@@ -127,11 +128,11 @@ export function buildPushCard(request: PushRequest, serverKey: string, village: 
 
 export async function createPushThread(
   client: Client,
-  guildId: string,
+  scope: Scope,
   request: PushRequest,
   requestId: number,
 ): Promise<CreatePushChannelResult> {
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.pushChannelId) throw new Error("Push channel is not configured.");
   if (!config.serverKey) throw new Error("Server key is not configured.");
 
@@ -155,7 +156,7 @@ export async function createPushThread(
   const card = buildPushCard(request, config.serverKey, village);
   const message = await thread.send(v2({ components: [card], allowedMentions: { parse: [] } }));
 
-  updatePushRequestChannelInfo(guildId, requestId, thread.id, message.id);
+  updatePushRequestChannelInfo(scope, requestId, thread.id, message.id);
   return { channelId: thread.id, messageId: message.id };
 }
 
@@ -170,9 +171,9 @@ async function fetchThread(client: Client, channelId: string | undefined): Promi
 }
 
 /** Re-render the thread card in place. Posts a fresh card only when the old one is gone. */
-export async function updatePushCard(client: Client, guildId: string, request: PushRequest): Promise<void> {
+export async function updatePushCard(client: Client, scope: Scope, request: PushRequest): Promise<void> {
   if (!request.channelId) return;
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.serverKey) return;
 
   const thread = await fetchThread(client, request.channelId);
@@ -202,8 +203,8 @@ export async function updatePushCard(client: Client, guildId: string, request: P
     }
     if (!edited) {
       const message = await thread.send(payload);
-      const data = getPushRequestByChannelId(guildId, request.channelId);
-      if (data) updatePushRequestChannelInfo(guildId, data.requestId, request.channelId, message.id);
+      const data = getPushRequestByChannelId(scope, request.channelId);
+      if (data) updatePushRequestChannelInfo(scope, data.requestId, request.channelId, message.id);
     }
   } catch (error) {
     console.error("[PushMessage] Error updating the card:", error);
@@ -229,8 +230,8 @@ export async function postContributionMessage(client: Client, request: PushReque
   }
 }
 
-export async function markPushComplete(client: Client, guildId: string, request: PushRequest): Promise<void> {
-  await updatePushCard(client, guildId, request);
+export async function markPushComplete(client: Client, scope: Scope, request: PushRequest): Promise<void> {
+  await updatePushCard(client, scope, request);
 
   const thread = await fetchThread(client, request.channelId);
   if (thread && !thread.name.startsWith("✅")) {

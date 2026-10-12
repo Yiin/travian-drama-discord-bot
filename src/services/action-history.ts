@@ -27,6 +27,7 @@ import {
 } from "./def-calls";
 import { removeScoutRequest } from "./scout-requests";
 import { formatResources, formatTroops } from "../utils/format";
+import { Scope, scopeKey } from "../config/scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const HISTORY_FILE = path.join(DATA_DIR, "action-history.json");
@@ -140,14 +141,14 @@ function getDefaultGuildHistory(): GuildActionHistory {
   };
 }
 
-export function getGuildHistory(guildId: string): GuildActionHistory {
+export function getGuildHistory(scope: Scope): GuildActionHistory {
   const allData = loadAllHistory();
-  return allData[guildId] || getDefaultGuildHistory();
+  return allData[scopeKey(scope)] || getDefaultGuildHistory();
 }
 
-function saveGuildHistory(guildId: string, history: GuildActionHistory): void {
+function saveGuildHistory(scope: Scope, history: GuildActionHistory): void {
   const allData = loadAllHistory();
-  allData[guildId] = history;
+  allData[scopeKey(scope)] = history;
   saveAllHistory(allData);
 }
 
@@ -163,10 +164,10 @@ export interface RecordActionInput {
 }
 
 export function recordAction(
-  guildId: string,
+  scope: Scope,
   input: RecordActionInput
 ): number {
-  const history = getGuildHistory(guildId);
+  const history = getGuildHistory(scope);
 
   const action: Action = {
     id: history.nextId,
@@ -196,23 +197,23 @@ export function recordAction(
     history.actions = history.actions.slice(-MAX_ACTIONS);
   }
 
-  saveGuildHistory(guildId, history);
+  saveGuildHistory(scope, history);
   return action.id;
 }
 
-export function getAction(guildId: string, actionId: number): Action | undefined {
-  const history = getGuildHistory(guildId);
+export function getAction(scope: Scope, actionId: number): Action | undefined {
+  const history = getGuildHistory(scope);
   return history.actions.find((a) => a.id === actionId);
 }
 
-export function getRecentActions(guildId: string, limit: number = 10): Action[] {
-  const history = getGuildHistory(guildId);
+export function getRecentActions(scope: Scope, limit: number = 10): Action[] {
+  const history = getGuildHistory(scope);
   return history.actions.slice(-limit).reverse();
 }
 
 /** The user's most recent action that has not been undone yet. */
-export function getLatestUndoableActionId(guildId: string, userId: string): number | undefined {
-  const history = getGuildHistory(guildId);
+export function getLatestUndoableActionId(scope: Scope, userId: string): number | undefined {
+  const history = getGuildHistory(scope);
   for (let i = history.actions.length - 1; i >= 0; i--) {
     const action = history.actions[i];
     if (!action.undone && action.userId === userId) return action.id;
@@ -220,12 +221,12 @@ export function getLatestUndoableActionId(guildId: string, userId: string): numb
   return undefined;
 }
 
-export function markUndone(guildId: string, actionId: number): boolean {
-  const history = getGuildHistory(guildId);
+export function markUndone(scope: Scope, actionId: number): boolean {
+  const history = getGuildHistory(scope);
   const action = history.actions.find((a) => a.id === actionId);
   if (!action) return false;
   action.undone = true;
-  saveGuildHistory(guildId, history);
+  saveGuildHistory(scope, history);
   return true;
 }
 
@@ -244,8 +245,8 @@ export interface UndoResult {
  * Request ids are stable, so the stored requestId still points at the same request.
  * Coordinates are checked anyway as a guard against corrupted data.
  */
-export function undoAction(guildId: string, actionId: number): UndoResult {
-  const action = getAction(guildId, actionId);
+export function undoAction(scope: Scope, actionId: number): UndoResult {
+  const action = getAction(scope, actionId);
 
   if (!action) {
     return { success: false, message: `Action #${actionId} was not found.` };
@@ -262,16 +263,16 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "DEF_ADD": {
       // Remove the request that was added using stored requestId
       // Verify coordinates match to handle shifted positions
-      const existing = getRequestById(guildId, action.requestId);
+      const existing = getRequestById(scope, action.requestId);
       if (existing && existing.x === x && existing.y === y) {
-        removeRequest(guildId, action.requestId);
-        markUndone(guildId, actionId);
+        removeRequest(scope, action.requestId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: defense request ${coordsStr} removed.`,
         };
       }
-      markUndone(guildId, actionId);
+      markUndone(scope, actionId);
       return {
         success: true,
         message: `Undone: request ${coordsStr} had already been removed or completed.`,
@@ -281,15 +282,15 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "DEF_UPDATE": {
       // Legacy: restore the previous state (no longer created but handle old history)
       if (!action.previousState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
         };
       }
 
-      const result = restoreRequest(guildId, action.previousState);
-      markUndone(guildId, actionId);
+      const result = restoreRequest(scope, action.previousState);
+      markUndone(scope, actionId);
       if (result.success) {
         return {
           success: true,
@@ -304,7 +305,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       const { troops, contributorId, didComplete } = action.data;
 
       if (!troops || !contributorId) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} is missing required data.`,
@@ -314,7 +315,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       if (didComplete) {
         // Request was completed by this action - need to restore it
         if (!action.previousState) {
-          markUndone(guildId, actionId);
+          markUndone(scope, actionId);
           return {
             success: false,
             message: `Action #${actionId} has no previous state.`,
@@ -327,12 +328,12 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
           contributors: [...action.previousState.contributors],
         };
 
-        const result = restoreRequest(guildId, restoredRequest);
+        const result = restoreRequest(scope, restoredRequest);
         if (!result.success) {
           return { success: false, message: result.error || "Failed to restore." };
         }
 
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: request ${coordsStr} restored as #${result.requestId} (${restoredRequest.troopsSent}/${restoredRequest.troopsNeeded}).`,
@@ -342,9 +343,9 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
       // Request was NOT completed - subtract troops using stored requestId
       // Verify coordinates match to handle shifted positions
-      const existing = getRequestById(guildId, action.requestId);
+      const existing = getRequestById(scope, action.requestId);
       if (!existing) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: request ${coordsStr} no longer exists.`,
@@ -353,15 +354,15 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
       if (existing.x !== x || existing.y !== y) {
         // Position shifted, request at this ID is different now
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: request position changed, troops were not subtracted.`,
         };
       }
 
-      const subtractResult = subtractTroops(guildId, action.requestId, contributorId, troops);
-      markUndone(guildId, actionId);
+      const subtractResult = subtractTroops(scope, action.requestId, contributorId, troops);
+      markUndone(scope, actionId);
 
       if (subtractResult.success && subtractResult.request) {
         return {
@@ -380,15 +381,15 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "REQUEST_DELETED": {
       // Restore the deleted request
       if (!action.previousState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
         };
       }
 
-      const result = restoreRequest(guildId, action.previousState);
-      markUndone(guildId, actionId);
+      const result = restoreRequest(scope, action.previousState);
+      markUndone(scope, actionId);
 
       if (result.success) {
         return {
@@ -403,7 +404,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "ADMIN_UPDATE": {
       // Restore previous field values
       if (!action.previousState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
@@ -414,8 +415,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
       if (adminDidComplete) {
         // Request was completed by admin update - restore it
-        const result = restoreRequest(guildId, action.previousState);
-        markUndone(guildId, actionId);
+        const result = restoreRequest(scope, action.previousState);
+        markUndone(scope, actionId);
 
         if (result.success) {
           return {
@@ -428,11 +429,11 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       }
 
       // Not completed - check if request still exists at stored position
-      const existing = getRequestById(guildId, action.requestId);
+      const existing = getRequestById(scope, action.requestId);
       if (!existing || existing.x !== x || existing.y !== y) {
         // Request doesn't exist or position shifted - restore it
-        const result = restoreRequest(guildId, action.previousState);
-        markUndone(guildId, actionId);
+        const result = restoreRequest(scope, action.previousState);
+        markUndone(scope, actionId);
         if (result.success) {
           return {
             success: true,
@@ -444,8 +445,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       }
 
       // Request still exists - replace it in place so it keeps its queue position
-      const replaced = replaceRequest(guildId, action.requestId, action.previousState);
-      markUndone(guildId, actionId);
+      const replaced = replaceRequest(scope, action.requestId, action.previousState);
+      markUndone(scope, actionId);
       if (replaced) {
         return {
           success: true,
@@ -460,16 +461,16 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
     case "PUSH_REQUEST_ADD": {
       // Remove the push request that was added
-      const existing = getPushRequestById(guildId, action.requestId);
+      const existing = getPushRequestById(scope, action.requestId);
       if (existing && existing.x === x && existing.y === y) {
-        removePushRequest(guildId, action.requestId);
-        markUndone(guildId, actionId);
+        removePushRequest(scope, action.requestId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: push request ${coordsStr} removed.`,
         };
       }
-      markUndone(guildId, actionId);
+      markUndone(scope, actionId);
       return {
         success: true,
         message: `Undone: push request ${coordsStr} had already been removed.`,
@@ -480,7 +481,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       const { resources, contributorAccount } = action.data;
 
       if (!resources || !contributorAccount) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} is missing required data.`,
@@ -489,9 +490,9 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
       // Completion keeps the request in the store, so subtracting is always right;
       // subtractResources also recomputes `completed`.
-      const existing = getPushRequestById(guildId, action.requestId);
+      const existing = getPushRequestById(scope, action.requestId);
       if (!existing) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: push request ${coordsStr} no longer exists.`,
@@ -499,15 +500,15 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       }
 
       if (existing.x !== x || existing.y !== y) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: push request position changed, resources were not subtracted.`,
         };
       }
 
-      const subtractResult = subtractResources(guildId, action.requestId, contributorAccount, resources);
-      markUndone(guildId, actionId);
+      const subtractResult = subtractResources(scope, action.requestId, contributorAccount, resources);
+      markUndone(scope, actionId);
 
       if (subtractResult.success && subtractResult.request) {
         return {
@@ -526,15 +527,15 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "PUSH_REQUEST_DELETED": {
       // Restore the deleted push request
       if (!action.previousPushState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
         };
       }
 
-      const result = restorePushRequest(guildId, action.previousPushState);
-      markUndone(guildId, actionId);
+      const result = restorePushRequest(scope, action.previousPushState);
+      markUndone(scope, actionId);
 
       if (result.success) {
         return {
@@ -547,8 +548,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     }
 
     case "PUSH_REQUEST_CLOSED": {
-      const reopened = setPushRequestClosed(guildId, action.requestId, false);
-      markUndone(guildId, actionId);
+      const reopened = setPushRequestClosed(scope, action.requestId, false);
+      markUndone(scope, actionId);
       if (!reopened) {
         return {
           success: true,
@@ -565,18 +566,18 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "PUSH_REQUEST_EDIT": {
       // Restore previous resource amount
       if (!action.previousPushState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
         };
       }
 
-      const existing = getPushRequestById(guildId, action.requestId);
+      const existing = getPushRequestById(scope, action.requestId);
       if (!existing || existing.x !== x || existing.y !== y) {
         // Request doesn't exist or position shifted - restore it
-        const result = restorePushRequest(guildId, action.previousPushState);
-        markUndone(guildId, actionId);
+        const result = restorePushRequest(scope, action.previousPushState);
+        markUndone(scope, actionId);
         if (result.success) {
           return {
             success: true,
@@ -588,8 +589,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       }
 
       // Request still exists - replace it in place so it keeps its position
-      const replaced = replacePushRequest(guildId, action.requestId, action.previousPushState);
-      markUndone(guildId, actionId);
+      const replaced = replacePushRequest(scope, action.requestId, action.previousPushState);
+      markUndone(scope, actionId);
       if (replaced) {
         return {
           success: true,
@@ -604,18 +605,18 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "PUSH_CONTRIBUTION_TRANSFER": {
       // Restore previous contributor state
       if (!action.previousPushState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
         };
       }
 
-      const existing = getPushRequestById(guildId, action.requestId);
+      const existing = getPushRequestById(scope, action.requestId);
       if (!existing || existing.x !== x || existing.y !== y) {
         // Request doesn't exist or position shifted - restore it
-        const result = restorePushRequest(guildId, action.previousPushState);
-        markUndone(guildId, actionId);
+        const result = restorePushRequest(scope, action.previousPushState);
+        markUndone(scope, actionId);
         if (result.success) {
           return {
             success: true,
@@ -627,8 +628,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       }
 
       // Request still exists - replace it in place so it keeps its position
-      const replacedContribution = replacePushRequest(guildId, action.requestId, action.previousPushState);
-      markUndone(guildId, actionId);
+      const replacedContribution = replacePushRequest(scope, action.requestId, action.previousPushState);
+      markUndone(scope, actionId);
       if (replacedContribution) {
         return {
           success: true,
@@ -642,16 +643,16 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     // --- Def call action undo cases ---
 
     case "DEF_CALL_REQUEST_ADD": {
-      const existing = getDefCallRequestById(guildId, action.requestId);
+      const existing = getDefCallRequestById(scope, action.requestId);
       if (existing && existing.x === x && existing.y === y) {
-        closeDefCallRequestById(guildId, action.requestId);
-        markUndone(guildId, actionId);
+        closeDefCallRequestById(scope, action.requestId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: defense request ${coordsStr} closed.`,
         };
       }
-      markUndone(guildId, actionId);
+      markUndone(scope, actionId);
       return {
         success: true,
         message: `Undone: defense request ${coordsStr} is already closed.`,
@@ -661,16 +662,16 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "DEF_CALL_TROOPS_SENT": {
       const { troops, contributorAccount } = action.data;
       if (!troops || !contributorAccount) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} is missing required data.`,
         };
       }
 
-      const existing = getDefCallRequestById(guildId, action.requestId);
+      const existing = getDefCallRequestById(scope, action.requestId);
       if (!existing) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: true,
           message: `Undone: request ${coordsStr} no longer exists.`,
@@ -678,8 +679,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
       }
 
       // Subtract only this action's troops; a snapshot would erase later reports
-      subtractDefCallTroops(guildId, action.requestId, contributorAccount, troops);
-      markUndone(guildId, actionId);
+      subtractDefCallTroops(scope, action.requestId, contributorAccount, troops);
+      markUndone(scope, actionId);
       return {
         success: true,
         message: `Undone: ${formatTroops(troops)} troops subtracted from ${coordsStr}.`,
@@ -689,7 +690,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
     case "DEF_CALL_CLOSED": {
       if (!action.previousDefCallState) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return {
           success: false,
           message: `Action #${actionId} has no previous state.`,
@@ -700,8 +701,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
         closed: false,
         contributors: [...action.previousDefCallState.contributors],
       };
-      restoreDefCallRequest(guildId, action.requestId, reopened);
-      markUndone(guildId, actionId);
+      restoreDefCallRequest(scope, action.requestId, reopened);
+      markUndone(scope, actionId);
       return {
         success: true,
         message: `Undone: defense request ${coordsStr} reopened.`,
@@ -712,7 +713,7 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "STATS_ADJUST": {
       // Stats are reversed by the caller (undo.action) because the stats service
       // is not imported here. Only bookkeeping happens in this store.
-      markUndone(guildId, actionId);
+      markUndone(scope, actionId);
       const amount = action.data.troops ?? 0;
       return {
         success: true,
@@ -723,16 +724,16 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
     case "REQUEST_MOVED": {
       const { fromPosition } = action.data;
       if (!fromPosition) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return { success: false, message: `Action #${actionId} is missing required data.` };
       }
-      const existing = getRequestById(guildId, action.requestId);
+      const existing = getRequestById(scope, action.requestId);
       if (!existing) {
-        markUndone(guildId, actionId);
+        markUndone(scope, actionId);
         return { success: true, message: `Undone: request ${coordsStr} no longer exists.` };
       }
-      const moved = moveRequest(guildId, action.requestId, fromPosition);
-      markUndone(guildId, actionId);
+      const moved = moveRequest(scope, action.requestId, fromPosition);
+      markUndone(scope, actionId);
       if (!moved.success) {
         return { success: true, message: `Undone: request ${coordsStr} could not be moved back (${moved.error}).` };
       }
@@ -745,8 +746,8 @@ export function undoAction(guildId: string, actionId: number): UndoResult {
 
     case "SCOUT_REQUEST_ADD": {
       // The card message is removed by the caller (undo.action); the store entry is dropped here.
-      removeScoutRequest(guildId, action.requestId);
-      markUndone(guildId, actionId);
+      removeScoutRequest(scope, action.requestId);
+      markUndone(scope, actionId);
       return {
         success: true,
         message: `Undone: scout request ${coordsStr} removed.`,

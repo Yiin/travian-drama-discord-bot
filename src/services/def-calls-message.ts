@@ -23,7 +23,7 @@ import {
   getHubButtonMessageId,
   setHubButtonMessageId,
 } from "./def-calls";
-import { getGuildConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import {
   getVillageAt,
   getMapLink,
@@ -40,6 +40,7 @@ import {
 } from "./button-handlers/def-call-ids";
 import { formatTroops, percentOf, progressBar } from "../utils/format";
 import { upsertPanel, v2 } from "./panel";
+import { Scope, scopeKey } from "../config/scope";
 
 const ACCENT_OPEN = 0xf1c40f;
 const ACCENT_DONE = 0x248046;
@@ -172,11 +173,11 @@ export interface CreateDefCallChannelResult {
 
 export async function createDefCallThread(
   client: Client,
-  guildId: string,
+  scope: Scope,
   request: DefCallRequest,
   requestId: number,
 ): Promise<CreateDefCallChannelResult> {
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.defCallsChannelId) throw new Error("Def-calls channel not configured");
   if (!config.serverKey) throw new Error("Server key not configured");
 
@@ -200,8 +201,8 @@ export async function createDefCallThread(
     const card = buildDefCallCard(request, config.serverKey, config.serverTimezone, village);
     const message = await thread.send(v2({ components: [card], allowedMentions: { parse: [] } }));
 
-    updateChannelInfo(guildId, requestId, thread.id, message.id);
-    updateSummaryMessageId(guildId, requestId, starter.id);
+    updateChannelInfo(scope, requestId, thread.id, message.id);
+    updateSummaryMessageId(scope, requestId, starter.id);
 
     return { channelId: thread.id, messageId: message.id };
   } catch (error) {
@@ -233,11 +234,11 @@ async function fetchThread(client: Client, channelId: string | undefined): Promi
 
 async function syncStarterMessage(
   client: Client,
-  guildId: string,
+  scope: Scope,
   request: DefCallRequest,
   content: string,
 ): Promise<void> {
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.defCallsChannelId || !request.summaryMessageId) return;
   try {
     const parent = (await client.channels.fetch(config.defCallsChannelId)) as TextChannel | null;
@@ -254,15 +255,15 @@ async function syncStarterMessage(
 /** Re-render the thread card in place. Posts a fresh card only when the old one is gone. */
 export async function updateDefCallCard(
   client: Client,
-  guildId: string,
+  scope: Scope,
   request: DefCallRequest,
 ): Promise<void> {
   if (!request.channelId) return;
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.serverKey) return;
 
   const village = await getVillageAt(config.serverKey, request.x, request.y);
-  await syncStarterMessage(client, guildId, request, buildStarterContent(request, config.serverKey, config.serverTimezone, village));
+  await syncStarterMessage(client, scope, request, buildStarterContent(request, config.serverKey, config.serverTimezone, village));
 
   const thread = await fetchThread(client, request.channelId);
   if (!thread) return;
@@ -292,8 +293,8 @@ export async function updateDefCallCard(
     }
     if (!edited) {
       const message = await thread.send(payload);
-      const data = getRequestByChannelId(guildId, request.channelId);
-      if (data) updateMessageId(guildId, data.requestId, message.id);
+      const data = getRequestByChannelId(scope, request.channelId);
+      if (data) updateMessageId(scope, data.requestId, message.id);
     }
   } catch (error) {
     console.error("[DefCallsMessage] Error updating the card:", error);
@@ -328,8 +329,8 @@ export async function unarchiveDefCallThread(client: Client, request: DefCallReq
   }
 }
 
-function buildHubPanel(guildId: string): ContainerBuilder {
-  const open = getActiveRequests(guildId).map((r) => r.request).filter((r) => !r.landed && r.landingAt >= unixNow());
+function buildHubPanel(scope: Scope): ContainerBuilder {
+  const open = getActiveRequests(scope).map((r) => r.request).filter((r) => !r.landed && r.landingAt >= unixNow());
   const next = open.reduce<number | undefined>((min, r) => (min === undefined || r.landingAt < min ? r.landingAt : min), undefined);
   const summary =
     open.length === 0
@@ -349,8 +350,8 @@ function buildHubPanel(guildId: string): ContainerBuilder {
  * Keep the hub message (open-call count plus the Request button) current and at the
  * bottom of the def-calls channel. Safe to call when nothing changed.
  */
-export async function refreshHubChannel(client: Client, guildId: string): Promise<void> {
-  const config = getGuildConfig(guildId);
+export async function refreshHubChannel(client: Client, scope: Scope): Promise<void> {
+  const config = getScopeConfig(scope);
   if (!config.defCallsChannelId || !config.serverKey) return;
 
   let channel: TextChannel | null = null;
@@ -364,9 +365,9 @@ export async function refreshHubChannel(client: Client, guildId: string): Promis
   try {
     await upsertPanel({
       channel,
-      storedMessageId: getHubButtonMessageId(guildId),
-      payload: { components: [buildHubPanel(guildId)], allowedMentions: { parse: [] } },
-      save: (id) => setHubButtonMessageId(guildId, id),
+      storedMessageId: getHubButtonMessageId(scope),
+      payload: { components: [buildHubPanel(scope)], allowedMentions: { parse: [] } },
+      save: (id) => setHubButtonMessageId(scope, id),
     });
   } catch (error) {
     console.error("[DefCallsMessage] Error updating the hub message:", error);

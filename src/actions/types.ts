@@ -1,5 +1,6 @@
 import { Client } from "discord.js";
 import { GuildConfig } from "../config/guild-config";
+import { Scope } from "../config/scope";
 import { DefenseRequest } from "../services/defense-requests";
 
 /**
@@ -7,6 +8,9 @@ import { DefenseRequest } from "../services/defense-requests";
  */
 export interface ActionContext {
   guildId: string;
+  /** The confed the action runs in. Requests, history and stats are stored per scope. */
+  scope: Scope;
+  /** Config as seen from `scope` (see `getScopeConfig`). */
   config: GuildConfig;
   client: Client;
   userId: string; // The user performing the action
@@ -20,7 +24,7 @@ export interface ActionContext {
  * Result from config validation - either valid context or error
  */
 export type ConfigValidation =
-  | { valid: true; guildId: string; config: GuildConfig }
+  | { valid: true; guildId: string; scope: Scope; config: GuildConfig }
   | { valid: false; error: string };
 
 /**

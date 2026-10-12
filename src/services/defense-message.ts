@@ -20,7 +20,7 @@ import {
   clearRecentlyCompleted,
   DefenseRequest,
 } from "./defense-requests";
-import { getGuildConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import {
   getVillageAt,
   getRallyPointLink,
@@ -35,6 +35,7 @@ import {
 import { cmd, messageUrl } from "../actions/messages";
 import { formatTroops, percentOf, progressBar } from "../utils/format";
 import { upsertPanel } from "./panel";
+import { Scope, scopeKey } from "../config/scope";
 
 export interface LastActionInfo {
   text: string;
@@ -185,9 +186,9 @@ export function composeStackPanel(
 }
 
 /** The live stack panel: one container, one section per request, buttons at the bottom. */
-export async function buildStackPanel(guildId: string): Promise<ContainerBuilder> {
-  const data = getGuildDefenseData(guildId);
-  const config = getGuildConfig(guildId);
+export async function buildStackPanel(scope: Scope): Promise<ContainerBuilder> {
+  const data = getGuildDefenseData(scope);
+  const config = getScopeConfig(scope);
   if (!config.serverKey) {
     throw new Error("Server key is not set.");
   }
@@ -220,11 +221,11 @@ export async function buildStackPanel(guildId: string): Promise<ContainerBuilder
 }
 
 /** Link to the live stack panel, when one has been posted. */
-export function getStackPanelUrl(guildId: string): string | undefined {
-  const config = getGuildConfig(guildId);
-  const messageId = getGlobalMessageId(guildId);
+export function getStackPanelUrl(scope: Scope): string | undefined {
+  const config = getScopeConfig(scope);
+  const messageId = getGlobalMessageId(scope);
   if (!config.defenseChannelId || !messageId) return undefined;
-  return messageUrl(guildId, config.defenseChannelId, messageId);
+  return messageUrl(scope.guildId, config.defenseChannelId, messageId);
 }
 
 /**
@@ -234,19 +235,19 @@ export function getStackPanelUrl(guildId: string): string | undefined {
  */
 export async function updateGlobalMessage(
   client: Client,
-  guildId: string,
+  scope: Scope,
   lastAction?: LastActionInfo,
 ): Promise<Message | null> {
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
 
   if (!config.defenseChannelId) {
-    console.error(`[DefenseMessage] No defense channel configured for guild ${guildId}`);
+    console.error(`[DefenseMessage] No defense channel configured for guild ${scopeKey(scope)}`);
     return null;
   }
 
   const channel = (await client.channels.fetch(config.defenseChannelId)) as TextChannel | null;
   if (!channel) {
-    throw new Error(`Could not fetch defense channel for guild ${guildId}`);
+    throw new Error(`Could not fetch defense channel for guild ${scopeKey(scope)}`);
   }
 
   if (lastAction) {
@@ -257,14 +258,14 @@ export async function updateGlobalMessage(
     });
   }
 
-  const panel = await buildStackPanel(guildId);
+  const panel = await buildStackPanel(scope);
   const { message } = await upsertPanel({
     channel,
-    storedMessageId: getGlobalMessageId(guildId),
+    storedMessageId: getGlobalMessageId(scope),
     payload: { components: [panel], allowedMentions: { parse: [] } },
-    save: (id) => setGlobalMessageId(guildId, id),
+    save: (id) => setGlobalMessageId(scope, id),
   });
 
-  clearRecentlyCompleted(guildId);
+  clearRecentlyCompleted(scope);
   return message;
 }

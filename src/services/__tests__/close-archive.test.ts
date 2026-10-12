@@ -19,72 +19,73 @@ afterEach(() => {
 });
 
 const GUILD = "g1";
+const SCOPE = { guildId: GUILD };
 
 describe("def-call close and reopen", () => {
   it("keeps the data, flips the card state, and reopens on undo", async () => {
     const store = await import("../def-calls");
     const { defCallState } = await import("../def-calls-message");
     const future = Math.floor(Date.now() / 1000) + 3600;
-    const { request } = store.addRequest(GUILD, 1, 2, future, "u1", "Acc1", "note", 1000);
+    const { request } = store.addRequest(SCOPE, 1, 2, future, "u1", "Acc1", "note", 1000);
 
     expect(defCallState(request)).toBe("open");
-    store.reportTroopsSent(GUILD, request.id, "Acc2", 1000);
-    expect(defCallState(store.getRequestById(GUILD, request.id)!)).toBe("fulfilled");
+    store.reportTroopsSent(SCOPE, request.id, "Acc2", 1000);
+    expect(defCallState(store.getRequestById(SCOPE, request.id)!)).toBe("fulfilled");
 
-    const closed = store.closeRequest(GUILD, request.id);
+    const closed = store.closeRequest(SCOPE, request.id);
     expect("error" in closed).toBe(false);
-    const afterClose = store.getRequestById(GUILD, request.id)!;
+    const afterClose = store.getRequestById(SCOPE, request.id)!;
     expect(afterClose.closed).toBe(true);
     expect(afterClose.troopsSent).toBe(1000);
     expect(defCallState(afterClose)).toBe("closed");
-    expect(store.getActiveRequests(GUILD)).toHaveLength(0);
+    expect(store.getActiveRequests(SCOPE)).toHaveLength(0);
 
-    const reopened = store.reopenRequest(GUILD, request.id);
+    const reopened = store.reopenRequest(SCOPE, request.id);
     expect("error" in reopened).toBe(false);
-    expect(store.getActiveRequests(GUILD)).toHaveLength(1);
-    expect(defCallState(store.getRequestById(GUILD, request.id)!)).toBe("fulfilled");
+    expect(store.getActiveRequests(SCOPE)).toHaveLength(1);
+    expect(defCallState(store.getRequestById(SCOPE, request.id)!)).toBe("fulfilled");
   });
 
   it("shows landed once the landing time passed or the scheduler flagged it", async () => {
     const store = await import("../def-calls");
     const { defCallState } = await import("../def-calls-message");
     const past = Math.floor(Date.now() / 1000) - 60;
-    const { request } = store.addRequest(GUILD, 1, 2, past, "u1", "Acc1");
+    const { request } = store.addRequest(SCOPE, 1, 2, past, "u1", "Acc1");
     expect(defCallState(request)).toBe("landed");
 
     const future = Math.floor(Date.now() / 1000) + 3600;
-    const soon = store.addRequest(GUILD, 3, 4, future, "u1", "Acc1").request;
+    const soon = store.addRequest(SCOPE, 3, 4, future, "u1", "Acc1").request;
     expect(defCallState(soon)).toBe("open");
-    store.setLanded(GUILD, soon.id, true);
-    expect(defCallState(store.getRequestById(GUILD, soon.id)!)).toBe("landed");
+    store.setLanded(SCOPE, soon.id, true);
+    expect(defCallState(store.getRequestById(SCOPE, soon.id)!)).toBe("landed");
   });
 });
 
 describe("push close and reopen", () => {
   it("keeps contributions and toggles the closed flag", async () => {
     const store = await import("../push-requests");
-    const added = store.addPushRequest(GUILD, 1, 2, 500000, "u1", "Acc1");
+    const added = store.addPushRequest(SCOPE, 1, 2, 500000, "u1", "Acc1");
     if ("error" in added) throw new Error(added.error);
     const { request } = added;
-    store.reportResourcesSent(GUILD, request.id, "Acc2", 100000);
+    store.reportResourcesSent(SCOPE, request.id, "Acc2", 100000);
 
-    expect(store.setPushRequestClosed(GUILD, request.id, true)?.closed).toBe(true);
-    const closed = store.getPushRequestById(GUILD, request.id)!;
+    expect(store.setPushRequestClosed(SCOPE, request.id, true)?.closed).toBe(true);
+    const closed = store.getPushRequestById(SCOPE, request.id)!;
     expect(closed.resourcesSent).toBe(100000);
     expect(closed.contributors).toHaveLength(1);
 
-    expect(store.setPushRequestClosed(GUILD, request.id, false)?.closed).toBe(false);
-    expect(store.setPushRequestClosed(GUILD, 999, true)).toBeNull();
+    expect(store.setPushRequestClosed(SCOPE, request.id, false)?.closed).toBe(false);
+    expect(store.setPushRequestClosed(SCOPE, 999, true)).toBeNull();
   });
 
   it("undoing a close reopens through action history", async () => {
     const store = await import("../push-requests");
     const history = await import("../action-history");
-    const added = store.addPushRequest(GUILD, 1, 2, 500000, "u1", "Acc1");
+    const added = store.addPushRequest(SCOPE, 1, 2, 500000, "u1", "Acc1");
     if ("error" in added) throw new Error(added.error);
     const { request } = added;
-    store.setPushRequestClosed(GUILD, request.id, true);
-    const actionId = history.recordAction(GUILD, {
+    store.setPushRequestClosed(SCOPE, request.id, true);
+    const actionId = history.recordAction(SCOPE, {
       type: "PUSH_REQUEST_CLOSED",
       userId: "u1",
       coords: { x: 1, y: 2 },
@@ -93,8 +94,8 @@ describe("push close and reopen", () => {
       data: {},
     });
 
-    const result = history.undoAction(GUILD, actionId);
+    const result = history.undoAction(SCOPE, actionId);
     expect(result.success).toBe(true);
-    expect(store.getPushRequestById(GUILD, request.id)?.closed).toBe(false);
+    expect(store.getPushRequestById(SCOPE, request.id)?.closed).toBe(false);
   });
 });

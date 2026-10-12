@@ -1,13 +1,14 @@
 import { Client } from "discord.js";
 import {
   DefCallRequest,
-  getAllDefCallGuildIds,
+  getAllDefCallScopes,
   getActiveRequests,
   getRequestById,
   setLanded,
 } from "./def-calls";
 import { refreshHubChannel, updateDefCallCard } from "./def-calls-message";
 import { scheduleAt } from "../utils/time";
+import { Scope, scopeKey } from "../config/scope";
 
 /**
  * At landing time a def-call card flips to "Landed". Nothing is posted and nobody
@@ -16,37 +17,37 @@ import { scheduleAt } from "../utils/time";
 
 const timers = new Map<string, () => void>();
 
-function key(guildId: string, requestId: number): string {
-  return `${guildId}:${requestId}`;
+function key(scope: Scope, requestId: number): string {
+  return `${scopeKey(scope)}:${requestId}`;
 }
 
-export function scheduleLanding(client: Client, guildId: string, request: DefCallRequest): void {
-  cancelLanding(guildId, request.id);
+export function scheduleLanding(client: Client, scope: Scope, request: DefCallRequest): void {
+  cancelLanding(scope, request.id);
   if (request.closed || request.landed) return;
 
   const cancel = scheduleAt(request.landingAt * 1000, () => {
-    timers.delete(key(guildId, request.id));
-    void fireLanding(client, guildId, request.id);
+    timers.delete(key(scope, request.id));
+    void fireLanding(client, scope, request.id);
   });
-  timers.set(key(guildId, request.id), cancel);
+  timers.set(key(scope, request.id), cancel);
 }
 
-export function cancelLanding(guildId: string, requestId: number): void {
-  const cancel = timers.get(key(guildId, requestId));
+export function cancelLanding(scope: Scope, requestId: number): void {
+  const cancel = timers.get(key(scope, requestId));
   if (cancel) {
     cancel();
-    timers.delete(key(guildId, requestId));
+    timers.delete(key(scope, requestId));
   }
 }
 
-async function fireLanding(client: Client, guildId: string, requestId: number): Promise<void> {
-  const request = getRequestById(guildId, requestId);
+async function fireLanding(client: Client, scope: Scope, requestId: number): Promise<void> {
+  const request = getRequestById(scope, requestId);
   if (!request || request.closed || request.landed) return;
-  const landed = setLanded(guildId, requestId, true);
+  const landed = setLanded(scope, requestId, true);
   if (!landed) return;
   try {
-    await updateDefCallCard(client, guildId, landed);
-    await refreshHubChannel(client, guildId);
+    await updateDefCallCard(client, scope, landed);
+    await refreshHubChannel(client, scope);
   } catch (error) {
     console.error("[LandingScheduler] Failed to mark landed:", error);
   }
@@ -55,10 +56,10 @@ async function fireLanding(client: Client, guildId: string, requestId: number): 
 /** Call once at ClientReady. Overdue calls fire at once. */
 export function loadAndScheduleLandings(client: Client): void {
   let count = 0;
-  for (const guildId of getAllDefCallGuildIds()) {
-    for (const { request } of getActiveRequests(guildId)) {
+  for (const scope of getAllDefCallScopes()) {
+    for (const { request } of getActiveRequests(scope)) {
       if (request.landed) continue;
-      scheduleLanding(client, guildId, request);
+      scheduleLanding(client, scope, request);
       count++;
     }
   }

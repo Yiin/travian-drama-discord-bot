@@ -17,10 +17,10 @@ export async function executePushCloseAction(
   input: PushCloseActionInput,
   options: PushCloseOptions
 ): Promise<PushCloseActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { requestId } = input;
 
-  const request = getPushRequestById(guildId, requestId);
+  const request = getPushRequestById(scope, requestId);
   if (!request) {
     return { success: false, error: errors.notFound("push request", requestId) };
   }
@@ -31,14 +31,14 @@ export async function executePushCloseAction(
   if (denied) return { success: false, error: denied };
 
   const previousState: PushRequest = { ...request, contributors: [...request.contributors] };
-  const closed = setPushRequestClosed(guildId, requestId, true);
+  const closed = setPushRequestClosed(scope, requestId, true);
   if (!closed) {
     return { success: false, error: errors.notFound("push request", requestId) };
   }
 
-  await updatePushCard(client, guildId, closed);
+  await updatePushCard(client, scope, closed);
 
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "PUSH_REQUEST_CLOSED",
     userId,
     coords: { x: request.x, y: request.y },

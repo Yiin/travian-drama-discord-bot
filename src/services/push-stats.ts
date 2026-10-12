@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { Scope, scopeKey } from "../config/scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STATS_FILE = path.join(DATA_DIR, "push-stats.json");
@@ -46,14 +47,14 @@ function getDefaultGuildStats(): GuildPushStats {
   };
 }
 
-export function getGuildPushStats(guildId: string): GuildPushStats {
+export function getGuildPushStats(scope: Scope): GuildPushStats {
   const allData = loadAllData();
-  return allData[guildId] || getDefaultGuildStats();
+  return allData[scopeKey(scope)] || getDefaultGuildStats();
 }
 
-function saveGuildStats(guildId: string, stats: GuildPushStats): void {
+function saveGuildStats(scope: Scope, stats: GuildPushStats): void {
   const allData = loadAllData();
-  allData[guildId] = stats;
+  allData[scopeKey(scope)] = stats;
   saveAllData(allData);
 }
 
@@ -61,13 +62,13 @@ function saveGuildStats(guildId: string, stats: GuildPushStats): void {
  * Record a push contribution to stats.
  */
 export function recordPushContribution(
-  guildId: string,
+  scope: Scope,
   accountName: string,
   x: number,
   y: number,
   resources: number
 ): void {
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
   stats.contributions.push({
     accountName,
     x,
@@ -75,7 +76,7 @@ export function recordPushContribution(
     resources,
     timestamp: Date.now(),
   });
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
 }
 
 /**
@@ -83,20 +84,20 @@ export function recordPushContribution(
  * Removes the most recent matching contribution.
  */
 export function removePushContribution(
-  guildId: string,
+  scope: Scope,
   accountName: string,
   x: number,
   y: number,
   resources: number
 ): boolean {
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
 
   // Find the most recent matching contribution (search from end)
   for (let i = stats.contributions.length - 1; i >= 0; i--) {
     const c = stats.contributions[i];
     if (c.accountName === accountName && c.x === x && c.y === y && c.resources === resources) {
       stats.contributions.splice(i, 1);
-      saveGuildStats(guildId, stats);
+      saveGuildStats(scope, stats);
       return true;
     }
   }
@@ -113,8 +114,8 @@ export interface PushLeaderboardEntry {
 /**
  * Get push leaderboard: players sorted by total resources sent (descending).
  */
-export function getPushLeaderboard(guildId: string): PushLeaderboardEntry[] {
-  const stats = getGuildPushStats(guildId);
+export function getPushLeaderboard(scope: Scope): PushLeaderboardEntry[] {
+  const stats = getGuildPushStats(scope);
 
   // Aggregate by account name
   const byAccount = new Map<string, { totalResources: number; villages: Set<string> }>();
@@ -155,8 +156,8 @@ export interface PlayerPushStats {
 /**
  * Get push stats for a specific player by account name.
  */
-export function getPlayerPushStats(guildId: string, accountName: string): PlayerPushStats | null {
-  const stats = getGuildPushStats(guildId);
+export function getPlayerPushStats(scope: Scope, accountName: string): PlayerPushStats | null {
+  const stats = getGuildPushStats(scope);
 
   // Aggregate by village for this player
   const byVillage = new Map<string, PlayerPushVillage>();
@@ -201,8 +202,8 @@ export interface VillagePushStats {
 /**
  * Get push stats for a specific village.
  */
-export function getVillagePushStats(guildId: string, x: number, y: number): VillagePushStats | null {
-  const stats = getGuildPushStats(guildId);
+export function getVillagePushStats(scope: Scope, x: number, y: number): VillagePushStats | null {
+  const stats = getGuildPushStats(scope);
 
   // Aggregate by contributor for this village
   const byContributor = new Map<string, number>();
@@ -237,19 +238,19 @@ export function getVillagePushStats(guildId: string, x: number, y: number): Vill
 /**
  * Reset all push stats for a guild.
  */
-export function resetPushStats(guildId: string): void {
+export function resetPushStats(scope: Scope): void {
   const stats: GuildPushStats = {
     contributions: [],
     lastReset: Date.now(),
   };
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
 }
 
 /**
  * Get the timestamp of last push stats reset.
  */
-export function getPushLastResetTime(guildId: string): number {
-  return getGuildPushStats(guildId).lastReset;
+export function getPushLastResetTime(scope: Scope): number {
+  return getGuildPushStats(scope).lastReset;
 }
 
 /**
@@ -257,13 +258,13 @@ export function getPushLastResetTime(guildId: string): number {
  * Used when editing contribution amounts.
  */
 export function adjustContributionStats(
-  guildId: string,
+  scope: Scope,
   accountName: string,
   x: number,
   y: number,
   adjustment: number
 ): void {
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
 
   // Add adjustment contribution entry
   stats.contributions.push({
@@ -274,7 +275,7 @@ export function adjustContributionStats(
     timestamp: Date.now(),
   });
 
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
 }
 
 /**
@@ -282,14 +283,14 @@ export function adjustContributionStats(
  * Adds a negative entry for the source and positive entry for the target.
  */
 export function transferContributionStats(
-  guildId: string,
+  scope: Scope,
   fromAccount: string,
   toAccount: string,
   x: number,
   y: number,
   amount: number
 ): void {
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
   const now = Date.now();
 
   // Remove from source
@@ -310,7 +311,7 @@ export function transferContributionStats(
     timestamp: now,
   });
 
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
 }
 
 // --- Global stats edit/transfer functions ---
@@ -326,11 +327,11 @@ export interface EditGlobalStatsResult {
  * Calculates the difference from current total and adds an adjustment entry.
  */
 export function editGlobalStats(
-  guildId: string,
+  scope: Scope,
   accountName: string,
   newAmount: number
 ): EditGlobalStatsResult {
-  const playerStats = getPlayerPushStats(guildId, accountName);
+  const playerStats = getPlayerPushStats(scope, accountName);
   const previousAmount = playerStats?.totalResources || 0;
 
   if (previousAmount === newAmount) {
@@ -339,7 +340,7 @@ export function editGlobalStats(
 
   const adjustment = newAmount - previousAmount;
 
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
   // Use coords (0,0) as a marker for global adjustments
   stats.contributions.push({
     accountName,
@@ -349,7 +350,7 @@ export function editGlobalStats(
     timestamp: Date.now(),
   });
 
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
   return { success: true, previousAmount };
 }
 
@@ -364,11 +365,11 @@ export interface TransferGlobalStatsResult {
  * Returns the number of contribution records updated.
  */
 export function renameAccountInPushStats(
-  guildId: string,
+  scope: Scope,
   oldName: string,
   newName: string
 ): number {
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
   let count = 0;
 
   for (const contribution of stats.contributions) {
@@ -379,7 +380,7 @@ export function renameAccountInPushStats(
   }
 
   if (count > 0) {
-    saveGuildStats(guildId, stats);
+    saveGuildStats(scope, stats);
   }
   return count;
 }
@@ -389,7 +390,7 @@ export function renameAccountInPushStats(
  * Creates negative entries for source and positive entries for target.
  */
 export function transferGlobalStats(
-  guildId: string,
+  scope: Scope,
   fromAccount: string,
   toAccount: string
 ): TransferGlobalStatsResult {
@@ -397,12 +398,12 @@ export function transferGlobalStats(
     return { success: false, error: "Cannot transfer to the same player." };
   }
 
-  const fromStats = getPlayerPushStats(guildId, fromAccount);
+  const fromStats = getPlayerPushStats(scope, fromAccount);
   if (!fromStats || fromStats.totalResources === 0) {
     return { success: false, error: `Player "${fromAccount}" has no stats.` };
   }
 
-  const stats = getGuildPushStats(guildId);
+  const stats = getGuildPushStats(scope);
   const now = Date.now();
   const transferredAmount = fromStats.totalResources;
 
@@ -427,6 +428,6 @@ export function transferGlobalStats(
     });
   }
 
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
   return { success: true, transferredAmount };
 }

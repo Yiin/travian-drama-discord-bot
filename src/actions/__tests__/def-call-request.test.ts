@@ -21,7 +21,7 @@ vi.mock("../../services/action-history", () => ({ recordAction: vi.fn().mockRetu
 
 const originalCwd = process.cwd();
 const context = {
-  guildId: "guild", userId: "user", client: {},
+  guildId: "guild", scope: { guildId: "guild" }, userId: "user", client: {},
   config: { serverKey: "ts33.x3.international", defCallsChannelId: "parent" },
 } as ActionContext;
 const input = { coords: "0|0", landing: "23:59:59", comment: "testing" };
@@ -52,13 +52,13 @@ it("discards failed calls and keeps the successful retry with a fresh id", async
 
   expect((await executeDefCallRequestAction(context, input)).success).toBe(false);
   expect((await executeDefCallRequestAction(context, input)).success).toBe(false);
-  expect(store.getActiveRequests(context.guildId)).toHaveLength(0);
+  expect(store.getActiveRequests(context.scope)).toHaveLength(0);
   expect(scheduler.scheduleLanding).not.toHaveBeenCalled();
   expect(history.recordAction).not.toHaveBeenCalled();
 
   const result = await executeDefCallRequestAction(context, input);
   expect(result).toMatchObject({ success: true, requestId: 3 });
-  expect(store.getActiveRequests(context.guildId).map((r) => r.requestId)).toEqual([3]);
+  expect(store.getActiveRequests(context.scope).map((r) => r.requestId)).toEqual([3]);
   expect(scheduler.scheduleLanding).toHaveBeenCalledTimes(1);
   expect(history.recordAction).toHaveBeenCalledTimes(1);
 });
@@ -68,10 +68,10 @@ it("keeps another call created while thread creation is pending", async () => {
   const messages = await import("../../services/def-calls-message");
   const { executeDefCallRequestAction } = await import("../def-call-request.action");
   vi.mocked(messages.createDefCallThread).mockImplementationOnce(async () => {
-    store.addRequest(context.guildId, 1, 2, 2000000000, "other", "Other");
+    store.addRequest(context.scope, 1, 2, 2000000000, "other", "Other");
     throw new Error("Missing Access");
   });
   expect((await executeDefCallRequestAction(context, input)).success).toBe(false);
-  expect(store.getActiveRequests(context.guildId).map((r) => r.requestId)).toEqual([2]);
-  expect(store.getRequestById(context.guildId, 2)?.requesterAccount).toBe("Other");
+  expect(store.getActiveRequests(context.scope).map((r) => r.requestId)).toEqual([2]);
+  expect(store.getRequestById(context.scope, 2)?.requesterAccount).toBe("Other");
 });

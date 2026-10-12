@@ -3,7 +3,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import {
   executeDefCallRequestAction,
   executeDefCallSentAction,
@@ -12,7 +12,7 @@ import {
 import { getRequestByChannelId } from "../services/def-calls";
 import { withRetry } from "../utils/retry";
 import { errors, confirmationEdit, asConfirm, channelUrl, failEdit } from "../actions/messages";
-import { guildCommand, requireGuild } from "./shared";
+import { guildCommand, requireScope } from "./shared";
 import { buildActionContext } from "../actions/context";
 
 export const defCommand: Command = {
@@ -56,11 +56,10 @@ export const defCommand: Command = {
     .addSubcommand((sub) => sub.setName("close").setDescription("Close this defense call and archive the thread")),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const guildId = await requireGuild(interaction);
-    if (!guildId) return;
+    const scope = await requireScope(interaction);
+    if (!scope) return;
 
-    const config = getGuildConfig(guildId);
-    const context = buildActionContext(interaction, guildId, config);
+    const context = buildActionContext(interaction, scope, getScopeConfig(scope));
 
     switch (interaction.options.getSubcommand()) {
       case "request": {
@@ -78,14 +77,14 @@ export const defCommand: Command = {
         await interaction.editReply(
           confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
             actionId: result.actionId,
-            panelUrl: channelUrl(guildId, result.channelId),
+            panelUrl: channelUrl(scope.guildId, result.channelId),
             panelLabel: "Open thread",
           })
         );
         return;
       }
       case "sent": {
-        const requestData = getRequestByChannelId(guildId, interaction.channelId);
+        const requestData = getRequestByChannelId(scope, interaction.channelId);
         if (!requestData) {
           await interaction.reply({ content: errors.notInThread("defense"), flags: MessageFlags.Ephemeral });
           return;
@@ -107,7 +106,7 @@ export const defCommand: Command = {
         return;
       }
       case "close": {
-        const requestData = getRequestByChannelId(guildId, interaction.channelId);
+        const requestData = getRequestByChannelId(scope, interaction.channelId);
         if (!requestData) {
           await interaction.reply({ content: errors.notInThread("defense"), flags: MessageFlags.Ephemeral });
           return;

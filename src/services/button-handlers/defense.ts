@@ -10,7 +10,7 @@ import {
   MessageFlags,
   UserSelectMenuBuilder,
 } from "discord.js";
-import { getGuildConfig } from "../../config/guild-config";
+import { getGuildConfig , getScopeConfig } from "../../config/guild-config";
 import { getGuildDefenseData } from "../defense-requests";
 import { getVillageAt } from "../map-data";
 import {
@@ -25,6 +25,7 @@ import { formatTroops } from "../../utils/format";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 import { buildActionContext } from "../../actions/context";
 import { checkPermission } from "../../actions/permissions";
+import { resolveScope } from "../../config/scope";
 
 // Defense button/modal IDs
 export const SENT_BUTTON_ID = "sent_troops_button";
@@ -42,8 +43,8 @@ export const MESSAGE_INPUT_ID = "message_input";
 export async function handleSentButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
@@ -51,7 +52,7 @@ export async function handleSentButton(
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.serverKey) {
     await interaction.reply({
       ...failReply(errors.notSetUp(), interaction),
@@ -60,7 +61,7 @@ export async function handleSentButton(
     return;
   }
 
-  const data = getGuildDefenseData(guildId);
+  const data = getGuildDefenseData(scope);
   if (data.requests.length === 0) {
     await interaction.reply({
       content: "⚠️ **There are no open stack requests.** Press **Request stack** to add one.",
@@ -144,7 +145,7 @@ export async function handleSentModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
   // 1. Validate configuration
-  const validation = validateDefenseConfig(interaction.guildId);
+  const validation = validateDefenseConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -188,7 +189,7 @@ export async function handleSentModal(
 
   // 5. Execute action
   const result = await executeSentAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       target: requestId.toString(),
       troops,
@@ -205,7 +206,7 @@ export async function handleSentModal(
   await interaction.editReply(
     confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
       actionId: result.actionId,
-      panelUrl: getStackPanelUrl(validation.guildId),
+      panelUrl: getStackPanelUrl(validation.scope),
     })
   );
 }
@@ -213,8 +214,8 @@ export async function handleSentModal(
 export async function handleRequestDefButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
@@ -222,7 +223,7 @@ export async function handleRequestDefButton(
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   if (!config.serverKey) {
     await interaction.reply({
       ...failReply(errors.notSetUp(), interaction),
@@ -230,7 +231,7 @@ export async function handleRequestDefButton(
     });
     return;
   }
-  const denied = checkPermission(buildActionContext(interaction, guildId, config), "request");
+  const denied = checkPermission(buildActionContext(interaction, scope, config), "request");
   if (denied) {
     await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
@@ -286,7 +287,7 @@ export async function handleRequestDefModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
   // 1. Validate configuration
-  const validation = validateDefenseConfig(interaction.guildId);
+  const validation = validateDefenseConfig(await resolveScope(interaction));
   if (!validation.valid) {
     await interaction.reply(failReply(validation.error, interaction));
     return;
@@ -312,7 +313,7 @@ export async function handleRequestDefModal(
 
   // 5. Execute action
   const result = await executeStackAction(
-    buildActionContext(interaction, validation.guildId, validation.config),
+    buildActionContext(interaction, validation.scope, validation.config),
     {
       coords: coordsInput,
       troopsNeeded,
@@ -329,7 +330,7 @@ export async function handleRequestDefModal(
   await interaction.editReply(
     confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
       actionId: result.actionId,
-      panelUrl: getStackPanelUrl(validation.guildId),
+      panelUrl: getStackPanelUrl(validation.scope),
     })
   );
 }

@@ -15,11 +15,11 @@ export async function executePushEditContributionAction(
   context: ActionContext,
   input: PushEditContributionActionInput
 ): Promise<PushEditContributionActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { requestId, accountName, newAmount } = input;
 
   // 1. Get request before edit (deep copy for undo)
-  const request = getPushRequestById(guildId, requestId);
+  const request = getPushRequestById(scope, requestId);
   if (!request) {
     return { success: false, error: `Push request #${requestId} not found.` };
   }
@@ -35,7 +35,7 @@ export async function executePushEditContributionAction(
   };
 
   // 2. Update the contributor's resources
-  const result = updateContributorResources(guildId, requestId, accountName, newAmount);
+  const result = updateContributorResources(scope, requestId, accountName, newAmount);
   if (!result.success) {
     return { success: false, error: result.error! };
   }
@@ -44,13 +44,13 @@ export async function executePushEditContributionAction(
   const adjustment = newAmount - oldAmount;
 
   // 3. Adjust stats
-  adjustContributionStats(guildId, accountName, request.x, request.y, adjustment);
+  adjustContributionStats(scope, accountName, request.x, request.y, adjustment);
 
   // 4. Get village info for display
   const village = await getVillageAt(config.serverKey!, request.x, request.y);
 
   // 5. Record action for undo
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "PUSH_CONTRIBUTION_EDIT",
     userId,
     coords: { x: request.x, y: request.y },
@@ -75,7 +75,7 @@ export async function executePushEditContributionAction(
     result.request!,
     `📝 Changed **${accountName}** contribution: **${formatResources(oldAmount)}** → **${formatResources(newAmount)}**`
   );
-  await updatePushCard(client, guildId, result.request!);
+  await updatePushCard(client, scope, result.request!);
 
   return {
     success: true,

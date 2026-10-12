@@ -10,7 +10,8 @@ import {
   MessageFlags,
 } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig } from "../config/guild-config";
+import { getGuildConfig, getScopeConfig } from "../config/guild-config";
+import { Scope } from "../config/scope";
 import { requireAdmin } from "../utils/permissions";
 import {
   getLeaderboard,
@@ -22,7 +23,7 @@ import {
 } from "../services/stats";
 import { getVillageAt, getMapLink, getPlayerByExactName, searchPlayersByName } from "../services/map-data";
 import { getAllPlayers } from "../services/player-accounts";
-import { guildCommand, requireGuild } from "./shared";
+import { guildCommand, requireScope } from "./shared";
 import { parseCoords } from "../utils/parse-coords";
 import { formatNumber } from "../utils/format";
 import { errors, cmd, failReply, confirmation, asConfirm } from "../actions/messages";
@@ -91,38 +92,38 @@ export const statsCommand: Command = {
   },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const guildId = await requireGuild(interaction);
-    if (!guildId) return;
+    const scope = await requireScope(interaction);
+    if (!scope) return;
 
     switch (interaction.options.getSubcommand()) {
       case "leaderboard":
-        await handleLeaderboard(interaction, guildId);
+        await handleLeaderboard(interaction, scope);
         break;
       case "me":
-        await handleUser(interaction, guildId, interaction.user);
+        await handleUser(interaction, scope, interaction.user);
         break;
       case "user":
-        await handleUser(interaction, guildId, interaction.options.getUser("user", true));
+        await handleUser(interaction, scope, interaction.options.getUser("user", true));
         break;
       case "player":
-        await handlePlayer(interaction, guildId);
+        await handlePlayer(interaction, scope);
         break;
       case "village":
-        await handleVillage(interaction, guildId);
+        await handleVillage(interaction, scope);
         break;
       case "stacks":
-        await handleStacks(interaction, guildId);
+        await handleStacks(interaction, scope);
         break;
       case "players":
-        await handlePlayers(interaction, guildId);
+        await handlePlayers(interaction, scope);
         break;
       case "add":
         if (!(await requireAdmin(interaction))) return;
-        await handleAdd(interaction, guildId);
+        await handleAdd(interaction, scope);
         break;
       case "reset":
         if (!(await requireAdmin(interaction))) return;
-        await handleReset(interaction, guildId);
+        await handleReset(interaction, scope);
         break;
     }
   },
@@ -130,9 +131,9 @@ export const statsCommand: Command = {
 
 async function handleLeaderboard(
   interaction: ChatInputCommandInteraction,
-  guildId: string
+  scope: Scope
 ): Promise<void> {
-  const leaderboard = getLeaderboard(guildId);
+  const leaderboard = getLeaderboard(scope);
 
   if (leaderboard.length === 0) {
     await interaction.reply({
@@ -142,7 +143,7 @@ async function handleLeaderboard(
     return;
   }
 
-  const lastReset = getLastResetTime(guildId);
+  const lastReset = getLastResetTime(scope);
   const resetDate = new Date(lastReset).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -171,13 +172,13 @@ async function handleLeaderboard(
 
 async function handleUser(
   interaction: ChatInputCommandInteraction,
-  guildId: string,
+  scope: Scope,
   user: User
 ): Promise<void> {
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   const serverKey = config.serverKey;
 
-  const userStats = getUserStats(guildId, user.id);
+  const userStats = getUserStats(scope, user.id);
 
   if (!userStats) {
     await interaction.reply({
@@ -222,10 +223,10 @@ async function handleUser(
 
 async function handlePlayer(
   interaction: ChatInputCommandInteraction,
-  guildId: string
+  scope: Scope
 ): Promise<void> {
   const playerName = interaction.options.getString("name", true);
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   const serverKey = config.serverKey;
 
   if (!serverKey) {
@@ -252,7 +253,7 @@ async function handlePlayer(
   let totalCollected = 0;
 
   for (const v of villages) {
-    const villageStats = getVillageStats(guildId, v.x, v.y);
+    const villageStats = getVillageStats(scope, v.x, v.y);
     const collected = villageStats?.totalTroops || 0;
     totalCollected += collected;
 
@@ -276,7 +277,7 @@ async function handlePlayer(
 
 async function handleVillage(
   interaction: ChatInputCommandInteraction,
-  guildId: string
+  scope: Scope
 ): Promise<void> {
   const coordsInput = interaction.options.getString("coords", true);
   const coords = parseCoords(coordsInput);
@@ -289,10 +290,10 @@ async function handleVillage(
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   const serverKey = config.serverKey;
 
-  const villageStats = getVillageStats(guildId, coords.x, coords.y);
+  const villageStats = getVillageStats(scope, coords.x, coords.y);
 
   if (!villageStats) {
     await interaction.reply({
@@ -337,9 +338,9 @@ async function handleVillage(
 
 async function handleStacks(
   interaction: ChatInputCommandInteraction,
-  guildId: string
+  scope: Scope
 ): Promise<void> {
-  const allVillages = getAllVillageStats(guildId);
+  const allVillages = getAllVillageStats(scope);
 
   if (allVillages.length === 0) {
     await interaction.reply({
@@ -349,7 +350,7 @@ async function handleStacks(
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   const serverKey = config.serverKey;
 
   await interaction.deferReply();
@@ -401,7 +402,7 @@ export function isStatsResetActive(messageId: string): boolean {
 
 async function handleReset(
   interaction: ChatInputCommandInteraction,
-  guildId: string
+  scope: Scope
 ): Promise<void> {
   const confirmButton = new ButtonBuilder()
     .setCustomId(STATS_RESET_CONFIRM_ID)
@@ -435,7 +436,7 @@ async function handleReset(
     });
 
     if (buttonInteraction.customId === STATS_RESET_CONFIRM_ID) {
-      resetStats(guildId);
+      resetStats(scope);
       await buttonInteraction.update({
         content: "All stats have been reset.",
         components: [],
@@ -457,8 +458,8 @@ async function handleReset(
   }
 }
 
-async function handlePlayers(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const players = getAllPlayers(guildId);
+async function handlePlayers(interaction: ChatInputCommandInteraction, scope: Scope): Promise<void> {
+  const players = getAllPlayers(scope.guildId);
 
   if (players.length === 0) {
     await interaction.reply({
@@ -493,10 +494,10 @@ async function handlePlayers(interaction: ChatInputCommandInteraction, guildId: 
   }
 }
 
-async function handleAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+async function handleAdd(interaction: ChatInputCommandInteraction, scope: Scope): Promise<void> {
   const target = interaction.options.getUser("for") ?? interaction.user;
   const result = await executeStatsAdjustAction(
-    buildActionContext(interaction, guildId, getGuildConfig(guildId)),
+    buildActionContext(interaction, scope, getScopeConfig(scope)),
     {
       coords: interaction.options.getString("coords", true),
       troops: interaction.options.getInteger("troops", true),

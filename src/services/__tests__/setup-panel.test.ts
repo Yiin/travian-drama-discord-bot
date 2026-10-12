@@ -9,7 +9,7 @@ import {
 import type { GuildConfig } from "../../config/guild-config";
 
 function finishButton(config: GuildConfig) {
-  const json = buildSetupPanel(config, { guildId: "g1" }).toJSON() as any;
+  const json = buildSetupPanel(config, { scope: { guildId: "g1" } }).toJSON() as any;
   for (const component of json.components) {
     if (component.type !== 1) continue; // action row
     const button = component.components.find((c: any) => c.custom_id === "setup_finish_button");
@@ -63,7 +63,7 @@ describe("finish setup gating", () => {
   });
 
   it("preselects the configured channels", () => {
-    const json = buildSetupPanel({ defenseChannelId: "42" }, { guildId: "g1" }).toJSON() as any;
+    const json = buildSetupPanel({ defenseChannelId: "42" }, { scope: { guildId: "g1" } }).toJSON() as any;
     const selects = json.components
       .filter((c: any) => c.type === 1)
       .flatMap((row: any) => row.components)
@@ -77,7 +77,7 @@ describe("finish setup gating", () => {
 
   it("has a multi-role picker per permission, preselected, within Discord's 40-component limit", () => {
     const config: GuildConfig = { permissions: { request: ["r1", "r2"], manage: [] } };
-    const json = buildSetupPanel(config, { guildId: "g1" }).toJSON() as any;
+    const json = buildSetupPanel(config, { scope: { guildId: "g1" } }).toJSON() as any;
     const pickers = json.components
       .filter((c: any) => c.type === 1)
       .flatMap((row: any) => row.components)

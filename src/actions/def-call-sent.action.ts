@@ -21,7 +21,7 @@ export async function executeDefCallSentAction(
   context: ActionContext,
   input: DefCallSentActionInput
 ): Promise<DefCallSentActionResult> {
-  const { guildId, client, userId } = context;
+  const { guildId, scope, client, userId } = context;
   const { requestId, troops, creditUserId } = input;
 
   const creditedUserId = creditUserId || userId;
@@ -37,27 +37,27 @@ export async function executeDefCallSentAction(
   }
   const { accountName } = accountResult;
 
-  const requestBefore = getRequestById(guildId, requestId);
+  const requestBefore = getRequestById(scope, requestId);
   if (!requestBefore) {
     return { success: false, error: errors.notFound("defense call", requestId) };
   }
   if (requestBefore.closed) {
     return { success: false, error: "⚠️ **This defense call is closed.** Undo the close first if it was a mistake." };
   }
-  const result = reportTroopsSent(guildId, requestId, accountName, troops);
+  const result = reportTroopsSent(scope, requestId, accountName, troops);
   if ("error" in result) {
     return { success: false, error: result.error };
   }
 
   recordContribution(
-    guildId,
+    scope,
     creditedUserId,
     result.request.x,
     result.request.y,
     troops
   );
 
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "DEF_CALL_TROOPS_SENT",
     userId,
     coords: { x: result.request.x, y: result.request.y },
@@ -69,8 +69,8 @@ export async function executeDefCallSentAction(
     },
   });
 
-  await updateDefCallCard(client, guildId, result.request);
-  await refreshHubChannel(client, guildId);
+  await updateDefCallCard(client, scope, result.request);
+  await refreshHubChannel(client, scope);
 
   const actionText = `**${accountName}** sent **${formatTroops(troops)}** troops to (${result.request.x}|${result.request.y})`;
 

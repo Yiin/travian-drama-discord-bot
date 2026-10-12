@@ -32,10 +32,10 @@ export async function executeDefCallCloseAction(
   input: DefCallCloseActionInput,
   options: CloseOptions
 ): Promise<DefCallCloseActionResult> {
-  const { guildId, client, userId } = context;
+  const { guildId, scope, client, userId } = context;
   const { requestId } = input;
 
-  const request = getRequestById(guildId, requestId);
+  const request = getRequestById(scope, requestId);
   if (!request) {
     return { success: false, error: `Request #${requestId} not found.` };
   }
@@ -48,15 +48,15 @@ export async function executeDefCallCloseAction(
     contributors: [...request.contributors],
   };
 
-  const closed = closeRequest(guildId, requestId);
+  const closed = closeRequest(scope, requestId);
   if ("error" in closed) {
     return { success: false, error: closed.error };
   }
 
-  cancelLanding(guildId, requestId);
-  await updateDefCallCard(client, guildId, closed);
+  cancelLanding(scope, requestId);
+  await updateDefCallCard(client, scope, closed);
 
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "DEF_CALL_CLOSED",
     userId,
     coords: { x: request.x, y: request.y },
@@ -84,7 +84,7 @@ export async function executeDefCallCloseAction(
     }
   }
   await archiveDefCallThread(client, closed);
-  await refreshHubChannel(client, guildId);
+  await refreshHubChannel(client, scope);
 
   return result;
 }

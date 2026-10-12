@@ -24,9 +24,17 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { getGuildConfig, GuildConfig, Permission, setScoutRole } from "../config/guild-config";
+import { Confed, getConfed, getGuildConfig, getScopeConfig, GuildConfig, Permission } from "../config/guild-config";
+import { mainScope, resolveScope, Scope } from "../config/scope";
 import { ChannelKind, cmd, errors, SETUP_OPEN_BUTTON_ID, SETUP_PING_ADMIN_BUTTON_ID } from "../actions/messages";
-import { applyChannel, applyServerKey, applyTimezone, CHANNEL_KIND_LABEL } from "../actions/setup.action";
+import {
+  applyChannel,
+  applyScoutRole,
+  applyServerKey,
+  applyTimezone,
+  CHANNEL_FIELD,
+  CHANNEL_KIND_LABEL,
+} from "../actions/setup.action";
 import { isAdmin } from "../utils/permissions";
 import { buildActionContext } from "../actions/context";
 import { buildPermissionSummary, describePermission, PERMISSION_LABEL } from "../actions/permissions";
@@ -57,12 +65,20 @@ export const SETUP_REMINDER_BUTTON_ID = "setup_reminder_button";
 const CHANNEL_KINDS: ChannelKind[] = ["defense", "defcalls", "scout", "push"];
 const PERMISSIONS: Permission[] = ["request", "manage"];
 
-const CHANNEL_FIELD: Record<ChannelKind, keyof GuildConfig> = {
-  defense: "defenseChannelId",
-  defcalls: "defCallsChannelId",
-  scout: "scoutChannelId",
-  push: "pushChannelId",
-};
+/**
+ * Confed panels carry the confed id after the base custom ID
+ * (`setup_channel:defense:c2`), so a picker saves to the confed it was built
+ * for, wherever the panel was opened.
+ */
+function withConfed(customId: string, scope: Scope): string {
+  return scope.confedId ? `${customId}:${scope.confedId}` : customId;
+}
+
+/** Scope named by a custom ID built with `withConfed`. `base` ends before the confed part. */
+function scopeFromCustomId(guildId: string, customId: string, base: string): Scope {
+  const confedId = customId.slice(base.length).replace(/^:/, "");
+  return confedId ? { guildId, confedId } : mainScope(guildId);
+}
 
 // --- Status ---
 
@@ -109,14 +125,36 @@ export function buildSetupFooter(config: GuildConfig): string {
   ].join(" · ");
 }
 
-/** Checklist used by `/setup show`. */
-export function buildSetupSummary(config: GuildConfig): string {
+/** Checklist used by `/setup show`: the main confed, then every other confed. */
+export function buildSetupSummary(guildId: string): string {
+  const config = getGuildConfig(guildId);
+  const parts = [buildMainSummary(config)];
+  for (const confed of config.confeds ?? []) {
+    parts.push(buildConfedSummary(confed));
+  }
+  return parts.join("\n\n");
+}
+
+function buildConfedSummary(confed: Confed): string {
+  const line = (ok: boolean, label: string, value?: string) =>
+    `${ok ? "✅" : "⬜"} **${label}:** ${value ?? "not set"}`;
+  return [
+    `**Confed ${confed.name}** · category <#${confed.categoryId}>`,
+    ...CHANNEL_KINDS.map((kind) => {
+      const id = confed[CHANNEL_FIELD[kind]];
+      return line(!!id, `${CHANNEL_KIND_LABEL[kind]} channel`, id ? `<#${id}>` : undefined);
+    }),
+    line(!!confed.scoutRoleId, "Scout role", confed.scoutRoleId ? `<@&${confed.scoutRoleId}>` : "none (optional)"),
+  ].join("\n");
+}
+
+function buildMainSummary(config: GuildConfig): string {
   const status = setupStatus(config);
   const line = (ok: boolean, label: string, value?: string) =>
     `${ok ? "✅" : "⬜"} **${label}:** ${value ?? "not set"}`;
   const channel = (id?: string) => (id ? `<#${id}>` : undefined);
   const lines = [
-    "**Bot setup**",
+    config.confeds?.length ? "**Bot setup** · main confed" : "**Bot setup**",
     line(status.server, "Travian server", config.serverKey ? `\`${config.serverKey}\`` : undefined),
     ...CHANNEL_KINDS.map((kind) =>
       line(status.channels[kind], `${CHANNEL_KIND_LABEL[kind]} channel`, channel(config[CHANNEL_FIELD[kind]] as string | undefined)),
@@ -131,6 +169,12 @@ export function buildSetupSummary(config: GuildConfig): string {
   if (!status.complete) {
     lines.push(`Fill the ⬜ items with ${cmd("setup panel")}, or ${cmd("setup server")} and ${cmd("setup channel")}.`);
   }
+  lines.push(
+    "",
+    config.confeds?.length
+      ? `-# Commands in a confed's category use that confed's channels. Add another with ${cmd("setup confed add")}.`
+      : `-# Several confeds in this server? Give each one its own channels with ${cmd("setup confed add")}.`,
+  );
   return lines.join("\n");
 }
 
@@ -139,7 +183,7 @@ export function buildSetupSummary(config: GuildConfig): string {
 export interface SetupPanelOptions {
   /** First-run wording ("Thanks for adding Drama") instead of the plain title. */
   welcome?: boolean;
-  guildId: string;
+  scope: Scope;
 }
 
 function text(content: string): TextDisplayBuilder {
@@ -147,6 +191,8 @@ function text(content: string): TextDisplayBuilder {
 }
 
 export function buildSetupPanel(config: GuildConfig, options: SetupPanelOptions): ContainerBuilder {
+  const confed = getConfed(options.scope);
+  if (confed) return buildConfedSetupPanel(config, confed, options.scope);
   const status = setupStatus(config);
   const panel = new ContainerBuilder().setAccentColor(0x5865f2);
 
@@ -174,17 +220,7 @@ export function buildSetupPanel(config: GuildConfig, options: SetupPanelOptions)
 
   // 2 · Channels
   panel.addTextDisplayComponents(text("**2 · Channels**\n-# Pick one channel per feature. You can start with just one."));
-  for (const kind of CHANNEL_KINDS) {
-    const current = config[CHANNEL_FIELD[kind]] as string | undefined;
-    const select = new ChannelSelectMenuBuilder()
-      .setCustomId(`${SETUP_CHANNEL_SELECT_PREFIX}${kind}`)
-      .setPlaceholder(`${CHANNEL_KIND_LABEL[kind]} → pick a channel`)
-      .setChannelTypes(ChannelType.GuildText)
-      .setMinValues(1)
-      .setMaxValues(1);
-    if (current) select.setDefaultChannels(current);
-    panel.addActionRowComponents(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(select));
-  }
+  addChannelPickers(panel, config, options.scope);
   panel.addSeparatorComponents(new SeparatorBuilder());
 
   // 3 · Optional
@@ -195,13 +231,7 @@ export function buildSetupPanel(config: GuildConfig, options: SetupPanelOptions)
       }; typed landing times are read in it.`,
     ),
   );
-  const roleSelect = new RoleSelectMenuBuilder()
-    .setCustomId(SETUP_ROLE_SELECT_ID)
-    .setPlaceholder("Scout role → pick a role (optional)")
-    .setMinValues(0)
-    .setMaxValues(1);
-  if (config.scoutRoleId) roleSelect.setDefaultRoles(config.scoutRoleId);
-  panel.addActionRowComponents(new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleSelect));
+  addScoutRolePicker(panel, config, options.scope);
   panel.addActionRowComponents(
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
@@ -239,7 +269,7 @@ export function buildSetupPanel(config: GuildConfig, options: SetupPanelOptions)
 
   panel.addTextDisplayComponents(
     text(
-      `-# ${buildSetupFooter(config)}\n-# Commands missing? Run \`npm run register\` with \`DISCORD_GUILD_ID=${options.guildId}\`.`,
+      `-# ${buildSetupFooter(config)}\n-# Several confeds in this server? Give each its own channels with ${cmd("setup confed add")}.`,
     ),
   );
   panel.addActionRowComponents(
@@ -256,6 +286,62 @@ export function buildSetupPanel(config: GuildConfig, options: SetupPanelOptions)
     ),
   );
 
+  return panel;
+}
+
+function addChannelPickers(panel: ContainerBuilder, config: GuildConfig, scope: Scope): void {
+  for (const kind of CHANNEL_KINDS) {
+    const current = config[CHANNEL_FIELD[kind]];
+    const select = new ChannelSelectMenuBuilder()
+      .setCustomId(withConfed(`${SETUP_CHANNEL_SELECT_PREFIX}${kind}`, scope))
+      .setPlaceholder(`${CHANNEL_KIND_LABEL[kind]} → pick a channel`)
+      .setChannelTypes(ChannelType.GuildText)
+      .setMinValues(1)
+      .setMaxValues(1);
+    if (current) select.setDefaultChannels(current);
+    panel.addActionRowComponents(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(select));
+  }
+}
+
+function addScoutRolePicker(panel: ContainerBuilder, config: GuildConfig, scope: Scope): void {
+  const roleSelect = new RoleSelectMenuBuilder()
+    .setCustomId(withConfed(SETUP_ROLE_SELECT_ID, scope))
+    .setPlaceholder("Scout role → pick a role (optional)")
+    .setMinValues(0)
+    .setMaxValues(1);
+  if (config.scoutRoleId) roleSelect.setDefaultRoles(config.scoutRoleId);
+  panel.addActionRowComponents(new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleSelect));
+}
+
+/** A confed's panel: only what a confed has on its own. Server, timezone and permissions stay on the main panel. */
+function buildConfedSetupPanel(config: GuildConfig, confed: Confed, scope: Scope): ContainerBuilder {
+  const status = setupStatus(config);
+  const panel = new ContainerBuilder().setAccentColor(0x5865f2);
+  panel.addTextDisplayComponents(
+    text(`## ⚙️ Confed setup · ${confed.name}`),
+    text(
+      `Commands run in <#${confed.categoryId}> use these channels. Pick channels inside that category.${
+        status.server ? "" : `\n⚠️ The Travian server is not set yet. Set it on the main panel with ${cmd("setup panel")} outside this category.`
+      }`,
+    ),
+  );
+  panel.addSeparatorComponents(new SeparatorBuilder());
+  panel.addTextDisplayComponents(text("**Channels**\n-# Pick one channel per feature. You can start with just one."));
+  addChannelPickers(panel, config, scope);
+  panel.addSeparatorComponents(new SeparatorBuilder());
+  panel.addTextDisplayComponents(text("**Scout role** (optional)\n-# Mentioned on this confed's scout requests."));
+  addScoutRolePicker(panel, config, scope);
+  panel.addSeparatorComponents(new SeparatorBuilder());
+  panel.addTextDisplayComponents(text(`-# ${status.channelCount} of ${CHANNEL_KINDS.length} channels set`));
+  panel.addActionRowComponents(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(withConfed(SETUP_FINISH_BUTTON_ID, scope))
+        .setLabel("Finish setup")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!status.canFinish),
+    ),
+  );
   return panel;
 }
 
@@ -281,14 +367,14 @@ export function buildSetupDonePanel(config: GuildConfig, options: SetupPanelOpti
   panel.addActionRowComponents(
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(SETUP_REMINDER_BUTTON_ID).setLabel("Post account-link reminder").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(SETUP_OPEN_BUTTON_ID).setLabel("Open setup again").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(withConfed(SETUP_OPEN_BUTTON_ID, options.scope)).setLabel("Open setup again").setStyle(ButtonStyle.Secondary),
     ),
   );
   return panel;
 }
 
-export function setupPanelPayload(guildId: string, welcome = false) {
-  return v2({ components: [buildSetupPanel(getGuildConfig(guildId), { guildId, welcome })], allowedMentions: { parse: [] } });
+export function setupPanelPayload(scope: Scope, welcome = false) {
+  return v2({ components: [buildSetupPanel(getScopeConfig(scope), { scope, welcome })], allowedMentions: { parse: [] } });
 }
 
 // --- Entry points ---
@@ -314,7 +400,7 @@ export async function postWelcomePanel(client: Client, guild: Guild): Promise<vo
   if (!target) return;
 
   try {
-    await target.send(setupPanelPayload(guild.id, true));
+    await target.send(setupPanelPayload(mainScope(guild.id), true));
   } catch (error) {
     console.error(`[Setup] Could not post the welcome panel in guild ${guild.id}:`, error);
   }
@@ -377,9 +463,9 @@ async function requireSetupAdmin(interaction: AnyInteraction): Promise<string | 
 /** Re-render the panel that holds the component the user pressed. */
 async function refreshPanel(
   interaction: ButtonInteraction | ChannelSelectMenuInteraction | RoleSelectMenuInteraction | ModalSubmitInteraction,
-  guildId: string,
+  scope: Scope,
 ): Promise<void> {
-  const payload = setupPanelPayload(guildId, isWelcomePanel(interaction));
+  const payload = setupPanelPayload(scope, isWelcomePanel(interaction));
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply(payload);
   } else if (interaction.isModalSubmit()) {
@@ -396,10 +482,15 @@ function isWelcomePanel(interaction: { message?: { content?: string; components?
   return json.includes("Thanks for adding Drama");
 }
 
+/** "Open setup" on an error opens the panel of the channel's confed; "Open setup again" names its confed. */
 export async function handleSetupOpenButton(interaction: ButtonInteraction): Promise<void> {
   const guildId = await requireSetupAdmin(interaction);
   if (!guildId) return;
-  await interaction.reply({ ...setupPanelPayload(guildId), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+  const scope =
+    interaction.customId === SETUP_OPEN_BUTTON_ID
+      ? ((await resolveScope(interaction)) ?? mainScope(guildId))
+      : scopeFromCustomId(guildId, interaction.customId, SETUP_OPEN_BUTTON_ID);
+  await interaction.reply({ ...setupPanelPayload(scope), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
 }
 
 export async function handleSetupPingAdminButton(interaction: ButtonInteraction): Promise<void> {
@@ -462,28 +553,34 @@ export async function handleSetupServerModal(interaction: ModalSubmitInteraction
     await interaction.followUp({ content: result.error, flags: MessageFlags.Ephemeral });
     return;
   }
-  await refreshPanel(interaction, guildId);
+  await refreshPanel(interaction, mainScope(guildId));
   await interaction.followUp({ content: result.text, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleSetupChannelSelect(interaction: ChannelSelectMenuInteraction): Promise<void> {
   const guildId = await requireSetupAdmin(interaction);
   if (!guildId) return;
-  const kind = interaction.customId.slice(SETUP_CHANNEL_SELECT_PREFIX.length) as ChannelKind;
+  const [kind, confedId] = interaction.customId.slice(SETUP_CHANNEL_SELECT_PREFIX.length).split(":") as [ChannelKind, string?];
+  const scope: Scope = confedId ? { guildId, confedId } : mainScope(guildId);
   const channelId = interaction.values[0];
   if (!CHANNEL_KIND_LABEL[kind] || !channelId) {
     await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
     return;
   }
-  applyChannel(guildId, kind, channelId);
-  await refreshPanel(interaction, guildId);
+  const result = await applyChannel(interaction.client, scope, kind, channelId);
+  if (!result.ok) {
+    await interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await refreshPanel(interaction, scope);
 }
 
 export async function handleSetupRoleSelect(interaction: RoleSelectMenuInteraction): Promise<void> {
   const guildId = await requireSetupAdmin(interaction);
   if (!guildId) return;
-  setScoutRole(guildId, interaction.values[0] ?? null);
-  await refreshPanel(interaction, guildId);
+  const scope = scopeFromCustomId(guildId, interaction.customId, SETUP_ROLE_SELECT_ID);
+  applyScoutRole(scope, interaction.values[0] ?? null);
+  await refreshPanel(interaction, scope);
 }
 
 /** Permission pickers replace the whole list. Administrator or bot owner only, not Manage Channels. */
@@ -495,7 +592,8 @@ export async function handleSetupPermissionSelect(interaction: RoleSelectMenuInt
     await interaction.reply({ content: errors.generic(), flags: MessageFlags.Ephemeral });
     return;
   }
-  const result = executePermissionChangeAction(buildActionContext(interaction, guildId, getGuildConfig(guildId)), {
+  // Permissions are guild-wide
+  const result = executePermissionChangeAction(buildActionContext(interaction, mainScope(guildId), getGuildConfig(guildId)), {
     permission,
     set: interaction.values,
   });
@@ -503,7 +601,7 @@ export async function handleSetupPermissionSelect(interaction: RoleSelectMenuInt
     await interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
     return;
   }
-  await refreshPanel(interaction, guildId);
+  await refreshPanel(interaction, mainScope(guildId));
   await interaction.followUp({ content: result.confirmText, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 }
 
@@ -538,7 +636,7 @@ export async function handleSetupTimezoneModal(interaction: ModalSubmitInteracti
     await interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
     return;
   }
-  await refreshPanel(interaction, guildId);
+  await refreshPanel(interaction, mainScope(guildId));
   await interaction.followUp({ content: result.text, flags: MessageFlags.Ephemeral });
 }
 
@@ -564,26 +662,27 @@ export async function handleSetupReminderButton(interaction: ButtonInteraction):
 export async function handleSetupFinishButton(interaction: ButtonInteraction): Promise<void> {
   const guildId = await requireSetupAdmin(interaction);
   if (!guildId) return;
-  const config = getGuildConfig(guildId);
+  const scope = scopeFromCustomId(guildId, interaction.customId, SETUP_FINISH_BUTTON_ID);
+  const config = getScopeConfig(scope);
   if (!setupStatus(config).canFinish) {
     await interaction.reply({ content: "⚠️ **Set the server and at least one channel first.**", flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferUpdate();
-  await postInitialPanels(interaction.client, guildId);
+  await postInitialPanels(interaction.client, scope);
   await interaction.editReply(
-    v2({ components: [buildSetupDonePanel(config, { guildId })], allowedMentions: { parse: [] } }),
+    v2({ components: [buildSetupDonePanel(config, { scope })], allowedMentions: { parse: [] } }),
   );
 }
 
 /** Fill the configured channels so none stays blank after setup. */
-export async function postInitialPanels(client: Client, guildId: string): Promise<void> {
-  const config = getGuildConfig(guildId);
+export async function postInitialPanels(client: Client, scope: Scope): Promise<void> {
+  const config = getScopeConfig(scope);
   if (config.defenseChannelId) {
-    await updateGlobalMessage(client, guildId).catch((error) => console.error("[Setup] stack panel:", error));
+    await updateGlobalMessage(client, scope).catch((error) => console.error("[Setup] stack panel:", error));
   }
   if (config.defCallsChannelId) {
-    await refreshHubChannel(client, guildId).catch((error) => console.error("[Setup] def-call hub:", error));
+    await refreshHubChannel(client, scope).catch((error) => console.error("[Setup] def-call hub:", error));
   }
   if (config.pushChannelId) {
     await postHintIfEmpty(client, config.pushChannelId, `📦 Push requests appear here as threads. Start one with ${cmd("push request")}.`);

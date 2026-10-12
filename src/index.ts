@@ -225,7 +225,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         interaction.customId.startsWith(ACCOUNT_LINK_BUTTON_PREFIX)
       ) {
         await handleAccountReminderAddButton(interaction);
-      } else if (interaction.customId === SETUP_OPEN_BUTTON_ID) {
+      } else if (interaction.customId.startsWith(SETUP_OPEN_BUTTON_ID)) {
         await handleSetupOpenButton(interaction);
       } else if (interaction.customId === SETUP_PING_ADMIN_BUTTON_ID) {
         await handleSetupPingAdminButton(interaction);
@@ -233,7 +233,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleSetupServerButton(interaction);
       } else if (interaction.customId === SETUP_TIMEZONE_BUTTON_ID) {
         await handleSetupTimezoneButton(interaction);
-      } else if (interaction.customId === SETUP_FINISH_BUTTON_ID) {
+      } else if (interaction.customId.startsWith(SETUP_FINISH_BUTTON_ID)) {
         await handleSetupFinishButton(interaction);
       } else if (interaction.customId === SETUP_REMINDER_BUTTON_ID) {
         await handleSetupReminderButton(interaction);
@@ -310,7 +310,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       if (interaction.isChannelSelectMenu() && interaction.customId.startsWith(SETUP_CHANNEL_SELECT_PREFIX)) {
         await handleSetupChannelSelect(interaction);
-      } else if (interaction.isRoleSelectMenu() && interaction.customId === SETUP_ROLE_SELECT_ID) {
+      } else if (interaction.isRoleSelectMenu() && interaction.customId.startsWith(SETUP_ROLE_SELECT_ID)) {
         await handleSetupRoleSelect(interaction);
       } else if (interaction.isRoleSelectMenu() && interaction.customId.startsWith(SETUP_PERMISSION_SELECT_PREFIX)) {
         await handleSetupPermissionSelect(interaction);

@@ -12,11 +12,12 @@ import {
   TimestampStyles,
 } from "discord.js";
 import { ScoutRequest, formatScoutId, setScoutMessageId } from "./scout-requests";
-import { getGuildConfig } from "../config/guild-config";
+import { getScopeConfig } from "../config/guild-config";
 import { getVillageAt, getMapLink, getRallyPointLink, getTribeName, VillageData } from "./map-data";
 import { SCOUT_GOING_BUTTON_ID, SCOUT_RESULT_BUTTON_ID } from "./button-handlers/scout-ids";
 import { formatTroops } from "../utils/format";
 import { v2 } from "./panel";
+import { Scope, scopeKey } from "../config/scope";
 
 const ACCENT_OPEN = 0xf39c12;
 const ACCENT_GOING = 0x3498db;
@@ -98,8 +99,8 @@ export function buildScoutCard(request: ScoutRequest, serverKey: string, village
 }
 
 /** Post a new card. The role ping fires once, here. */
-export async function postScoutCard(client: Client, guildId: string, request: ScoutRequest): Promise<boolean> {
-  const config = getGuildConfig(guildId);
+export async function postScoutCard(client: Client, scope: Scope, request: ScoutRequest): Promise<boolean> {
+  const config = getScopeConfig(scope);
   if (!config.serverKey) return false;
   const channel = (await client.channels.fetch(request.channelId).catch(() => null)) as TextChannel | null;
   if (!channel) return false;
@@ -111,13 +112,13 @@ export async function postScoutCard(client: Client, guildId: string, request: Sc
       allowedMentions: request.scoutRoleId ? { roles: [request.scoutRoleId] } : { parse: [] },
     }),
   );
-  setScoutMessageId(guildId, request.id, message.id);
+  setScoutMessageId(scope, request.id, message.id);
   return true;
 }
 
 /** Re-render the card in place. */
-export async function updateScoutCard(client: Client, guildId: string, request: ScoutRequest): Promise<boolean> {
-  const config = getGuildConfig(guildId);
+export async function updateScoutCard(client: Client, scope: Scope, request: ScoutRequest): Promise<boolean> {
+  const config = getScopeConfig(scope);
   if (!config.serverKey || !request.messageId) return false;
   try {
     const channel = (await client.channels.fetch(request.channelId)) as TextChannel | null;

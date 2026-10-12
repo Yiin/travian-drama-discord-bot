@@ -6,16 +6,20 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 import { Command } from "../types";
-import {
-  getGuildConfig,
-  getAllConfiguredServers,
-  setScoutRole,
-} from "../config/guild-config";
+import { getGuildConfig, getAllConfiguredServers, getScopeConfig } from "../config/guild-config";
+import { mainScope, resolveScope, Scope, scopeOfChannel } from "../config/scope";
 import { withRetry } from "../utils/retry";
 import { normalizeServerKey, isValidServerKey } from "../utils/server-key";
 import { filterChoices } from "../utils/choices";
 import { ChannelKind } from "../actions/messages";
-import { applyChannel, applyServerKey, applyTimezone } from "../actions/setup.action";
+import {
+  applyAddConfed,
+  applyChannel,
+  applyRemoveConfed,
+  applyScoutRole,
+  applyServerKey,
+  applyTimezone,
+} from "../actions/setup.action";
 import { buildSetupSummary, setupPanelPayload } from "../services/setup-panel";
 import { guildCommand, requireGuild } from "./shared";
 import { requireAdmin } from "../utils/permissions";
@@ -84,7 +88,37 @@ export const setupCommand: Command = {
         .addRoleOption((opt) => opt.setName("role").setDescription("The role to mention"))
     )
     .addSubcommand((sub) => sub.setName("show").setDescription("Show the current setup"))
-    .addSubcommand((sub) => sub.setName("panel").setDescription("Open the setup panel with channel pickers")),
+    .addSubcommand((sub) =>
+      sub.setName("panel").setDescription("Open the setup panel; inside a confed's category, that confed's panel")
+    )
+    .addSubcommandGroup((group) =>
+      group
+        .setName("confed")
+        .setDescription("Give each confed in this server its own channels")
+        .addSubcommand((sub) =>
+          sub
+            .setName("add")
+            .setDescription("Add a confed: commands in its category use its own channels")
+            .addStringOption((opt) =>
+              opt.setName("name").setDescription("Confed name, for example BBCTM").setRequired(true).setMaxLength(40)
+            )
+            .addChannelOption((opt) =>
+              opt
+                .setName("category")
+                .setDescription("The category that holds this confed's channels")
+                .setRequired(true)
+                .addChannelTypes(ChannelType.GuildCategory)
+            )
+        )
+        .addSubcommand((sub) =>
+          sub
+            .setName("remove")
+            .setDescription("Remove a confed; its category goes back to the main confed")
+            .addStringOption((opt) =>
+              opt.setName("name").setDescription("The confed").setRequired(true).setAutocomplete(true)
+            )
+        )
+    ),
 
   async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
     const focused = interaction.options.getFocused(true);
@@ -95,6 +129,12 @@ export const setupCommand: Command = {
       const zones = Intl.supportedValuesOf("timeZone").map((z) => ({ name: z, value: z }));
       const choices = filterChoices([{ name: "clear (use UTC)", value: "clear" }, ...zones], typed);
       await interaction.respond(choices);
+      return;
+    }
+
+    if (sub === "remove" && interaction.guildId) {
+      const confeds = getGuildConfig(interaction.guildId).confeds ?? [];
+      await interaction.respond(filterChoices(confeds.map((c) => ({ name: c.name, value: c.id })), typed));
       return;
     }
 
@@ -122,6 +162,12 @@ export const setupCommand: Command = {
     // Same gate as the panel; default_member_permissions only hides the command
     if (!(await requireAdmin(interaction))) return;
 
+    if (interaction.options.getSubcommandGroup(false) === "confed") {
+      if (interaction.options.getSubcommand() === "add") await handleConfedAdd(interaction, guildId);
+      else await handleConfedRemove(interaction, guildId);
+      return;
+    }
+
     switch (interaction.options.getSubcommand()) {
       case "server":
         await handleServer(interaction, guildId);
@@ -136,11 +182,17 @@ export const setupCommand: Command = {
         await handleScoutRole(interaction, guildId);
         return;
       case "show":
-        await interaction.reply({ content: buildSetupSummary(getGuildConfig(guildId)), flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+          content: buildSetupSummary(guildId),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        });
         return;
-      case "panel":
-        await interaction.reply({ ...setupPanelPayload(guildId), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+      case "panel": {
+        const scope = (await resolveScope(interaction)) ?? mainScope(guildId);
+        await interaction.reply({ ...setupPanelPayload(scope), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
         return;
+      }
     }
   },
 };
@@ -158,10 +210,12 @@ async function handleServer(interaction: ChatInputCommandInteraction, guildId: s
   await interaction.editReply({ content: result.ok ? result.text : result.error });
 }
 
+/** The channel's category decides which confed it is for. */
 async function handleChannel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const type = interaction.options.getString("type", true) as ChannelKind;
   const channel = interaction.options.getChannel("value", true);
-  const result = applyChannel(guildId, type, channel.id);
+  const scope = await scopeOfChannel(interaction.client, guildId, channel.id);
+  const result = await applyChannel(interaction.client, scope, type, channel.id);
   await interaction.reply({ content: result.ok ? result.text : result.error, flags: MessageFlags.Ephemeral });
 }
 
@@ -170,19 +224,36 @@ async function handleTimezone(interaction: ChatInputCommandInteraction, guildId:
   await interaction.reply({ content: result.ok ? result.text : result.error, flags: MessageFlags.Ephemeral });
 }
 
+/** Sets the scout role of the confed whose category this runs in. */
 async function handleScoutRole(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const role = interaction.options.getRole("role");
+  const scope: Scope = (await resolveScope(interaction)) ?? mainScope(guildId);
 
-  if (role) {
-    setScoutRole(guildId, role.id);
-    await interaction.reply({ content: `✅ Scout requests now mention <@&${role.id}>.`, flags: MessageFlags.Ephemeral });
+  if (!role && !getScopeConfig(scope).scoutRoleId) {
+    await interaction.reply({ content: "⚠️ **No scout role is set.** Pick one with the role option.", flags: MessageFlags.Ephemeral });
     return;
   }
+  const result = applyScoutRole(scope, role?.id ?? null);
+  await interaction.reply({ content: result.ok ? result.text : result.error, flags: MessageFlags.Ephemeral });
+}
 
-  if (getGuildConfig(guildId).scoutRoleId) {
-    setScoutRole(guildId, null);
-    await interaction.reply({ content: "✅ Scout role cleared.", flags: MessageFlags.Ephemeral });
-  } else {
-    await interaction.reply({ content: "⚠️ **No scout role is set.** Pick one with the role option.", flags: MessageFlags.Ephemeral });
+async function handleConfedAdd(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const name = interaction.options.getString("name", true);
+  const category = interaction.options.getChannel("category", true);
+  await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
+  const result = await applyAddConfed(interaction.client, guildId, name, category.id);
+  if (!result.ok) {
+    await interaction.editReply({ content: result.error });
+    return;
   }
+  await interaction.editReply({ content: result.text });
+  await interaction.followUp({
+    ...setupPanelPayload({ guildId, confedId: result.confed.id }),
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+  });
+}
+
+async function handleConfedRemove(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const result = applyRemoveConfed(guildId, interaction.options.getString("name", true));
+  await interaction.reply({ content: result.ok ? result.text : result.error, flags: MessageFlags.Ephemeral });
 }

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { Scope, scopeKey } from "../config/scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STATS_FILE = path.join(DATA_DIR, "stats.json");
@@ -46,14 +47,14 @@ function getDefaultGuildStats(): GuildStats {
   };
 }
 
-export function getGuildStats(guildId: string): GuildStats {
+export function getGuildStats(scope: Scope): GuildStats {
   const allData = loadAllData();
-  return allData[guildId] || getDefaultGuildStats();
+  return allData[scopeKey(scope)] || getDefaultGuildStats();
 }
 
-function saveGuildStats(guildId: string, stats: GuildStats): void {
+function saveGuildStats(scope: Scope, stats: GuildStats): void {
   const allData = loadAllData();
-  allData[guildId] = stats;
+  allData[scopeKey(scope)] = stats;
   saveAllData(allData);
 }
 
@@ -61,13 +62,13 @@ function saveGuildStats(guildId: string, stats: GuildStats): void {
  * Record a contribution to stats.
  */
 export function recordContribution(
-  guildId: string,
+  scope: Scope,
   userId: string,
   x: number,
   y: number,
   troops: number
 ): void {
-  const stats = getGuildStats(guildId);
+  const stats = getGuildStats(scope);
   stats.contributions.push({
     userId,
     x,
@@ -75,7 +76,7 @@ export function recordContribution(
     troops,
     timestamp: Date.now(),
   });
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
 }
 
 /**
@@ -83,20 +84,20 @@ export function recordContribution(
  * Removes the most recent matching contribution.
  */
 export function removeContribution(
-  guildId: string,
+  scope: Scope,
   userId: string,
   x: number,
   y: number,
   troops: number
 ): boolean {
-  const stats = getGuildStats(guildId);
+  const stats = getGuildStats(scope);
 
   // Find the most recent matching contribution (search from end)
   for (let i = stats.contributions.length - 1; i >= 0; i--) {
     const c = stats.contributions[i];
     if (c.userId === userId && c.x === x && c.y === y && c.troops === troops) {
       stats.contributions.splice(i, 1);
-      saveGuildStats(guildId, stats);
+      saveGuildStats(scope, stats);
       return true;
     }
   }
@@ -113,8 +114,8 @@ export interface LeaderboardEntry {
 /**
  * Get leaderboard: users sorted by total troops sent (descending).
  */
-export function getLeaderboard(guildId: string): LeaderboardEntry[] {
-  const stats = getGuildStats(guildId);
+export function getLeaderboard(scope: Scope): LeaderboardEntry[] {
+  const stats = getGuildStats(scope);
 
   // Aggregate by user
   const byUser = new Map<string, { totalTroops: number; villages: Set<string> }>();
@@ -155,8 +156,8 @@ export interface UserStats {
 /**
  * Get stats for a specific user.
  */
-export function getUserStats(guildId: string, userId: string): UserStats | null {
-  const stats = getGuildStats(guildId);
+export function getUserStats(scope: Scope, userId: string): UserStats | null {
+  const stats = getGuildStats(scope);
 
   // Aggregate by village for this user
   const byVillage = new Map<string, UserStatsVillage>();
@@ -201,8 +202,8 @@ export interface VillageStats {
 /**
  * Get stats for a specific village.
  */
-export function getVillageStats(guildId: string, x: number, y: number): VillageStats | null {
-  const stats = getGuildStats(guildId);
+export function getVillageStats(scope: Scope, x: number, y: number): VillageStats | null {
+  const stats = getGuildStats(scope);
 
   // Aggregate by contributor for this village
   const byContributor = new Map<string, number>();
@@ -244,8 +245,8 @@ export interface AllVillageStatsEntry {
 /**
  * Get all villages sorted by total troops (descending).
  */
-export function getAllVillageStats(guildId: string): AllVillageStatsEntry[] {
-  const stats = getGuildStats(guildId);
+export function getAllVillageStats(scope: Scope): AllVillageStatsEntry[] {
+  const stats = getGuildStats(scope);
 
   // Aggregate by village
   const byVillage = new Map<string, { x: number; y: number; totalTroops: number; contributors: Set<string> }>();
@@ -276,17 +277,17 @@ export function getAllVillageStats(guildId: string): AllVillageStatsEntry[] {
 /**
  * Reset all stats for a guild.
  */
-export function resetStats(guildId: string): void {
+export function resetStats(scope: Scope): void {
   const stats: GuildStats = {
     contributions: [],
     lastReset: Date.now(),
   };
-  saveGuildStats(guildId, stats);
+  saveGuildStats(scope, stats);
 }
 
 /**
  * Get the timestamp of last reset.
  */
-export function getLastResetTime(guildId: string): number {
-  return getGuildStats(guildId).lastReset;
+export function getLastResetTime(scope: Scope): number {
+  return getGuildStats(scope).lastReset;
 }

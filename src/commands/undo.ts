@@ -1,12 +1,12 @@
 import { ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { Command } from "../types";
-import { getGuildConfig } from "../config/guild-config";
+import { getGuildConfig, getScopeConfig } from "../config/guild-config";
 import { executeUndoAction } from "../actions";
 import { withRetry } from "../utils/retry";
 import { errors, confirmationEdit, asConfirm, failEdit, failReply } from "../actions/messages";
 import { getLatestUndoableActionId } from "../services/action-history";
 import { getStackPanelUrl } from "../services/defense-message";
-import { guildCommand, requireGuild } from "./shared";
+import { guildCommand, requireScope } from "./shared";
 import { buildActionContext } from "../actions/context";
 
 export const undoCommand: Command = {
@@ -22,16 +22,16 @@ export const undoCommand: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    const guildId = await requireGuild(interaction);
-    if (!guildId) return;
+    const scope = await requireScope(interaction);
+    if (!scope) return;
 
-    const config = getGuildConfig(guildId);
+    const config = getScopeConfig(scope);
     if (!config.serverKey) {
       await interaction.reply(failReply(errors.notSetUp(), interaction));
       return;
     }
 
-    const actionId = interaction.options.getInteger("id") ?? getLatestUndoableActionId(guildId, interaction.user.id);
+    const actionId = interaction.options.getInteger("id") ?? getLatestUndoableActionId(scope, interaction.user.id);
     if (!actionId) {
       await interaction.reply({ content: errors.nothingToUndo(), flags: MessageFlags.Ephemeral });
       return;
@@ -40,7 +40,7 @@ export const undoCommand: Command = {
     await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
 
     const result = await executeUndoAction(
-      buildActionContext(interaction, guildId, config),
+      buildActionContext(interaction, scope, config),
       { actionId }
     );
 
@@ -51,7 +51,7 @@ export const undoCommand: Command = {
 
     await interaction.editReply(
       confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
-        panelUrl: getStackPanelUrl(guildId),
+        panelUrl: getStackPanelUrl(scope),
       })
     );
   },

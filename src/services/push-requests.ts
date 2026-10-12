@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { expireActionHistory } from "./history-expiry";
+import { Scope, scopeKey } from "../config/scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const REQUESTS_FILE = path.join(DATA_DIR, "push-requests.json");
@@ -90,37 +91,37 @@ function findById(data: GuildPushData, requestId: number): PushRequest | undefin
   return data.requests.find((r) => r.id === requestId);
 }
 
-export function getGuildPushData(guildId: string): GuildPushData {
+export function getGuildPushData(scope: Scope): GuildPushData {
   const allData = loadAllData();
-  return allData[guildId] || getDefaultGuildData();
+  return allData[scopeKey(scope)] || getDefaultGuildData();
 }
 
-function saveGuildData(guildId: string, data: GuildPushData): void {
+function saveGuildData(scope: Scope, data: GuildPushData): void {
   const allData = loadAllData();
-  allData[guildId] = data;
+  allData[scopeKey(scope)] = data;
   saveAllData(allData);
 }
 
 export function updatePushRequestChannelInfo(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   channelId: string,
   messageId: string
 ): void {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
   if (request) {
     request.channelId = channelId;
     request.messageId = messageId;
-    saveGuildData(guildId, data);
+    saveGuildData(scope, data);
   }
 }
 
 export function getPushRequestByChannelId(
-  guildId: string,
+  scope: Scope,
   channelId: string
 ): { request: PushRequest; requestId: number } | undefined {
-  const request = getGuildPushData(guildId).requests.find((r) => r.channelId === channelId);
+  const request = getGuildPushData(scope).requests.find((r) => r.channelId === channelId);
   return request ? { request, requestId: request.id } : undefined;
 }
 
@@ -130,14 +131,14 @@ export interface AddPushRequestResult {
 }
 
 export function addPushRequest(
-  guildId: string,
+  scope: Scope,
   x: number,
   y: number,
   resourcesNeeded: number,
   requesterId: string,
   requesterAccount: string
 ): AddPushRequestResult | { error: string } {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
 
   // Check max requests limit
   if (data.requests.length >= MAX_PUSH_REQUESTS) {
@@ -159,24 +160,24 @@ export function addPushRequest(
   };
 
   data.requests.push(newRequest);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 
   return { request: newRequest, requestId: newRequest.id };
 }
 
 export function getPushRequestById(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): PushRequest | undefined {
-  return findById(getGuildPushData(guildId), requestId);
+  return findById(getGuildPushData(scope), requestId);
 }
 
 export function getPushRequestsByCoords(
-  guildId: string,
+  scope: Scope,
   x: number,
   y: number
 ): { request: PushRequest; requestId: number }[] {
-  return getGuildPushData(guildId)
+  return getGuildPushData(scope)
     .requests.filter((r) => r.x === x && r.y === y)
     .map((request) => ({ request, requestId: request.id }));
 }
@@ -188,12 +189,12 @@ export interface ReportResourcesResult {
 }
 
 export function reportResourcesSent(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   accountName: string,
   resources: number
 ): ReportResourcesResult | { error: string } {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
 
   if (!request) {
@@ -221,7 +222,7 @@ export function reportResourcesSent(
     request.completed = true;
   }
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 
   return { request, isComplete, wasAlreadyComplete };
 }
@@ -231,11 +232,11 @@ export interface UpdatePushRequestOptions {
 }
 
 export function updatePushRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   updates: UpdatePushRequestOptions
 ): PushRequest | { error: string } {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
 
   if (!request) {
@@ -248,15 +249,15 @@ export function updatePushRequest(
     request.completed = request.resourcesSent >= request.resourcesNeeded;
   }
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
 export function removePushRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): PushRequest | null {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const index = data.requests.findIndex((r) => r.id === requestId);
 
   if (index === -1) {
@@ -264,25 +265,25 @@ export function removePushRequest(
   }
 
   const [removed] = data.requests.splice(index, 1);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return removed;
 }
 
 export function setPushRequestClosed(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   closed: boolean
 ): PushRequest | null {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
   if (!request) return null;
   request.closed = closed;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
-export function getAllPushRequests(guildId: string): PushRequest[] {
-  return getGuildPushData(guildId).requests;
+export function getAllPushRequests(scope: Scope): PushRequest[] {
+  return getGuildPushData(scope).requests;
 }
 
 // --- Undo support functions ---
@@ -298,12 +299,12 @@ export interface SubtractResourcesResult {
  * Also updates the contributor's total.
  */
 export function subtractResources(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   accountName: string,
   resources: number
 ): SubtractResourcesResult {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
 
   if (!request) {
@@ -328,7 +329,7 @@ export function subtractResources(
     }
   }
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true, request };
 }
 
@@ -337,11 +338,11 @@ export function subtractResources(
  * its id and position. Returns false when the id is not active.
  */
 export function replacePushRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   state: PushRequest
 ): boolean {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const index = data.requests.findIndex((r) => r.id === requestId);
   if (index === -1) return false;
   data.requests[index] = {
@@ -349,7 +350,7 @@ export function replacePushRequest(
     id: requestId,
     contributors: [...state.contributors],
   };
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return true;
 }
 
@@ -369,10 +370,10 @@ export interface RestorePushRequestResult {
  * Appends to the end of the requests list.
  */
 export function restorePushRequest(
-  guildId: string,
+  scope: Scope,
   request: PushRequest
 ): RestorePushRequestResult {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
 
   // Check max requests limit
   if (data.requests.length >= MAX_PUSH_REQUESTS) {
@@ -392,7 +393,7 @@ export function restorePushRequest(
   data.nextId = Math.max(data.nextId, restoredRequest.id + 1);
 
   data.requests.push(restoredRequest);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 
   return {
     success: true,
@@ -414,12 +415,12 @@ export interface UpdateContributorResult {
  * Updates the request's total resourcesSent accordingly.
  */
 export function updateContributorResources(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   accountName: string,
   newAmount: number
 ): UpdateContributorResult {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
 
   if (!request) {
@@ -449,7 +450,7 @@ export function updateContributorResources(
   // Update completed status
   request.completed = request.resourcesSent >= request.resourcesNeeded;
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true, request, previousAmount };
 }
 
@@ -471,11 +472,11 @@ export interface TransferContributionResult {
  * (both as requester and as contributor)
  */
 export function renameAccountInPushRequests(
-  guildId: string,
+  scope: Scope,
   oldName: string,
   newName: string
 ): number {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   let count = 0;
 
   for (const request of data.requests) {
@@ -495,18 +496,18 @@ export function renameAccountInPushRequests(
   }
 
   if (count > 0) {
-    saveGuildData(guildId, data);
+    saveGuildData(scope, data);
   }
   return count;
 }
 
 export function transferContribution(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   fromAccount: string,
   toAccount: string
 ): TransferContributionResult {
-  const data = getGuildPushData(guildId);
+  const data = getGuildPushData(scope);
   const request = findById(data, requestId);
 
   if (!request) {
@@ -536,6 +537,6 @@ export function transferContribution(
   // Remove source contributor
   request.contributors = request.contributors.filter((c) => c.accountName !== fromAccount);
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true, request, transferredAmount };
 }

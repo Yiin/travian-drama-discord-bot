@@ -1,4 +1,5 @@
-import { getGuildConfig, GuildConfig } from "../config/guild-config";
+import { getScopeConfig, GuildConfig } from "../config/guild-config";
+import { Scope } from "../config/scope";
 import { getRequestById, getRequestsByCoords } from "../services/defense-requests";
 import { parseCoords } from "../utils/parse-coords";
 import { ConfigValidation } from "./types";
@@ -8,12 +9,12 @@ import { errors } from "./messages";
  * Validates guild configuration for defense actions.
  * Returns a validated context or an error message.
  */
-export function validateDefenseConfig(guildId: string | null): ConfigValidation {
-  if (!guildId) {
+export function validateDefenseConfig(scope: Scope | null): ConfigValidation {
+  if (!scope) {
     return { valid: false, error: errors.guildOnly() };
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
 
   if (!config.serverKey) {
     return {
@@ -29,7 +30,7 @@ export function validateDefenseConfig(guildId: string | null): ConfigValidation 
     };
   }
 
-  return { valid: true, guildId, config };
+  return { valid: true, guildId: scope.guildId, scope, config };
 }
 
 /**
@@ -42,11 +43,11 @@ export type TargetResolution =
 /**
  * Resolves a target string (ID or coordinates) to a request ID.
  */
-export function resolveTarget(guildId: string, targetInput: string): TargetResolution {
+export function resolveTarget(scope: Scope, targetInput: string): TargetResolution {
   // Try coordinates first
   const coords = parseCoords(targetInput);
   if (coords) {
-    const matches = getRequestsByCoords(guildId, coords.x, coords.y);
+    const matches = getRequestsByCoords(scope, coords.x, coords.y);
     if (matches.length === 0) {
       return {
         success: false,
@@ -72,7 +73,7 @@ export function resolveTarget(guildId: string, targetInput: string): TargetResol
     };
   }
 
-  const existingRequest = getRequestById(guildId, parsed);
+  const existingRequest = getRequestById(scope, parsed);
   if (!existingRequest) {
     return { success: false, error: errors.notFound("request", parsed) };
   }

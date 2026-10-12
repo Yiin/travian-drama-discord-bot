@@ -8,7 +8,7 @@ import {
   MessageFlags,
   UserSelectMenuBuilder,
 } from "discord.js";
-import { getGuildConfig } from "../../config/guild-config";
+import { getGuildConfig , getScopeConfig } from "../../config/guild-config";
 import { parseTroopCount } from "../../utils/parse-number";
 import { getRequestByChannelId } from "../def-calls";
 import { executeDefCallRequestAction } from "../../actions/def-call-request.action";
@@ -33,6 +33,7 @@ import { errors, failEdit } from "../../actions/messages";
 import { confirmationEdit, asConfirm, channelUrl } from "../../actions/messages";
 import { buildActionContext } from "../../actions/context";
 import { checkPermission } from "../../actions/permissions";
+import { resolveScope } from "../../config/scope";
 
 export {
   DEFCALL_REQUEST_BUTTON_ID,
@@ -52,15 +53,15 @@ export {
 export async function handleDefCallRequestButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
-  const denied = checkPermission(buildActionContext(interaction, guildId, getGuildConfig(guildId)), "request");
+  const denied = checkPermission(buildActionContext(interaction, scope, getScopeConfig(scope)), "request");
   if (denied) {
     await interaction.reply({ content: denied, flags: MessageFlags.Ephemeral });
     return;
@@ -122,8 +123,8 @@ export async function handleDefCallRequestButton(
 export async function handleDefCallRequestModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
@@ -131,7 +132,7 @@ export async function handleDefCallRequestModal(
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   const coords = interaction.fields.getTextInputValue(DEFCALL_COORDS_INPUT_ID);
   const landing = interaction.fields.getTextInputValue(DEFCALL_LANDING_INPUT_ID);
   const comment = interaction.fields.getTextInputValue(DEFCALL_COMMENT_INPUT_ID) || undefined;
@@ -148,7 +149,7 @@ export async function handleDefCallRequestModal(
   }
 
   const result = await executeDefCallRequestAction(
-    buildActionContext(interaction, guildId, config),
+    buildActionContext(interaction, scope, config),
     { coords, landing, comment, troopsNeeded }
   );
 
@@ -160,7 +161,7 @@ export async function handleDefCallRequestModal(
   await interaction.editReply(
     confirmationEdit(result.confirmText ?? asConfirm(result.actionText), {
       actionId: result.actionId,
-      panelUrl: channelUrl(guildId, result.channelId),
+      panelUrl: channelUrl(scope.guildId, result.channelId),
       panelLabel: "Open thread",
     })
   );
@@ -205,8 +206,8 @@ function buildSentModal(request: { troopsSent: number; troopsNeeded?: number }):
 export async function handleDefCallSentButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
@@ -214,7 +215,7 @@ export async function handleDefCallSentButton(
     return;
   }
 
-  const requestData = getRequestByChannelId(guildId, interaction.channelId);
+  const requestData = getRequestByChannelId(scope, interaction.channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("defense"),
@@ -236,8 +237,8 @@ export async function handleDefCallSentButton(
 export async function handleDefCallSentModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
@@ -254,7 +255,7 @@ export async function handleDefCallSentModal(
     return;
   }
 
-  const requestData = getRequestByChannelId(guildId, channelId);
+  const requestData = getRequestByChannelId(scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("defense"),
@@ -274,11 +275,11 @@ export async function handleDefCallSentModal(
   }
   const sentBy = interaction.fields.getSelectedUsers(DEFCALL_SENT_FOR_SELECT_ID, false)?.first();
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await executeDefCallSentAction(
-    buildActionContext(interaction, guildId, config),
+    buildActionContext(interaction, scope, config),
     { requestId: requestData.requestId, troops, creditUserId: sentBy?.id }
   );
 
@@ -295,8 +296,8 @@ export async function handleDefCallSentModal(
 export async function handleDefCallCloseButton(
   interaction: ButtonInteraction
 ): Promise<void> {
-  const guildId = interaction.guildId;
-  if (!guildId) {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
     await interaction.reply({
       content: errors.guildOnly(),
       flags: MessageFlags.Ephemeral,
@@ -305,7 +306,7 @@ export async function handleDefCallCloseButton(
   }
 
   const channelId = interaction.channelId;
-  const requestData = getRequestByChannelId(guildId, channelId);
+  const requestData = getRequestByChannelId(scope, channelId);
   if (!requestData) {
     await interaction.reply({
       content: errors.notInThread("defense"),
@@ -314,11 +315,11 @@ export async function handleDefCallCloseButton(
     return;
   }
 
-  const config = getGuildConfig(guildId);
+  const config = getScopeConfig(scope);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await executeDefCallCloseAction(
-    buildActionContext(interaction, guildId, config),
+    buildActionContext(interaction, scope, config),
     { requestId: requestData.requestId },
     {
       // Reply before the thread archives; edits inside an archived thread are rejected

@@ -20,7 +20,7 @@ export async function executeUpdateDefAction(
   context: ActionContext,
   input: UpdateDefActionInput
 ): Promise<UpdateDefActionResult> {
-  const { guildId, client, userId } = context;
+  const { guildId, scope, client, userId } = context;
   const { requestId, troopsSent, troopsNeeded } = input;
   const message = input.message === undefined ? undefined : clipNote(input.message);
 
@@ -33,7 +33,7 @@ export async function executeUpdateDefAction(
   }
 
   // 2. Check if request exists
-  const existingRequest = getRequestById(guildId, requestId);
+  const existingRequest = getRequestById(scope, requestId);
   if (!existingRequest) {
     return { success: false, error: `Request #${requestId} not found.` };
   }
@@ -59,13 +59,13 @@ export async function executeUpdateDefAction(
   const willComplete = newTroopsSent >= newTroopsNeeded;
 
   // 6. Update the request
-  const result = updateRequest(guildId, requestId, updates);
+  const result = updateRequest(scope, requestId, updates);
   if ("error" in result) {
     return { success: false, error: result.error };
   }
 
   // 7. Record the action for undo support
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "ADMIN_UPDATE",
     userId,
     coords: { x: snapshot.x, y: snapshot.y },
@@ -90,7 +90,7 @@ export async function executeUpdateDefAction(
   const confirmText = `✅ Updated request #${requestId}: ${updatedFields.join(", ")}.`;
 
   // 11. Update the global message and post the audit line
-  await updateGlobalMessage(client, guildId, { text: actionText, undoId: actionId });
+  await updateGlobalMessage(client, scope, { text: actionText, undoId: actionId });
 
   return {
     success: true,

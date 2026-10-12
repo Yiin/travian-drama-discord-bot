@@ -22,7 +22,7 @@ export async function executePushSentAction(
   context: ActionContext,
   input: PushSentActionInput
 ): Promise<PushSentActionResult> {
-  const { guildId, config, client, userId } = context;
+  const { guildId, scope, config, client, userId } = context;
   const { target, resources, creditUserId } = input;
 
   // 1. Validate the credited user has a linked account
@@ -37,14 +37,14 @@ export async function executePushSentAction(
   const { accountName } = accountResult;
 
   // 2. Resolve target to request ID
-  const targetResult = resolvePushTarget(guildId, target);
+  const targetResult = resolvePushTarget(scope, target);
   if (!targetResult.success) {
     return { success: false, error: targetResult.error };
   }
   const { requestId } = targetResult;
 
   // 3. Get request before modification (deep copy for undo)
-  const requestBefore = getPushRequestById(guildId, requestId);
+  const requestBefore = getPushRequestById(scope, requestId);
   if (!requestBefore) {
     return { success: false, error: errors.notFound("push request", requestId) };
   }
@@ -57,13 +57,13 @@ export async function executePushSentAction(
   };
 
   // 4. Perform the operation
-  const result = reportResourcesSent(guildId, requestId, accountName, resources);
+  const result = reportResourcesSent(scope, requestId, accountName, resources);
   if ("error" in result) {
     return { success: false, error: result.error };
   }
 
   // 5. Record contribution to stats
-  recordPushContribution(guildId, accountName, result.request.x, result.request.y, resources);
+  recordPushContribution(scope, accountName, result.request.x, result.request.y, resources);
 
   // 6. Get village info for display
   const village = await getVillageAt(
@@ -89,7 +89,7 @@ export async function executePushSentAction(
     : `✅ Added **${formatResources(resources)}** resources to ${villageDisplay}. Now **${formatResources(result.request.resourcesSent)} / ${formatResources(result.request.resourcesNeeded)}**.`;
 
   // 8. Record action for undo
-  const actionId = recordAction(guildId, {
+  const actionId = recordAction(scope, {
     type: "PUSH_RESOURCES_SENT",
     userId,
     coords: { x: result.request.x, y: result.request.y },
@@ -104,9 +104,9 @@ export async function executePushSentAction(
 
   // 9. Update the card, or mark complete
   if (result.isComplete && !result.wasAlreadyComplete) {
-    await markPushComplete(client, guildId, result.request);
+    await markPushComplete(client, scope, result.request);
   } else {
-    await updatePushCard(client, guildId, result.request);
+    await updatePushCard(client, scope, result.request);
   }
 
   return {

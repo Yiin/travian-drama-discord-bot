@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { expireActionHistory } from "./history-expiry";
+import { parseScopeKey, Scope, scopeKey } from "../config/scope";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DEF_CALLS_FILE = path.join(DATA_DIR, "def-calls.json");
@@ -90,14 +91,14 @@ function getDefaultGuildData(): GuildDefCalls {
   return { nextId: 1, requests: [] };
 }
 
-export function getGuildDefCalls(guildId: string): GuildDefCalls {
+export function getGuildDefCalls(scope: Scope): GuildDefCalls {
   const allData = loadAllData();
-  return allData[guildId] || getDefaultGuildData();
+  return allData[scopeKey(scope)] || getDefaultGuildData();
 }
 
-function saveGuildData(guildId: string, data: GuildDefCalls): void {
+function saveGuildData(scope: Scope, data: GuildDefCalls): void {
   const allData = loadAllData();
-  allData[guildId] = data;
+  allData[scopeKey(scope)] = data;
   saveAllData(allData);
 }
 
@@ -111,7 +112,7 @@ export interface AddDefCallResult {
 }
 
 export function addRequest(
-  guildId: string,
+  scope: Scope,
   x: number,
   y: number,
   landingAt: number,
@@ -120,7 +121,7 @@ export function addRequest(
   comment?: string,
   troopsNeeded?: number
 ): AddDefCallResult {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
 
   const newRequest: DefCallRequest = {
     id: data.nextId++,
@@ -138,30 +139,30 @@ export function addRequest(
   };
 
   data.requests.push(newRequest);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { request: newRequest, requestId: newRequest.id };
 }
 
-export function removeRequest(guildId: string, requestId: number): void {
-  const data = getGuildDefCalls(guildId);
+export function removeRequest(scope: Scope, requestId: number): void {
+  const data = getGuildDefCalls(scope);
   const index = data.requests.findIndex((request) => request.id === requestId);
   if (index === -1) return;
   data.requests.splice(index, 1);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 }
 
 export function getRequestById(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): DefCallRequest | undefined {
-  return findById(getGuildDefCalls(guildId), requestId);
+  return findById(getGuildDefCalls(scope), requestId);
 }
 
 export function getRequestByChannelId(
-  guildId: string,
+  scope: Scope,
   channelId: string
 ): { request: DefCallRequest; requestId: number } | undefined {
-  const request = getGuildDefCalls(guildId).requests.find((r) => r.channelId === channelId);
+  const request = getGuildDefCalls(scope).requests.find((r) => r.channelId === channelId);
   return request ? { request, requestId: request.id } : undefined;
 }
 
@@ -171,12 +172,12 @@ export interface ReportTroopsResult {
 }
 
 export function reportTroopsSent(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   accountName: string,
   troops: number
 ): ReportTroopsResult | { error: string } {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (!request) {
     return { error: `Request #${requestId} not found.` };
@@ -190,7 +191,7 @@ export function reportTroopsSent(
   }
   request.troopsSent += troops;
 
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 
   const contribution = request.contributors.find((c) => c.accountName === accountName)!;
   return { request, contribution };
@@ -203,12 +204,12 @@ export interface SubtractTroopsResult {
 }
 
 export function subtractTroops(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   accountName: string,
   troops: number
 ): SubtractTroopsResult {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (!request) {
     return { success: false, error: "Request not found." };
@@ -223,50 +224,50 @@ export function subtractTroops(
       );
     }
   }
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return { success: true, request };
 }
 
 export function closeRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number
 ): DefCallRequest | { error: string } {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (!request) {
     return { error: `Request #${requestId} not found.` };
   }
   request.closed = true;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
-export function setLanded(guildId: string, requestId: number, landed: boolean): DefCallRequest | undefined {
-  const data = getGuildDefCalls(guildId);
+export function setLanded(scope: Scope, requestId: number, landed: boolean): DefCallRequest | undefined {
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (!request) return undefined;
   request.landed = landed;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
-export function reopenRequest(guildId: string, requestId: number): DefCallRequest | { error: string } {
-  const data = getGuildDefCalls(guildId);
+export function reopenRequest(scope: Scope, requestId: number): DefCallRequest | { error: string } {
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (!request) {
     return { error: `Request #${requestId} not found.` };
   }
   request.closed = false;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
 export function restoreRequest(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   state: DefCallRequest
 ): DefCallRequest | { error: string } {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const index = data.requests.findIndex((r) => r.id === requestId);
   if (index === -1) {
     return { error: `Request #${requestId} not found.` };
@@ -276,77 +277,77 @@ export function restoreRequest(
     id: requestId,
     contributors: [...state.contributors],
   };
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return data.requests[index];
 }
 
 export function updateChannelInfo(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   channelId: string,
   messageId: string
 ): void {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (request) {
     request.channelId = channelId;
     request.messageId = messageId;
-    saveGuildData(guildId, data);
+    saveGuildData(scope, data);
   }
 }
 
 export function updateMessageId(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   messageId: string
 ): void {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (request) {
     request.messageId = messageId;
-    saveGuildData(guildId, data);
+    saveGuildData(scope, data);
   }
 }
 
 export function updateSummaryMessageId(
-  guildId: string,
+  scope: Scope,
   requestId: number,
   summaryMessageId: string | undefined
 ): void {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   const request = findById(data, requestId);
   if (request) {
     request.summaryMessageId = summaryMessageId;
-    saveGuildData(guildId, data);
+    saveGuildData(scope, data);
   }
 }
 
 export function setHubButtonMessageId(
-  guildId: string,
+  scope: Scope,
   messageId: string | undefined
 ): void {
-  const data = getGuildDefCalls(guildId);
+  const data = getGuildDefCalls(scope);
   data.hubButtonMessageId = messageId;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 }
 
-export function getHubButtonMessageId(guildId: string): string | undefined {
-  return getGuildDefCalls(guildId).hubButtonMessageId;
+export function getHubButtonMessageId(scope: Scope): string | undefined {
+  return getGuildDefCalls(scope).hubButtonMessageId;
 }
 
 export function getActiveRequests(
-  guildId: string
+  scope: Scope
 ): { request: DefCallRequest; requestId: number }[] {
-  return getGuildDefCalls(guildId)
+  return getGuildDefCalls(scope)
     .requests.filter((r) => !r.closed)
     .map((request) => ({ request, requestId: request.id }));
 }
 
-export function getAllRequests(guildId: string): DefCallRequest[] {
-  return getGuildDefCalls(guildId).requests;
+export function getAllRequests(scope: Scope): DefCallRequest[] {
+  return getGuildDefCalls(scope).requests;
 }
 
 /** Every guild with def-call data; used by the landing scheduler on boot. */
-export function getAllDefCallGuildIds(): string[] {
-  return Object.keys(loadAllData());
+export function getAllDefCallScopes(): Scope[] {
+  return Object.keys(loadAllData()).map(parseScopeKey);
 }

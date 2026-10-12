@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { parseScopeKey, Scope, scopeKey } from "../config/scope";
 
 /**
  * Scout requests: one card per request in the scout channel.
@@ -63,13 +64,13 @@ function saveAllData(data: AllGuildData): void {
   fs.writeFileSync(SCOUTS_FILE, JSON.stringify(data, null, 2));
 }
 
-function getGuildData(guildId: string): GuildScoutData {
-  return loadAllData()[guildId] ?? { nextId: 1, requests: [] };
+function getGuildData(scope: Scope): GuildScoutData {
+  return loadAllData()[scopeKey(scope)] ?? { nextId: 1, requests: [] };
 }
 
-function saveGuildData(guildId: string, data: GuildScoutData): void {
+function saveGuildData(scope: Scope, data: GuildScoutData): void {
   const all = loadAllData();
-  all[guildId] = data;
+  all[scopeKey(scope)] = data;
   saveAllData(all);
 }
 
@@ -78,10 +79,10 @@ export function formatScoutId(id: number): string {
 }
 
 export function addScoutRequest(
-  guildId: string,
+  scope: Scope,
   input: Pick<ScoutRequest, "channelId" | "x" | "y" | "note" | "requesterId" | "scoutRoleId">,
 ): ScoutRequest {
-  const data = getGuildData(guildId);
+  const data = getGuildData(scope);
   const request: ScoutRequest = {
     id: data.nextId++,
     ...input,
@@ -90,76 +91,76 @@ export function addScoutRequest(
     createdAt: Date.now(),
   };
   data.requests.push(request);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
-export function setScoutMessageId(guildId: string, id: number, messageId: string): void {
-  const data = getGuildData(guildId);
+export function setScoutMessageId(scope: Scope, id: number, messageId: string): void {
+  const data = getGuildData(scope);
   const request = data.requests.find((r) => r.id === id);
   if (!request) return;
   request.messageId = messageId;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
 }
 
-export function getScoutRequest(guildId: string, id: number): ScoutRequest | undefined {
-  return getGuildData(guildId).requests.find((r) => r.id === id);
+export function getScoutRequest(scope: Scope, id: number): ScoutRequest | undefined {
+  return getGuildData(scope).requests.find((r) => r.id === id);
 }
 
-export function getScoutRequestByMessageId(guildId: string, messageId: string): ScoutRequest | undefined {
-  return getGuildData(guildId).requests.find((r) => r.messageId === messageId);
+export function getScoutRequestByMessageId(scope: Scope, messageId: string): ScoutRequest | undefined {
+  return getGuildData(scope).requests.find((r) => r.messageId === messageId);
 }
 
-/** Find a scout by message id across guilds; used by the scheduler, which only knows the message. */
-export function findScoutByMessageId(messageId: string): { guildId: string; request: ScoutRequest } | undefined {
-  for (const [guildId, guild] of Object.entries(loadAllData())) {
+/** Find a scout by message id across all scopes; used by the scheduler, which only knows the message. */
+export function findScoutByMessageId(messageId: string): { scope: Scope; request: ScoutRequest } | undefined {
+  for (const [key, guild] of Object.entries(loadAllData())) {
     const request = guild.requests.find((r) => r.messageId === messageId);
-    if (request) return { guildId, request };
+    if (request) return { scope: parseScopeKey(key), request };
   }
   return undefined;
 }
 
-export function getOpenScoutRequests(guildId: string): ScoutRequest[] {
-  return getGuildData(guildId).requests.filter((r) => r.status === "open");
+export function getOpenScoutRequests(scope: Scope): ScoutRequest[] {
+  return getGuildData(scope).requests.filter((r) => r.status === "open");
 }
 
-export function setScoutGoing(guildId: string, id: number, going: ScoutGoing): ScoutRequest | undefined {
-  const data = getGuildData(guildId);
+export function setScoutGoing(scope: Scope, id: number, going: ScoutGoing): ScoutRequest | undefined {
+  const data = getGuildData(scope);
   const request = data.requests.find((r) => r.id === id);
   if (!request) return undefined;
   const index = request.going.findIndex((g) => g.userId === going.userId);
   if (index === -1) request.going.push(going);
   else request.going[index] = going;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
-export function markScoutDone(guildId: string, id: number, reportUrl?: string): ScoutRequest | undefined {
-  const data = getGuildData(guildId);
+export function markScoutDone(scope: Scope, id: number, reportUrl?: string): ScoutRequest | undefined {
+  const data = getGuildData(scope);
   const request = data.requests.find((r) => r.id === id);
   if (!request) return undefined;
   request.status = "done";
   request.doneAt = Date.now();
   if (reportUrl) request.reportUrl = reportUrl;
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return request;
 }
 
 /** Drop a scout request entirely (undo of its creation). */
-export function removeScoutRequest(guildId: string, id: number): ScoutRequest | undefined {
-  const data = getGuildData(guildId);
+export function removeScoutRequest(scope: Scope, id: number): ScoutRequest | undefined {
+  const data = getGuildData(scope);
   const index = data.requests.findIndex((r) => r.id === id);
   if (index === -1) return undefined;
   const [removed] = data.requests.splice(index, 1);
-  saveGuildData(guildId, data);
+  saveGuildData(scope, data);
   return removed;
 }
 
 /** Keep the file small: drop done scouts older than 14 days. */
-export function pruneScoutRequests(guildId: string, maxAgeMs = 14 * 24 * 60 * 60 * 1000): void {
-  const data = getGuildData(guildId);
+export function pruneScoutRequests(scope: Scope, maxAgeMs = 14 * 24 * 60 * 60 * 1000): void {
+  const data = getGuildData(scope);
   const cutoff = Date.now() - maxAgeMs;
   const before = data.requests.length;
   data.requests = data.requests.filter((r) => r.status === "open" || (r.doneAt ?? r.createdAt) > cutoff);
-  if (data.requests.length !== before) saveGuildData(guildId, data);
+  if (data.requests.length !== before) saveGuildData(scope, data);
 }
