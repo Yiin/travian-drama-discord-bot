@@ -8,6 +8,7 @@ vi.mock("../../config/guild-config", () => ({
 vi.mock("../map-data", () => ({
   getVillageAt: vi.fn().mockResolvedValue(null),
   getMapLink: () => "https://example.com/map",
+  villageLink: (_serverKey: string, _position: unknown, name: string) => name,
 }));
 vi.mock("../def-calls", () => ({
   updateChannelInfo: vi.fn(),

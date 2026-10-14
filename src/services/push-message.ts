@@ -19,7 +19,7 @@ import {
   getPushRequestByChannelId,
 } from "./push-requests";
 import { getScopeConfig } from "../config/guild-config";
-import { getVillageAt, getMapLink, VillageData } from "./map-data";
+import { getVillageAt, getMapLink, villageLink, VillageData } from "./map-data";
 import { formatResources, percentOf, progressBar } from "../utils/format";
 import { v2 } from "./panel";
 import { Scope } from "../config/scope";
@@ -59,9 +59,9 @@ export function buildPushThreadName(requestId: number, playerName: string): stri
   return slug ? `push-${requestId}-${slug}` : `push-${requestId}`;
 }
 
-function villageLink(serverKey: string, request: PushRequest, village: VillageData | null): string {
+function villageText(serverKey: string, request: PushRequest, village: VillageData | null): string {
   const name = village ? village.villageName : "Unknown village";
-  return `[${name}](${getMapLink(serverKey, request)}) (${request.x}|${request.y})`;
+  return villageLink(serverKey, request, name);
 }
 
 function ownerLine(village: VillageData | null, request: PushRequest): string {
@@ -94,7 +94,7 @@ export function buildPushCard(request: PushRequest, serverKey: string, village: 
   card.addSectionComponents(
     new SectionBuilder()
       .addTextDisplayComponents(
-        text(`## ${title} · ${villageLink(serverKey, request, village)}`),
+        text(`## ${title} · ${villageText(serverKey, request, village)}`),
         text(ownerLine(village, request)),
       )
       .setButtonAccessory(
@@ -143,7 +143,7 @@ export async function createPushThread(
   const playerName = village?.playerName || "unknown";
 
   const starter = await parent.send({
-    content: `**${request.requesterAccount}** push: ${villageLink(config.serverKey, request, village)} — needs ${formatResources(request.resourcesNeeded)}`,
+    content: `**${request.requesterAccount}** push: ${villageText(config.serverKey, request, village)} — needs ${formatResources(request.resourcesNeeded)}`,
     allowedMentions: { parse: [] },
   });
 

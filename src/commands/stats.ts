@@ -21,7 +21,7 @@ import {
   resetStats,
   getLastResetTime,
 } from "../services/stats";
-import { getVillageAt, getMapLink, getPlayerByExactName, searchPlayersByName } from "../services/map-data";
+import { getVillageAt, getPlayerByExactName, searchPlayersByName, villageLink } from "../services/map-data";
 import { getAllPlayers } from "../services/player-accounts";
 import { guildCommand, requireScope } from "./shared";
 import { parseCoords } from "../utils/parse-coords";
@@ -198,8 +198,7 @@ async function handleUser(
     if (serverKey) {
       const village = await getVillageAt(serverKey, v.x, v.y);
       if (village) {
-        const mapLink = getMapLink(serverKey, v);
-        villageName = `[${village.villageName}](${mapLink}) (${v.x}|${v.y})`;
+        villageName = villageLink(serverKey, v, village.villageName);
       }
     }
 
@@ -257,9 +256,8 @@ async function handlePlayer(
     const collected = villageStats?.totalTroops || 0;
     totalCollected += collected;
 
-    const mapLink = getMapLink(serverKey, v);
     const collectedStr = collected > 0 ? `**${formatNumber(collected)}**` : "0";
-    lines.push(`[${v.villageName}](${mapLink}) (${v.x}|${v.y}) │ ${collectedStr}`);
+    lines.push(`${villageLink(serverKey, v, v.villageName)} │ ${collectedStr}`);
   }
 
   const allianceStr = player.allianceName ? ` [${player.allianceName}]` : "";
@@ -365,8 +363,7 @@ async function handleStacks(
     if (serverKey) {
       const village = await getVillageAt(serverKey, v.x, v.y);
       if (village) {
-        const mapLink = getMapLink(serverKey, v);
-        villageName = `[${village.villageName}](${mapLink}) (${v.x}|${v.y})`;
+        villageName = villageLink(serverKey, v, village.villageName);
       }
     }
 

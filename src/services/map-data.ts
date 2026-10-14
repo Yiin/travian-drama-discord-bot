@@ -1,4 +1,5 @@
 import initSqlJs, { Database } from "sql.js";
+import { escapeMarkdown } from "discord.js";
 import fs from "fs";
 import path from "path";
 import https from "https";
@@ -374,6 +375,40 @@ export function getMapLink(serverKey: string, position: { x: number; y: number }
   return `https://${serverKey}.travian.com/karte.php?x=${position.x}&y=${position.y}`
 }
 
+// Discord's client shows `[text](url)` in a bot message as raw text when the link text holds an
+// emoji (only webhook messages may), a URL, or nothing visible. Backslash escapes are off inside
+// link text, so markdown characters cannot be escaped there either. Rule read from the masked-link
+// parser in the Discord web client, 2026-10.
+const INVISIBLE = /\p{Cf}|\p{Zl}|\p{Zp}|\p{Cc}|[^\P{Zs} ]|[\u034F\u17B4\u17B5\u1160\u3164\uFFA0]/gu;
+const UNLINKABLE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3|[[\]()*_~|`<>\\]|\/\/|www\./iu;
+
+function canLinkName(name: string): boolean {
+  return !UNLINKABLE.test(name) && name.replace(INVISIBLE, "").trim() !== "";
+}
+
+/**
+ * Village name as a map link, then the coordinates: `[Name](maplink) (x|y)`.
+ * A name Discord would not render as a link stays plain and the coordinates carry the link.
+ */
+export function villageLink(
+  serverKey: string,
+  position: { x: number; y: number },
+  name: string,
+  { bold = false } = {},
+): string {
+  if (!canLinkName(name)) {
+    const plain = escapeMarkdown(name);
+    return `${bold ? `**${plain}**` : plain} ${coordsLink(serverKey, position)}`;
+  }
+  const text = bold ? `**${name}**` : name;
+  return `[${text}](${getMapLink(serverKey, position)}) (${position.x}|${position.y})`;
+}
+
+/** Coordinates as a map link: `[(x|y)](maplink)`. */
+export function coordsLink(serverKey: string, position: { x: number; y: number }): string {
+  return `[(${position.x}|${position.y})](${getMapLink(serverKey, position)})`;
+}
+
 /**
  * Format village display string for Discord messages.
  * Format: [(x|y)](maplink) **Village Name** (Player)
@@ -382,8 +417,7 @@ export function formatVillageDisplay(
   serverKey: string,
   village: { x: number; y: number; villageName: string; playerName: string }
 ): string {
-  const mapLink = getMapLink(serverKey, village);
-  return `[(${village.x}|${village.y})](${mapLink}) **${village.villageName}** (${village.playerName})`;
+  return `${coordsLink(serverKey, village)} **${escapeMarkdown(village.villageName)}** (${escapeMarkdown(village.playerName)})`;
 }
 
 export function getTribeName(tribe: number): string {

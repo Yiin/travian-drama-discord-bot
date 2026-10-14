@@ -25,6 +25,8 @@ import {
   getVillageAt,
   getRallyPointLink,
   getMapLink,
+  coordsLink,
+  villageLink,
   VillageData,
 } from "./map-data";
 import {
@@ -63,10 +65,9 @@ function toUnix(ms: number): number {
   return Math.floor(ms / 1000);
 }
 
-function villageTitle(serverKey: string, request: DefenseRequest, village: VillageData | null): string {
-  const mapLink = getMapLink(serverKey, request);
-  if (!village) return `#${request.id} · (${request.x}|${request.y})`;
-  return `#${request.id} · [${village.villageName}](${mapLink})`;
+function villageTitle(serverKey: string, request: DefenseRequest, village: VillageData | null, marker: string): string {
+  if (!village) return `**${marker}#${request.id}** ${coordsLink(serverKey, request)}`;
+  return `**${marker}#${request.id} ·** ${villageLink(serverKey, request, village.villageName, { bold: true })}`;
 }
 
 function ownerLine(village: VillageData | null): string {
@@ -82,7 +83,7 @@ function requestLines(
   isFirst: boolean,
 ): [string, string, string] {
   const marker = isFirst ? "➡️ " : "";
-  const line1 = `**${marker}${villageTitle(serverKey, request, village)}** (${request.x}|${request.y}) · ${ownerLine(village)}`;
+  const line1 = `${villageTitle(serverKey, request, village, marker)} · ${ownerLine(village)}`;
   const line2 = `${progressBar(request.troopsSent, request.troopsNeeded)} **${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)}** · ${percentOf(request.troopsSent, request.troopsNeeded)}%`;
   const notePart = request.message ? `${request.message} · ` : "";
   const line3 = `-# ${notePart}asked by <@${request.requesterId}> ${time(toUnix(request.createdAt), TimestampStyles.RelativeTime)}`;

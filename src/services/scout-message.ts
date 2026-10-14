@@ -13,7 +13,7 @@ import {
 } from "discord.js";
 import { ScoutRequest, formatScoutId, setScoutMessageId } from "./scout-requests";
 import { getScopeConfig } from "../config/guild-config";
-import { getVillageAt, getMapLink, getRallyPointLink, getTribeName, VillageData } from "./map-data";
+import { getVillageAt, getMapLink, getRallyPointLink, getTribeName, villageLink, VillageData } from "./map-data";
 import { SCOUT_GOING_BUTTON_ID, SCOUT_RESULT_BUTTON_ID } from "./button-handlers/scout-ids";
 import { formatTroops } from "../utils/format";
 import { v2 } from "./panel";
@@ -27,9 +27,9 @@ function text(content: string): TextDisplayBuilder {
   return new TextDisplayBuilder().setContent(content);
 }
 
-function villageLink(serverKey: string, request: ScoutRequest, village: VillageData | null): string {
+function villageText(serverKey: string, request: ScoutRequest, village: VillageData | null): string {
   const name = village ? village.villageName : "Unknown village";
-  return `[${name}](${getMapLink(serverKey, request)}) (${request.x}|${request.y})`;
+  return villageLink(serverKey, request, name);
 }
 
 function ownerLine(village: VillageData | null): string {
@@ -52,7 +52,7 @@ export function buildScoutCard(request: ScoutRequest, serverKey: string, village
   const accent = done ? ACCENT_DONE : request.going.length > 0 ? ACCENT_GOING : ACCENT_OPEN;
   const card = new ContainerBuilder().setAccentColor(accent);
 
-  const title = `🔭 Scout ${villageLink(serverKey, request, village)}`;
+  const title = `🔭 Scout ${villageText(serverKey, request, village)}`;
   const headerLines = [
     done ? `### ~~${title}~~` : `### ${title}`,
     ownerLine(village),

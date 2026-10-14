@@ -27,6 +27,7 @@ import { getScopeConfig } from "../config/guild-config";
 import {
   getVillageAt,
   getMapLink,
+  villageLink,
   getRallyPointLink,
   getTribeName,
   VillageData,
@@ -74,9 +75,9 @@ export function defCallState(request: DefCallRequest): CardState {
   return "open";
 }
 
-function villageLink(serverKey: string, request: DefCallRequest, village: VillageData | null): string {
+function villageText(serverKey: string, request: DefCallRequest, village: VillageData | null): string {
   const name = village ? village.villageName : "Unknown village";
-  return `[${name}](${getMapLink(serverKey, request)}) (${request.x}|${request.y})`;
+  return villageLink(serverKey, request, name);
 }
 
 function ownerLine(village: VillageData | null): string {
@@ -95,7 +96,7 @@ function buildStarterContent(
   const prefix = state === "fulfilled" ? "✅ " : state === "landed" ? "🏁 " : state === "closed" ? "🔒 " : "";
   const note = request.comment ? ` — _${request.comment}_` : "";
   const lands = `${time(request.landingAt, TimestampStyles.RelativeTime)} (${formatRawTime(request.landingAt, serverTimezone)})`;
-  return `${prefix}<@${request.requesterId}> requests defense: **${villageLink(serverKey, request, village)}** — lands ${lands}${note}`;
+  return `${prefix}<@${request.requesterId}> requests defense: **${villageText(serverKey, request, village)}** — lands ${lands}${note}`;
 }
 
 function buildButtons(): ActionRowBuilder<ButtonBuilder> {
@@ -123,7 +124,7 @@ export function buildDefCallCard(
     state === "fulfilled" ? "✅ Covered" : "⚔️ Defend";
   const landsVerb = state === "landed" || state === "closed" ? "Landed" : "Lands";
   const headerLines = [
-    `## ${title} · ${villageLink(serverKey, request, village)}`,
+    `## ${title} · ${villageText(serverKey, request, village)}`,
     ownerLine(village),
     `🕒 ${landsVerb} **${time(request.landingAt, TimestampStyles.RelativeTime)}** · ${formatRawTime(request.landingAt, serverTimezone)} server time`,
   ];
