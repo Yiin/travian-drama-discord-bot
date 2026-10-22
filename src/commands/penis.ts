@@ -6,6 +6,22 @@ export const penisCommand: Command = {
   data: guildCommand("penis", "Generate a random penis size"),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+    const prefix = `${interaction.user.displayName}'s penis size:`;
+    const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+
+    // 1 in 10 rolls skips the ruler entirely
+    const anomalies: { size: string; comment: string }[] = [
+      { size: "**0cm**", comment: "Grows with your alliance's WW level." },
+      { size: "**π cm**", comment: "Irrational, but it never ends." },
+      { size: "**6cm** (+18cm hero bonus)", comment: "Bonus expires in 3 days." },
+      { size: "**Yes**", comment: "The ruler would not elaborate." },
+    ];
+    if (Math.random() < 0.1) {
+      const anomaly = pick(anomalies);
+      await interaction.reply(`${prefix}\n${anomaly.size}\n-# ${anomaly.comment}`);
+      return;
+    }
+
     const random = Math.random() * 30;
 
     let size: number;
@@ -18,7 +34,6 @@ export const penisCommand: Command = {
     }
 
     const sizeStr = size < 1 ? size.toFixed(1) : size.toString();
-    const prefix = `${interaction.user.displayName}'s penis size:`;
 
     const comments: Record<string, string[]> = {
       tiny: [
@@ -68,7 +83,6 @@ export const penisCommand: Command = {
 
     let sizeFormatted: string;
     let comment: string;
-    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
     if (size < 5) {
       sizeFormatted = `-# **${sizeStr}cm**`;
