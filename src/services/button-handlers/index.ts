@@ -67,6 +67,8 @@ export {
   handleDefCallSentButton,
   handleDefCallSentModal,
   handleDefCallCloseButton,
+  handleDefCallEditButton,
+  handleDefCallEditModal,
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_REQUEST_MODAL_ID,
   DEFCALL_SENT_BUTTON_ID,
@@ -78,6 +80,8 @@ export {
   DEFCALL_TROOPS_INPUT_ID,
   DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_SENT_FOR_SELECT_ID,
+  DEFCALL_EDIT_BUTTON_ID,
+  DEFCALL_EDIT_MODAL_ID,
 } from "./def-call";
 
 // Undo button on ephemeral confirmations

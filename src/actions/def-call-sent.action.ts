@@ -42,7 +42,7 @@ export async function executeDefCallSentAction(
     return { success: false, error: errors.notFound("defense call", requestId) };
   }
   if (requestBefore.closed) {
-    return { success: false, error: "⚠️ **This defense call is closed.** Undo the close first if it was a mistake." };
+    return { success: false, error: errors.defCallClosed() };
   }
   const result = reportTroopsSent(scope, requestId, accountName, troops);
   if ("error" in result) {

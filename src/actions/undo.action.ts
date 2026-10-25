@@ -84,6 +84,14 @@ export async function executeUndoAction(
     );
   }
 
+  // 3c'. Reverse the stats change of a DEF_CALL_CONTRIBUTION_EDIT action
+  if (action.type === "DEF_CALL_CONTRIBUTION_EDIT" && action.data.contributorId) {
+    const delta = (action.data.newAmount ?? 0) - (action.data.oldAmount ?? 0);
+    if (delta !== 0) {
+      recordContribution(scope, action.data.contributorId, action.coords.x, action.coords.y, -delta);
+    }
+  }
+
   // 3d. Reverse a manual stats adjustment
   if (action.type === "STATS_ADJUST" && action.data.troops && action.data.contributorId) {
     recordContribution(

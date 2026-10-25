@@ -38,12 +38,16 @@ import {
   handleDefCallSentButton,
   handleDefCallSentModal,
   handleDefCallCloseButton,
+  handleDefCallEditButton,
+  handleDefCallEditModal,
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_REQUEST_MODAL_ID,
   DEFCALL_SENT_BUTTON_ID,
   DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_SENT_MODAL_ID,
   DEFCALL_CLOSE_BUTTON_ID,
+  DEFCALL_EDIT_BUTTON_ID,
+  DEFCALL_EDIT_MODAL_ID,
   ACCOUNT_REMINDER_ADD_BUTTON_ID,
   ACCOUNT_REMINDER_SKIP_BUTTON_ID,
   ACCOUNT_REMINDER_MODAL_ID,
@@ -245,6 +249,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleDefCallSentButton(interaction);
       } else if (interaction.customId === DEFCALL_CLOSE_BUTTON_ID) {
         await handleDefCallCloseButton(interaction);
+      } else if (interaction.customId === DEFCALL_EDIT_BUTTON_ID) {
+        await handleDefCallEditButton(interaction);
       } else if (interaction.customId === STATS_RESET_CONFIRM_ID || interaction.customId === STATS_RESET_CANCEL_ID) {
         await replyIfPickerStale(interaction, isStatsResetActive(interaction.message.id));
       }
@@ -282,6 +288,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleDefCallRequestModal(interaction);
       } else if (interaction.customId === DEFCALL_SENT_MODAL_ID) {
         await handleDefCallSentModal(interaction);
+      } else if (interaction.customId === DEFCALL_EDIT_MODAL_ID) {
+        await handleDefCallEditModal(interaction);
       }
     } catch (error) {
       console.error("Error handling modal submission:", error);

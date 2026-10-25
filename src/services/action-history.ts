@@ -24,6 +24,7 @@ import {
   subtractTroops as subtractDefCallTroops,
   restoreRequest as restoreDefCallRequest,
   closeRequest as closeDefCallRequestById,
+  setContributorTroops as setDefCallContributorTroops,
 } from "./def-calls";
 import { removeScoutRequest } from "./scout-requests";
 import { formatResources, formatTroops } from "../utils/format";
@@ -51,6 +52,7 @@ export type ActionType =
   // Def call action types
   | "DEF_CALL_REQUEST_ADD"
   | "DEF_CALL_TROOPS_SENT"
+  | "DEF_CALL_CONTRIBUTION_EDIT"
   | "DEF_CALL_CLOSED"
   // Other undoable actions
   | "STATS_ADJUST"
@@ -688,6 +690,36 @@ export function undoAction(scope: Scope, actionId: number): UndoResult {
       };
     }
 
+    case "DEF_CALL_CONTRIBUTION_EDIT": {
+      const { contributorAccount, oldAmount, newAmount } = action.data;
+      if (!contributorAccount || oldAmount === undefined || newAmount === undefined) {
+        markUndone(scope, actionId);
+        return {
+          success: false,
+          message: `Action #${actionId} is missing required data.`,
+        };
+      }
+
+      const existing = getDefCallRequestById(scope, action.requestId);
+      if (!existing) {
+        markUndone(scope, actionId);
+        return {
+          success: true,
+          message: `Undone: request ${coordsStr} no longer exists.`,
+        };
+      }
+
+      // Reverse only this edit's change; a snapshot would erase later reports
+      const current = existing.contributors.find((c) => c.accountName === contributorAccount)?.troops ?? 0;
+      setDefCallContributorTroops(scope, action.requestId, contributorAccount, current + oldAmount - newAmount);
+      markUndone(scope, actionId);
+      return {
+        success: true,
+        message: `Undone: ${contributorAccount} troops on ${coordsStr} set back from ${formatTroops(newAmount)} to ${formatTroops(oldAmount)}.`,
+        requestId: action.requestId,
+      };
+    }
+
     case "DEF_CALL_CLOSED": {
       if (!action.previousDefCallState) {
         markUndone(scope, actionId);
@@ -797,6 +829,8 @@ export function getActionDescription(action: Action): string {
       return `Created defense request ${coordsStr}`;
     case "DEF_CALL_TROOPS_SENT":
       return `Sent ${formatTroops(action.data.troops || 0)} troops to ${coordsStr}`;
+    case "DEF_CALL_CONTRIBUTION_EDIT":
+      return `Changed ${action.data.contributorAccount} troops ${coordsStr} (${formatTroops(action.data.oldAmount || 0)} → ${formatTroops(action.data.newAmount || 0)})`;
     case "DEF_CALL_CLOSED":
       return `Closed defense request ${coordsStr}`;
     case "STATS_ADJUST": {

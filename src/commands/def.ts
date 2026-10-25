@@ -8,6 +8,7 @@ import {
   executeDefCallRequestAction,
   executeDefCallSentAction,
   executeDefCallCloseAction,
+  executeDefCallEditAction,
 } from "../actions";
 import { getRequestByChannelId } from "../services/def-calls";
 import { withRetry } from "../utils/retry";
@@ -53,6 +54,17 @@ export const defCommand: Command = {
           opt.setName("for").setDescription("Credit another member instead of yourself")
         )
     )
+    .addSubcommand((sub) =>
+      sub
+        .setName("edit")
+        .setDescription("Fix your reported troops in this defense thread (0 removes them)")
+        .addIntegerOption((opt) =>
+          opt.setName("troops").setDescription("Correct total of troops you sent").setRequired(true).setMinValue(0)
+        )
+        .addUserOption((opt) =>
+          opt.setName("for").setDescription("Fix another member's total instead of yours")
+        )
+    )
     .addSubcommand((sub) => sub.setName("close").setDescription("Close this defense call and archive the thread")),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -95,6 +107,27 @@ export const defCommand: Command = {
           requestId: requestData.requestId,
           troops: interaction.options.getInteger("troops", true),
           creditUserId: creditUser?.id,
+        });
+        if (!result.success) {
+          await interaction.editReply(failEdit(result.error, interaction));
+          return;
+        }
+        await interaction.editReply(
+          confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+        );
+        return;
+      }
+      case "edit": {
+        const requestData = getRequestByChannelId(scope, interaction.channelId);
+        if (!requestData) {
+          await interaction.reply({ content: errors.notInThread("defense"), flags: MessageFlags.Ephemeral });
+          return;
+        }
+        await withRetry(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
+        const result = await executeDefCallEditAction(context, {
+          requestId: requestData.requestId,
+          troops: interaction.options.getInteger("troops", true),
+          creditUserId: interaction.options.getUser("for")?.id,
         });
         if (!result.success) {
           await interaction.editReply(failEdit(result.error, interaction));

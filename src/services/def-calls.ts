@@ -228,6 +228,37 @@ export function subtractTroops(
   return { success: true, request };
 }
 
+export interface SetTroopsResult {
+  request: DefCallRequest;
+  previousTroops: number;
+}
+
+/** Set one account's troop total on a call. 0 removes the account from the list. */
+export function setContributorTroops(
+  scope: Scope,
+  requestId: number,
+  accountName: string,
+  troops: number
+): SetTroopsResult | { error: string } {
+  const data = getGuildDefCalls(scope);
+  const request = findById(data, requestId);
+  if (!request) {
+    return { error: `Request #${requestId} not found.` };
+  }
+  const existing = request.contributors.find((c) => c.accountName === accountName);
+  const previousTroops = existing?.troops ?? 0;
+  if (troops <= 0) {
+    request.contributors = request.contributors.filter((c) => c.accountName !== accountName);
+  } else if (existing) {
+    existing.troops = troops;
+  } else {
+    request.contributors.push({ accountName, troops });
+  }
+  request.troopsSent = Math.max(0, request.troopsSent + troops - previousTroops);
+  saveGuildData(scope, data);
+  return { request, previousTroops };
+}
+
 export function closeRequest(
   scope: Scope,
   requestId: number

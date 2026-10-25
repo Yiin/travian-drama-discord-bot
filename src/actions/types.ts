@@ -295,6 +295,24 @@ export interface DefCallSentActionSuccess extends ActionSuccess {
 
 export type DefCallSentActionResult = DefCallSentActionSuccess | ActionError;
 
+export interface DefCallEditActionInput {
+  requestId: number;
+  /** New total for the account. 0 removes it. */
+  troops: number;
+  /** Edit another member's total instead of your own. */
+  creditUserId?: string;
+}
+
+export interface DefCallEditActionSuccess extends ActionSuccess {
+  requestId: number;
+  accountName: string;
+  oldTroops: number;
+  newTroops: number;
+  totalTroops: number;
+}
+
+export type DefCallEditActionResult = DefCallEditActionSuccess | ActionError;
+
 export interface DefCallCloseActionInput {
   requestId: number;
 }

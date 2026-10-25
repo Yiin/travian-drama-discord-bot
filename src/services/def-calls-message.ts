@@ -38,6 +38,7 @@ import {
   DEFCALL_SENT_BUTTON_ID,
   DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_CLOSE_BUTTON_ID,
+  DEFCALL_EDIT_BUTTON_ID,
 } from "./button-handlers/def-call-ids";
 import { formatTroops, percentOf, progressBar } from "../utils/format";
 import { upsertPanel, v2 } from "./panel";
@@ -103,6 +104,7 @@ function buildButtons(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(DEFCALL_SENT_BUTTON_ID).setLabel("I sent troops").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(DEFCALL_SENT_FOR_BUTTON_ID).setLabel("Sent for someone").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(DEFCALL_EDIT_BUTTON_ID).setLabel("Edit troops").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(DEFCALL_CLOSE_BUTTON_ID).setLabel("Close").setStyle(ButtonStyle.Secondary),
   );
 }

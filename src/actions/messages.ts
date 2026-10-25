@@ -114,6 +114,11 @@ export const errors = {
       ? `⚠️ **${capitalize(what)} not found.**`
       : `⚠️ **${capitalize(what)} #${id} not found.** It may have been completed or removed.`,
 
+  defCallClosed: () => "⚠️ **This defense call is closed.** Undo the close first if it was a mistake.",
+
+  noTroopsReported: (accountName: string) =>
+    `⚠️ **${accountName} has no troops on this call.** Report troops with ${cmd("def sent")} instead.`,
+
   mapUnavailable: () =>
     "⚠️ **Map data is not available right now.** Try again in a minute.",
 

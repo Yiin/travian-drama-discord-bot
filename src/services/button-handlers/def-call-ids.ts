@@ -11,3 +11,5 @@ export const DEFCALL_NEEDED_INPUT_ID = "defcall_needed_input";
 export const DEFCALL_TROOPS_INPUT_ID = "defcall_troops_input";
 export const DEFCALL_SENT_FOR_BUTTON_ID = "defcall_sent_for_button";
 export const DEFCALL_SENT_FOR_SELECT_ID = "defcall_sent_for_select";
+export const DEFCALL_EDIT_BUTTON_ID = "defcall_edit_button";
+export const DEFCALL_EDIT_MODAL_ID = "defcall_edit_modal";

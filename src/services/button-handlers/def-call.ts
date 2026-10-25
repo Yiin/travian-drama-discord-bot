@@ -14,6 +14,8 @@ import { getRequestByChannelId } from "../def-calls";
 import { executeDefCallRequestAction } from "../../actions/def-call-request.action";
 import { executeDefCallSentAction } from "../../actions/def-call-sent.action";
 import { executeDefCallCloseAction } from "../../actions/def-call-close.action";
+import { executeDefCallEditAction } from "../../actions/def-call-edit.action";
+import { getAccountForUser } from "../player-accounts";
 import {
   DEFCALL_REQUEST_BUTTON_ID,
   DEFCALL_REQUEST_MODAL_ID,
@@ -27,6 +29,8 @@ import {
   DEFCALL_TROOPS_INPUT_ID,
   DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_SENT_FOR_SELECT_ID,
+  DEFCALL_EDIT_BUTTON_ID,
+  DEFCALL_EDIT_MODAL_ID,
 } from "./def-call-ids";
 import { formatTroops } from "../../utils/format";
 import { errors, failEdit } from "../../actions/messages";
@@ -48,6 +52,8 @@ export {
   DEFCALL_TROOPS_INPUT_ID,
   DEFCALL_SENT_FOR_BUTTON_ID,
   DEFCALL_SENT_FOR_SELECT_ID,
+  DEFCALL_EDIT_BUTTON_ID,
+  DEFCALL_EDIT_MODAL_ID,
 };
 
 export async function handleDefCallRequestButton(
@@ -225,7 +231,7 @@ export async function handleDefCallSentButton(
   }
   if (requestData.request.closed) {
     await interaction.reply({
-      content: "⚠️ **This defense call is closed.** Undo the close first if it was a mistake.",
+      content: errors.defCallClosed(),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -281,6 +287,106 @@ export async function handleDefCallSentModal(
   const result = await executeDefCallSentAction(
     buildActionContext(interaction, scope, config),
     { requestId: requestData.requestId, troops, creditUserId: sentBy?.id }
+  );
+
+  if (!result.success) {
+    await interaction.editReply(failEdit(result.error, interaction));
+    return;
+  }
+
+  await interaction.editReply(
+    confirmationEdit(result.confirmText ?? asConfirm(result.actionText), { actionId: result.actionId })
+  );
+}
+
+function buildEditModal(request: { troopsSent: number; troopsNeeded?: number }, ownTroops?: number): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(DEFCALL_EDIT_MODAL_ID)
+    .setTitle("Edit reported troops");
+
+  const total = request.troopsNeeded
+    ? `${formatTroops(request.troopsSent)} / ${formatTroops(request.troopsNeeded)}`
+    : formatTroops(request.troopsSent);
+
+  const troopsInput = new TextInputBuilder()
+    .setCustomId(DEFCALL_TROOPS_INPUT_ID)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("2000")
+    .setRequired(true)
+    .setMaxLength(10);
+  if (ownTroops !== undefined) troopsInput.setValue(String(ownTroops));
+  const troopsLabel = new LabelBuilder()
+    .setLabel("Correct total")
+    .setDescription(`Replaces the reported total. 0 removes it. Call total: ${total}`)
+    .setTextInputComponent(troopsInput);
+
+  const forSelect = new UserSelectMenuBuilder()
+    .setCustomId(DEFCALL_SENT_FOR_SELECT_ID)
+    .setPlaceholder("Pick a member…")
+    .setMinValues(0)
+    .setMaxValues(1)
+    .setRequired(false);
+  const forLabel = new LabelBuilder()
+    .setLabel("Member")
+    .setDescription("Leave empty to fix your own total")
+    .setUserSelectMenuComponent(forSelect);
+
+  modal.addLabelComponents(troopsLabel, forLabel);
+  return modal;
+}
+
+export async function handleDefCallEditButton(
+  interaction: ButtonInteraction
+): Promise<void> {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const requestData = getRequestByChannelId(scope, interaction.channelId);
+  if (!requestData) {
+    await interaction.reply({ content: errors.notInThread("defense"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (requestData.request.closed) {
+    await interaction.reply({ content: errors.defCallClosed(), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const ownAccount = getAccountForUser(scope.guildId, interaction.user.id);
+  const ownTroops = requestData.request.contributors.find((c) => c.accountName === ownAccount)?.troops;
+  await interaction.showModal(buildEditModal(requestData.request, ownTroops));
+}
+
+export async function handleDefCallEditModal(
+  interaction: ModalSubmitInteraction
+): Promise<void> {
+  const scope = await resolveScope(interaction);
+  if (!scope) {
+    await interaction.reply({ content: errors.guildOnly(), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const requestData = interaction.channelId ? getRequestByChannelId(scope, interaction.channelId) : undefined;
+  if (!requestData) {
+    await interaction.reply({ content: errors.notInThread("defense"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const troopsInput = interaction.fields.getTextInputValue(DEFCALL_TROOPS_INPUT_ID);
+  const troops = troopsInput.trim() === "0" ? 0 : parseTroopCount(troopsInput);
+  if (troops === null) {
+    await interaction.reply({ content: errors.invalidCount("troops"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const member = interaction.fields.getSelectedUsers(DEFCALL_SENT_FOR_SELECT_ID, false)?.first();
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const result = await executeDefCallEditAction(
+    buildActionContext(interaction, scope, getScopeConfig(scope)),
+    { requestId: requestData.requestId, troops, creditUserId: member?.id }
   );
 
   if (!result.success) {
