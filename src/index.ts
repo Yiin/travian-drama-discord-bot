@@ -77,7 +77,7 @@ import {
   handleUndoButton,
   UNDO_BUTTON_PREFIX,
 } from "./services/button-handlers/index";
-import { cacheCommandIds } from "./actions/messages";
+import { registerCommands } from "./actions/messages";
 import { LOOKUP_PLAYER_SELECT_ID, isLookupPickerActive } from "./commands/lookup";
 import { STATS_RESET_CONFIRM_ID, STATS_RESET_CANCEL_ID, isStatsResetActive } from "./commands/stats";
 import { ensureMigrated as ensureStackMigrated } from "./services/defense-requests";
@@ -88,7 +88,6 @@ import { HELP_BUTTON_PREFIX } from "./services/help";
 import { errors, ACCOUNT_LINK_BUTTON_PREFIX, SETUP_OPEN_BUTTON_ID, SETUP_PING_ADMIN_BUTTON_ID } from "./actions/messages";
 import {
   postWelcomePanel,
-  warnIfCommandsMissing,
   handleSetupOpenButton,
   handleSetupPingAdminButton,
   handleSetupServerButton,
@@ -161,9 +160,10 @@ client.once(Events.ClientReady, async (readyClient) => {
   ensurePushMigrated();
   ensureDefCallsMigrated();
 
-  // Cache slash command IDs so error messages can link commands
-  await cacheCommandIds(readyClient, process.env.DISCORD_GUILD_ID);
-// Start the map data scheduler
+  // Register slash commands globally so every server that adds the bot gets them
+  await registerCommands(readyClient, commands);
+
+  // Start the map data scheduler
   startScheduler();
 
   // Load and reschedule any pending scout notifications
@@ -179,7 +179,6 @@ client.once(Events.ClientReady, async (readyClient) => {
 // Onboarding: greet a new server with the setup panel
 client.on(Events.GuildCreate, async (guild) => {
   try {
-    await warnIfCommandsMissing(guild);
     await postWelcomePanel(client, guild);
   } catch (error) {
     console.error(`Error onboarding guild ${guild.id}:`, error);

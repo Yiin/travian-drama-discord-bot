@@ -5,11 +5,13 @@ import {
   ButtonStyle,
   chatInputApplicationCommandMention,
   Client,
+  Collection,
   GuildMember,
   MessageFlags,
 } from "discord.js";
 import { isAdmin } from "../utils/permissions";
 import type { Permission } from "../config/guild-config";
+import type { Command } from "../types";
 
 /**
  * The only place for user-facing error and success wording.
@@ -22,15 +24,14 @@ import type { Permission } from "../config/guild-config";
 
 const commandIds = new Map<string, string>();
 
-/** Cache slash command IDs so `cmd()` can render clickable mentions. Call once at ClientReady. */
-export async function cacheCommandIds(client: Client, guildId?: string): Promise<void> {
+/** Register every slash command globally and cache their IDs so `cmd()` can render clickable mentions. Call once at ClientReady. */
+export async function registerCommands(client: Client, commands: Collection<string, Command>): Promise<void> {
   try {
-    const commands = guildId
-      ? await client.application?.commands.fetch({ guildId })
-      : await client.application?.commands.fetch();
-    commands?.forEach((command) => commandIds.set(command.name, command.id));
+    const registered = await client.application?.commands.set(commands.map((command) => command.data.toJSON()));
+    registered?.forEach((command) => commandIds.set(command.name, command.id));
+    console.log(`Registered ${commands.size} slash commands globally`);
   } catch (error) {
-    console.error("Failed to cache command IDs:", error);
+    console.error("Failed to register slash commands:", error);
   }
 }
 

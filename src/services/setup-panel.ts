@@ -408,20 +408,6 @@ export async function postWelcomePanel(client: Client, guild: Guild): Promise<vo
   void client;
 }
 
-/** Log a clear line when slash commands are not registered for this guild. */
-export async function warnIfCommandsMissing(guild: Guild): Promise<void> {
-  try {
-    const registered = await guild.commands.fetch();
-    if (registered.size === 0) {
-      console.warn(
-        `[Setup] No slash commands are registered for guild ${guild.name} (${guild.id}). Run: DISCORD_GUILD_ID=${guild.id} npm run register`,
-      );
-    }
-  } catch (error) {
-    console.error(`[Setup] Could not check registered commands for guild ${guild.id}:`, error);
-  }
-}
-
 // --- Ping-admin throttle ---
 
 const PING_ADMIN_INTERVAL_MS = 10 * 60 * 1000;
